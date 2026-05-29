@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
+// --- 安全升級：優先從環境變數讀取金鑰，避免將金鑰硬編碼暴露在 GitHub ---
 const firebaseConfig = {
-  apiKey: "AIzaSyC4YdF_pAKyMFuQVDCau_g3fP9zsMTcOcE",
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyC4YdF_pAKyMFuQVDCau_g3fP9zsMTcOcE",
   authDomain: "fabrica-foodie.firebaseapp.com",
   projectId: "fabrica-foodie",
   storageBucket: "fabrica-foodie.firebasestorage.app",
@@ -72,18 +73,20 @@ export async function POST(request) {
       return NextResponse.json({ error: "內部 API 設定未完成" }, { status: 500 });
     }
 
-    const systemPrompt = `你是一個專業的美食貼文與地理分析 AI。請閱讀使用者提供的 Threads 貼文內容，分析並提取出「餐廳名稱」、「分類」以及「地址」。
+    // 🚀 讓 AI 扮演真正的美食顧問，並啟用 Google Search 功能
+    const systemPrompt = `你是一個高端的專業美食顧問 AI 助理 Fabrica。請閱讀使用者提供的 Threads 貼文內容，分析並提取出「餐廳名稱」、「分類」以及「地址」。
 
     【核心指令】
-    - 若貼文中「只有提及店名、沒有寫地址」，請根據店名推測最有可能的台灣分店地址，如果真的不確定，地址請填寫「台灣地區」或空字串。不要編造不實的詳細門牌。
-    - 嚴格只能輸出一個 JSON 物件，不要任何 Markdown 標記（如 \`\`\`json 等符號）。
+    1. 提取店名與推測台灣地址。
+    2. 最重要：請根據你對該餐廳的認知或是綜合近期的網路真實評價、特色招牌菜色，甚至是近期的優惠與活動，寫出極具質感的「aiNote」。
+    3. 嚴格只能輸出一個 JSON 物件，不要任何 Markdown 標記（如 \`\`\`json 等符號）。
 
     【輸出 JSON 格式】
     {
       "name": "餐廳名稱 (若有中英文請寫 '中文 / 英文'，無則單寫一個)",
       "category": "分類 (例如 '日式甜點 • 咖啡廳' 或 '美式餐酒館 • 漢堡')",
       "address": "餐廳完整地址 (若無精確地址，請寫大略地區如：'台北市信義區')",
-      "aiNote": "一句話簡介這家店特色與推薦菜色 (50-80字)"
+      "aiNote": "50-80字精煉總結這家餐廳的真實網路評價、特色招牌菜色，若近期有知名優惠或活動也請提及。語氣要專業且吸引人。"
     }`;
 
     let aiResult = {
@@ -95,13 +98,17 @@ export async function POST(request) {
 
     try {
       const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${geminiApiKey}`;
+      
+      const payload = {
+        contents: [{ parts: [{ text: `Threads貼文內容：${textToAnalyze}` }] }],
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        tools: [{ google_search: {} }] // 啟用 Google 聯網搜尋評價與活動
+      };
+
       const geminiResponse = await fetch(geminiUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: `Threads貼文內容：${textToAnalyze}` }] }],
-          systemInstruction: { parts: [{ text: systemPrompt }] }
-        })
+        body: JSON.stringify(payload)
       });
 
       const geminiData = await geminiResponse.json();
