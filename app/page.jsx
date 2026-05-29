@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getAuth, 
@@ -15,14 +15,22 @@ import {
   serverTimestamp 
 } from 'firebase/firestore';
 
-// --- 安全升級：使用最嚴格的 try-catch 動態防禦，徹底解決瀏覽器編譯時的 ReferenceError: process is not defined ---
-let safeApiKey = "AIzaSyC4YdF_pAKyMFuQVDCau_g3fP9zsMTcOcE"; // 安全降級備用金鑰
+// --- 3D Mesh Gradient 背景所需的 Three.js 與 R3F 套件 ---
+import { Canvas, useFrame, extend } from '@react-three/fiber';
+import { MathUtils, Vector3, IcosahedronGeometry } from 'three';
+import { Environment } from '@react-three/drei';
+
+// 延伸幾何體以防止 R3F 警報
+extend({ IcosahedronGeometry });
+
+// --- 安全環境變數與降級防禦機制 ---
+let safeApiKey = "AIzaSyC4YdF_pAKyMFuQVDCau_g3fP9zsMTcOcE"; // 預設降級備用金鑰
 try {
   if (typeof window !== 'undefined' && typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
     safeApiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
   }
 } catch (e) {
-  // 靜默降級，防範部分 bundler 靜態解析失敗
+  // 靜默降級，確保編譯時不中斷
 }
 
 const firebaseConfig = {
@@ -38,8 +46,194 @@ const firebaseConfig = {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const db = getFirestore(app);
-const appId = 'fabrica-foodie-app'; 
+const appId = 'fabrica-foodie-app'; // 用於嚴格路徑規則的專案 appId
 
+// ==========================================
+// 🎨 3D Vertex & Fragment Shaders (黑白極簡)
+// ==========================================
+const vertexShader = `
+uniform float u_intensity;
+uniform float u_time;
+uniform float u_noiseScale;
+uniform float u_noiseSpeed;
+
+varying vec2 vUv;
+varying float vDisplacement;
+
+vec4 permute(vec4 x) { return mod(((x*34.0)+1.0)*x, 289.0); }
+vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+vec3 fade(vec3 t) { return t*t*t*(t*(t*6.0-15.0)+10.0); }
+
+float cnoise(vec3 P) {
+    vec3 Pi0 = floor(P);
+    vec3 Pi1 = Pi0 + vec3(1.0);
+    Pi0 = mod(Pi0, 289.0);
+    Pi1 = mod(Pi1, 289.0);
+    vec3 Pf0 = fract(P);
+    vec3 Pf1 = Pf0 - vec3(1.0);
+    vec4 ix = vec4(Pi0.x, Pi1.x, Pi0.x, Pi1.x);
+    vec4 iy = vec4(Pi0.yy, Pi1.yy);
+    vec4 iz0 = Pi0.zzzz;
+    vec4 iz1 = Pi1.zzzz;
+
+    vec4 ixy = permute(permute(ix) + iy);
+    vec4 ixy0 = permute(ixy + iz0);
+    vec4 ixy1 = permute(ixy + iz1);
+
+    vec4 gx0 = ixy0 / 7.0;
+    vec4 gy0 = fract(floor(gx0) / 7.0) - 0.5;
+    gx0 = fract(gx0);
+    vec4 gz0 = vec4(0.5) - abs(gx0) - abs(gy0);
+    vec4 sz0 = step(gz0, vec4(0.0));
+    gx0 -= sz0 * (step(0.0, gx0) - 0.5);
+    gy0 -= sz0 * (step(0.0, gy0) - 0.5);
+
+    vec4 gx1 = ixy1 / 7.0;
+    vec4 gy1 = fract(floor(gx1) / 7.0) - 0.5;
+    gx1 = fract(gx1);
+    vec4 gz1 = vec4(0.5) - abs(gx1) - abs(gy1);
+    vec4 sz1 = step(gz1, vec4(0.0));
+    gx1 -= sz1 * (step(0.0, gx1) - 0.5);
+    gy1 -= sz1 * (step(0.0, gy1) - 0.5);
+
+    vec3 g000 = vec3(gx0.x,gy0.x,gz0.x);
+    vec3 g100 = vec3(gx0.y,gy0.y,gz0.y);
+    vec3 g010 = vec3(gx0.z,gy0.z,gz0.z);
+    vec3 g110 = vec3(gx0.w,gy0.w,gz0.w);
+    vec3 g001 = vec3(gx1.x,gy1.x,gz1.x);
+    vec3 g101 = vec3(gx1.y,gy1.y,gz1.y);
+    vec3 g011 = vec3(gx1.z,gy1.z,gz1.z);
+    vec3 g111 = vec3(gx1.w,gy1.w,gz1.w);
+
+    vec4 norm0 = taylorInvSqrt(vec4(dot(g000, g000), dot(g010, g010), dot(g100, g100), dot(g110, g110)));
+    g000 *= norm0.x;
+    g010 *= norm0.y;
+    g100 *= norm0.z;
+    g110 *= norm0.w;
+    vec4 norm1 = taylorInvSqrt(vec4(dot(g001, g001), dot(g011, g011), dot(g101, g101), dot(g111, g111)));
+    g001 *= norm1.x;
+    g011 *= norm1.y;
+    g101 *= norm1.z;
+    g111 *= norm1.w;
+
+    float n000 = dot(g000, Pf0);
+    float n100 = dot(g100, vec3(Pf1.x, Pf0.yz));
+    float n010 = dot(g010, vec3(Pf0.x, Pf1.y, Pf0.z));
+    float n110 = dot(g110, vec3(Pf1.xy, Pf0.z));
+    float n001 = dot(g001, vec3(Pf0.xy, Pf1.z));
+    float n101 = dot(g101, vec3(Pf1.x, Pf0.y, Pf1.z));
+    float n011 = dot(g011, vec3(Pf0.x, Pf1.yz));
+    float n111 = dot(g111, Pf1);
+
+    vec3 fade_xyz = fade(Pf0);
+    vec4 n_z = mix(vec4(n000, n100, n010, n110), vec4(n001, n101, n011, n111), fade_xyz.z);
+    vec2 n_yz = mix(n_z.xy, n_z.zw, fade_xyz.y);
+    float n_xyz = mix(n_yz.x, n_yz.y, fade_xyz.x); 
+    return 2.2 * n_xyz;
+}
+
+float turbulence(vec3 p) {
+    float t = 0.0;
+    float frequency = 1.0;
+    float amplitude = 1.0;
+    for (int i = 0; i < 4; i++) {
+        t += abs(cnoise(p * frequency)) * amplitude;
+        frequency *= 2.0;
+        amplitude *= 0.5;
+    }
+    return t;
+}
+
+void main() {
+    vUv = uv;
+    float noise1 = cnoise(position * u_noiseScale + vec3(u_time * u_noiseSpeed));
+    float noise2 = cnoise(position * (u_noiseScale * 2.0) + vec3(u_time * u_noiseSpeed * 1.5)) * 0.5;
+    float turbulenceNoise = turbulence(position + vec3(u_time)) * 0.3;
+    vDisplacement = noise1 + noise2 + turbulenceNoise;
+    vec3 newPosition = position + normal * (u_intensity * vDisplacement);
+    vec4 modelPosition = modelMatrix * vec4(newPosition, 1.0);
+    vec4 viewPosition = viewMatrix * modelPosition;
+    vec4 projectedPosition = projectionMatrix * viewPosition;
+    gl_Position = projectedPosition;
+}
+`;
+
+const fragmentShader = `
+uniform float u_intensity;
+uniform float u_time;
+
+varying vec2 vUv;
+varying float vDisplacement;
+
+void main() {
+    float distort = 2.0 * vDisplacement * u_intensity * sin(vUv.y * 10.0 + u_time);
+    
+    // 黑白質感映射 (純白底色，流動深邃黑色波紋)
+    vec3 baseColor = vec3(0.96, 0.96, 0.97); 
+    vec3 waveColor = vec3(0.05, 0.05, 0.06); 
+    
+    vec3 color = mix(baseColor, waveColor, clamp(abs(distort) * 1.8, 0.0, 1.0));
+    gl_FragColor = vec4(color, 1.0);
+}
+`;
+
+const Blob = () => {
+  const mesh = useRef(null);
+  const hover = useRef(false);
+
+  const uniforms = useMemo(
+    () => ({
+      u_time: { value: 0 },
+      u_intensity: { value: 0.25 },
+      u_noiseScale: { value: 1.5 },
+      u_noiseSpeed: { value: 0.8 },
+    }),
+    []
+  );
+
+  const targetPosition = useRef(new Vector3(0, 0, 0));
+  const currentPosition = useRef(new Vector3(0, 0, 0));
+
+  useFrame((state) => {
+    const { clock, mouse } = state;
+    if (mesh.current) {
+      const material = mesh.current.material;
+      material.uniforms.u_time.value = 0.25 * clock.getElapsedTime();
+      material.uniforms.u_noiseScale.value = Math.sin(clock.getElapsedTime() * 0.1) * 0.5 + 1.2;
+      material.uniforms.u_intensity.value = MathUtils.lerp(
+        material.uniforms.u_intensity.value,
+        hover.current ? 0.35 : 0.2,
+        0.02
+      );
+      
+      // 3D 膠體微微跟隨滑鼠軌跡產生偏移，極具互動感
+      targetPosition.current.set(mouse.x * 1.2, mouse.y * 1.2, 0);
+      currentPosition.current.lerp(targetPosition.current, 0.05);
+      mesh.current.position.copy(currentPosition.current);
+    }
+  });
+
+  return (
+    <mesh
+      ref={mesh}
+      scale={2.4}
+      position={[0, 0, -1]}
+      onPointerOver={() => (hover.current = true)}
+      onPointerOut={() => (hover.current = false)}
+    >
+      <icosahedronGeometry args={[2, 32]} />
+      <shaderMaterial
+        vertexShader={vertexShader}
+        fragmentShader={fragmentShader}
+        uniforms={uniforms}
+      />
+    </mesh>
+  );
+};
+
+// ==========================================
+// 🚀 Page 組件
+// ==========================================
 export default function App() {
   const [firebaseUser, setFirebaseUser] = useState(null);
   const [threadsUsername, setThreadsUsername] = useState("");
@@ -59,13 +253,12 @@ export default function App() {
   const [inputUsername, setInputUsername] = useState("");
   const [loginError, setLoginError] = useState("");
   const [authError, setAuthError] = useState(null); 
-  const [isSandbox, setIsSandbox] = useState(false); // 偵測是否為開發/沙盒測試環境
+  const [isSandbox, setIsSandbox] = useState(false); 
 
-  // 環境偵測：採用極嚴格的顯性網址過濾，確保 Vercel 生產環境 (Production) 絕對不亮起黃色警告
+  // 精確判別環境，防止線上 Vercel 動態加載時誤判
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const hostname = window.location.hostname;
-      // 只有在 localhost、127.0.0.1、或包含 usercontent.goog (Canvas 沙盒) 的網址下，才顯示提示
       const isSand = hostname.includes('usercontent.goog') || 
                      hostname.includes('localhost') || 
                      hostname.includes('127.0.0.1');
@@ -73,7 +266,7 @@ export default function App() {
     }
   }, []);
 
-  // Firebase 驗證 (RULE 3) - 增加錯誤捕捉與本地降級模擬
+  // Firebase 初始化認證
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -81,28 +274,24 @@ export default function App() {
       } catch (err) {
         console.error("Firebase Auth Error:", err);
         setAuthError(err.code || err.message);
-        
-        // 【降級防禦】如果 Firebase 匿名驗證尚未啟用，設定一個模擬 guest 使用者，確保網頁不卡死
+        // 如果 Firebase 專案匿名登入未開啟，啟動本地防護方案，避免網頁卡死
         setFirebaseUser({ uid: "local-temp-guest", isAnonymous: true });
       }
     };
     initAuth();
 
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        setFirebaseUser(user);
-      }
+      if (user) setFirebaseUser(user);
     });
     return () => unsubscribe();
   }, []);
 
-  // 實時數據監聽 (RULE 1 & RULE 2)
+  // 實時監聽 Firestore 資料
   useEffect(() => {
     if (!firebaseUser || !isLoggedIn || !threadsUsername) return;
     if (firebaseUser.uid === "local-temp-guest") return; 
 
     setIsLoading(true);
-    
     const cleanUsername = threadsUsername.replace("@", "").trim().toLowerCase();
     const userRestaurantsRef = collection(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants');
 
@@ -134,12 +323,8 @@ export default function App() {
       setLoginError("請輸入您的 Threads ID");
       return;
     }
-    
     let formatted = inputUsername.trim();
-    if (!formatted.startsWith("@")) {
-      formatted = "@" + formatted;
-    }
-    
+    if (!formatted.startsWith("@")) formatted = "@" + formatted;
     setThreadsUsername(formatted);
     setIsLoggedIn(true);
     setLoginError("");
@@ -225,16 +410,25 @@ export default function App() {
   });
 
   return (
-    <div className="min-h-screen bg-[#F4F4F6] text-[#1D1D1F] tracking-tight selection:bg-[#0071E3]/20 selection:text-[#0071E3] font-sans antialiased">
+    <div className="relative min-h-screen bg-[#F4F4F6] text-[#1D1D1F] tracking-tight selection:bg-[#0071E3]/20 selection:text-[#0071E3] font-sans antialiased overflow-x-hidden">
       
+      {/* 🌟 3D 黑白極簡動態 Shader 流體背景 (未登入時全螢幕鋪底) */}
+      {!isLoggedIn && (
+        <div className="fixed inset-0 z-0 pointer-events-auto bg-[#F4F4F6]">
+          <Canvas camera={{ position: [0.0, 0.0, 8.0], fov: 35 }}>
+            <Environment preset="studio" environmentIntensity={0.5} />
+            <Blob />
+          </Canvas>
+        </div>
+      )}
+
       {!isLoggedIn ? (
-        /* ==================== Apple ID 風格極簡極美登入頁 ==================== */
-        <div className="min-h-screen flex flex-col justify-between px-6 py-10 max-w-sm mx-auto">
+        /* ==================== Apple ID 原生極簡登入介面 ==================== */
+        <div className="relative z-10 min-h-screen flex flex-col justify-between px-6 py-10 max-w-sm mx-auto animate-fade-in pointer-events-none">
           
-          {/* 上半部：品牌 Logo 與輸入區域組合（黃金比例居中） */}
-          <div className="flex-1 flex flex-col justify-center space-y-10 py-8">
+          <div className="flex-1 flex flex-col justify-center space-y-10 py-8 pointer-events-auto">
             <div className="text-center space-y-5">
-              <div className="w-16 h-16 bg-black rounded-[20px] mx-auto flex items-center justify-center shadow-[0_10px_25px_rgba(0,0,0,0.15)] transform hover:scale-105 transition-all duration-300">
+              <div className="w-16 h-16 bg-black rounded-[20px] mx-auto flex items-center justify-center shadow-[0_10px_25px_rgba(0,0,0,0.15)] transform hover:scale-[1.03] transition-all duration-300">
                 <svg className="w-8 h-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
                   <circle cx="12" cy="11" r="3" strokeWidth="1.5"/>
@@ -242,31 +436,26 @@ export default function App() {
               </div>
               
               <div className="space-y-2">
-                <h1 className="text-3xl font-extrabold tracking-tight text-black">Foodie</h1>
-                <p className="text-sm text-[#86868B] font-medium leading-relaxed max-w-xs mx-auto">
+                <h1 className="text-3xl font-extrabold tracking-tight text-black drop-shadow-sm">Foodie</h1>
+                <p className="text-sm text-[#86868B] font-medium leading-relaxed max-w-xs mx-auto drop-shadow-sm">
                   您的專屬美食足跡庫。<br />
                   在 Threads 提及 <span className="text-[#1D1D1F] font-semibold">@fabrica</span> 即可自動寫入。
                 </p>
               </div>
             </div>
 
-            <form onSubmit={handleLogin} className="space-y-5">
-              {/* ⚠️ 僅在 顯性沙盒環境 (isSandbox) 下，才顯示 Firebase 警告 */}
+            <form onSubmit={handleLogin} className="space-y-5 bg-white/45 backdrop-blur-xl border border-white/60 p-6 rounded-[32px] shadow-[0_20px_40px_rgba(0,0,0,0.03)]">
               {isSandbox && (authError === 'auth/configuration-not-found' || authError === 'auth/operation-not-allowed') && (
                 <div className="bg-[#FF9500]/10 border border-[#FF9500]/25 rounded-2xl p-4 text-xs text-[#D97300] font-medium leading-relaxed flex items-start gap-2.5 animate-in fade-in slide-in-from-top-4 duration-300">
                   <span className="text-sm mt-0.5">⚠️</span>
                   <div>
                     <p className="font-bold text-[#C96300]">Firebase 匿名登入尚未啟用</p>
-                    <p className="mt-1 opacity-90">
-                      請前往 Firebase 控制台 ➔ <span className="font-semibold">Authentication</span> ➔ <span className="font-semibold">Sign-in method</span> 啟用「匿名 (Anonymous)」驗證。
-                    </p>
-                    <p className="mt-1.5 text-[10px] font-semibold underline opacity-80">已為您自動開啟「本地防禦降級模式」，您仍可登入並流暢測試功能！</p>
+                    <p className="mt-1 opacity-90">請前往 Firebase 控制台啟用「匿名 (Anonymous)」驗證。</p>
                   </div>
                 </div>
               )}
 
               <div className="space-y-3">
-                {/* 經過黃金比例校正、絕不重疊的精緻輸入框軌道 */}
                 <div className="relative flex items-center w-full">
                   <span className="absolute left-5 top-1/2 -translate-y-1/2 text-base font-semibold text-[#86868B] select-none pointer-events-none">
                     @
@@ -276,7 +465,7 @@ export default function App() {
                     placeholder="輸入您的 Threads 帳號" 
                     value={inputUsername}
                     onChange={(e) => setInputUsername(e.target.value.replace("@", ""))}
-                    className="w-full bg-white text-base font-medium rounded-2xl py-4 pl-12 pr-5 border border-[#D2D2D7] focus:border-black focus:ring-1 focus:ring-black outline-none transition-all duration-200 placeholder-[#86868B]/70 shadow-[0_2px_8px_rgba(0,0,0,0.01)]"
+                    className="w-full bg-white/80 text-base font-medium rounded-2xl py-4.5 pl-12 pr-5 border border-[#D2D2D7] focus:border-black focus:ring-1 focus:ring-black outline-none transition-all duration-200 placeholder-[#86868B]/70 shadow-[0_2px_8px_rgba(0,0,0,0.01)]"
                   />
                 </div>
                 {loginError && (
@@ -289,24 +478,38 @@ export default function App() {
                 )}
               </div>
 
+              {/* 🚀 絕對置中的黑底擴散微動效按鈕 */}
               <button 
                 type="submit"
-                className="w-full bg-[#1D1D1F] hover:bg-black active:scale-[0.98] transition-all duration-200 text-white py-4 rounded-2xl font-semibold text-sm tracking-wide shadow-md"
+                className="group relative cursor-pointer w-full h-[56px] border border-[#D2D2D7] bg-white rounded-2xl overflow-hidden text-[#1D1D1F] font-semibold transition-all duration-300 shadow-sm active:scale-[0.98] outline-none"
               >
-                進入美食檔案
+                {/* 靜止狀態文字 (絕對置中) */}
+                <div className="absolute inset-0 flex items-center justify-center translate-x-0 group-hover:translate-x-16 group-hover:opacity-0 transition-all duration-300 z-20 pointer-events-none select-none">
+                  進入美食檔案
+                </div>
+                
+                {/* 懸浮狀態新文字與箭頭 (絕對置中) */}
+                <div className="absolute inset-0 flex gap-2 items-center justify-center text-white z-20 translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none select-none">
+                  <span className="font-semibold text-sm">進入美食檔案</span>
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+                  </svg>
+                </div>
+                
+                {/* 絕對圓心擴散深色背景 */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-[#1D1D1F] scale-[1] group-hover:scale-[62] transition-transform duration-500 ease-out z-10"></div>
               </button>
             </form>
           </div>
 
-          {/* 下半部：品牌聲明 */}
-          <footer className="text-center text-xs text-[#86868B] pt-4 border-t border-[#E5E5EA]/40">
-            <p className="font-semibold text-black/30">© Fabrica</p>
+          <footer className="relative z-10 text-center text-xs text-[#86868B] pt-4 pointer-events-none">
+            <p className="font-semibold text-[#1D1D1F]/40">© Fabrica</p>
           </footer>
         </div>
       ) : (
-        /* ==================== Apple Premium 主檔案庫看板 ==================== */
-        <div className="pb-32">
-          {/* iOS 高端磨砂玻璃頂部導覽列 */}
+        /* ==================== iOS 主檔案庫面板 ==================== */
+        <div className="relative z-10 pb-32 animate-fade-in bg-[#F4F4F6] min-h-screen">
+          {/* 毛玻璃頂部導覽列 */}
           <header className="sticky top-0 z-40 bg-white/60 backdrop-blur-xl border-b border-[#E5E5EA] px-6 py-4">
             <div className="max-w-md mx-auto flex justify-between items-center">
               <div className="flex flex-col">
@@ -325,7 +528,6 @@ export default function App() {
           </header>
 
           <main className="max-w-md mx-auto px-4 mt-8 space-y-8">
-            {/* 降級模式小提示（同樣限定僅在 isSandbox 啟用時才對開發者展示） */}
             {isSandbox && firebaseUser?.uid === "local-temp-guest" && (
               <div className="bg-[#FF9500]/10 border border-[#FF9500]/20 rounded-2xl p-4 text-xs text-[#D97300] font-medium leading-relaxed animate-in fade-in duration-300">
                 📢 <span className="font-bold">目前處於本地預覽模式：</span>新增的餐廳足跡將暫存在本地記憶體中。若要啟用多裝置實時雲端同步與 Threads 機器人自動寫入，請記得在 Firebase Authentication 啟用「匿名登入 (Anonymous)」功能。
@@ -334,7 +536,6 @@ export default function App() {
 
             <section className="space-y-4">
               <div className="relative flex items-center w-full">
-                {/* 絕對垂直置中且修正尺寸比例的標準放大鏡圖示 */}
                 <svg className="w-5 h-5 text-[#86868B] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none select-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                 </svg>
@@ -503,7 +704,7 @@ export default function App() {
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
           <form 
             onSubmit={handleAddRestaurant}
-            className="bg-white w-full max-w-sm rounded-[32px] p-6 space-y-5 shadow-2xl border border-[#E5E5EA] text-left animate-in zoom-in-95 slide-in-from-bottom-8 duration-300"
+            className="bg-white w-full max-w-sm rounded-[32px] p-6.5 space-y-5 shadow-2xl border border-[#E5E5EA] text-left animate-in zoom-in-95 slide-in-from-bottom-8 duration-300"
           >
             <div className="flex justify-between items-center pb-2 border-b border-[#F5F5F7]">
               <h3 className="text-base font-bold text-black tracking-tight">
