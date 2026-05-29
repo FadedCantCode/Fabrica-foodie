@@ -20,8 +20,8 @@ import {
 import * as THREE from 'three';
 
 // --- 安全環境變數與降級防禦機制 ---
-let safeApiKey = "AIzaSyC4YdF_pAKyMFuQVDCau_g3fP9zsMTcOcE"; 
-let safeGeminiApiKey = "AQ.Ab8RN6LPiIBX6tjKF8oqedcwi0vYfLTBUBz5ApEWqz0YKiNq0A"; // 🌟 確保 AI 絕對不會拿到空白金鑰
+let safeApiKey = ""; 
+let safeGeminiApiKey = ""; // 🌟 將明碼移除，徹底解決 GitHub Secret 警告
 
 try {
   if (typeof window !== 'undefined' && typeof process !== 'undefined' && process.env) {
