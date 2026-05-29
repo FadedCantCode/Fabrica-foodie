@@ -16,7 +16,7 @@
     "postprocessing": "^6.35.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "three": "^0.164.0"
+    "three": "^0.170.0"
   },
   "devDependencies": {
     "postcss": "^8.4.38",
