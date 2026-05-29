@@ -496,8 +496,8 @@ export default function App() {
                   </svg>
                 </div>
                 
-                {/* 絕對圓心擴散深色背景 */}
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-[#1D1D1F] scale-[1] group-hover:scale-[62] transition-transform duration-500 ease-out z-10"></div>
+                {/* 絕對圓心擴散深色背景：預設為 h-0 w-0 不顯示（解決醜陋黑點），Hover 時放大至滿版 */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-0 w-0 rounded-full bg-[#1D1D1F] group-hover:h-2.5 group-hover:w-2.5 group-hover:scale-[62] transition-all duration-500 ease-out z-10"></div>
               </button>
             </form>
           </div>
