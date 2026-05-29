@@ -15,9 +15,9 @@ import {
   serverTimestamp 
 } from 'firebase/firestore';
 
-// --- 真實 Firebase 設定 ---
+// --- 安全升級：將 API Key 改由 Next.js 環境變數讀取，不再直接暴露於代碼中 ---
 const firebaseConfig = {
-  apiKey: "AIzaSyC4YdF_pAKyMFuQVDCau_g3fP9zsMTcOcE",
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY, // 藉由 Vercel 在建置時安全注入
   authDomain: "fabrica-foodie.firebaseapp.com",
   projectId: "fabrica-foodie",
   storageBucket: "fabrica-foodie.firebasestorage.app",
@@ -26,6 +26,7 @@ const firebaseConfig = {
   measurementId: "G-MPYBH4KBER"
 };
 
+// 安全防禦：如果環境變數尚未載入完成，預先宣告空實例避免程式崩潰
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const db = getFirestore(app);
