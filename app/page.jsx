@@ -469,7 +469,8 @@ export default function App() {
     if (!finalNote.trim()) {
       try {
         const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || ""; 
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+        // 🚨 修正：將模型改為所有人都能穩定使用的 gemini-1.5-flash
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
         
         const payload = {
           contents: [{ parts: [{ text: `請分析台灣的這間餐廳：${newRestName} ${newRestAddress}。請綜合網路評價、近期優惠、活動與特色給出建議。` }] }],
@@ -484,12 +485,18 @@ export default function App() {
         });
 
         const geminiData = await geminiResponse.json();
-        const aiText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
         
-        if (aiText) {
-          finalNote = aiText.trim();
+        // 🚨 強化除錯：捕捉真實的 API 錯誤訊息，直接顯示在畫面上！
+        if (geminiData.error) {
+          console.error("Gemini API Error:", geminiData.error);
+          finalNote = `【AI 連線失敗】錯誤代碼：${geminiData.error.code}。原因：${geminiData.error.message}`;
         } else {
-          finalNote = "暫無 AI 分析結果，系統已將其加入您的口袋名單。";
+          const aiText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (aiText) {
+            finalNote = aiText.trim();
+          } else {
+            finalNote = "暫無 AI 分析結果，系統已將其加入您的口袋名單。";
+          }
         }
       } catch (err) {
         console.error("AI Generation error:", err);
