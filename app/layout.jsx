@@ -1,4 +1,5 @@
 import React from 'react';
+import { Analytics } from '@vercel/analytics/next';
 
 export const metadata = {
   title: 'Fabrica Foodie - 您的 Threads 美食收藏庫',
@@ -54,7 +55,10 @@ export default function RootLayout({ children }) {
           }
         `}</style>
       </head>
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        {children}
+        <Analytics />
+      </body>
     </html>
   );
 }
