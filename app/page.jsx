@@ -59,15 +59,16 @@ export default function App() {
   const [inputUsername, setInputUsername] = useState("");
   const [loginError, setLoginError] = useState("");
   const [authError, setAuthError] = useState(null); 
-  const [isSandbox, setIsSandbox] = useState(false); // 偵測是否為測試沙盒環境
+  const [isSandbox, setIsSandbox] = useState(false); // 偵測是否為開發/沙盒測試環境
 
-  // 環境偵測：避免 Next.js SSR 期間出現水合作用 (Hydration) 錯誤
+  // 環境偵測：採用極嚴格的顯性網址過濾，確保 Vercel 生產環境 (Production) 絕對不亮起黃色警告
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const hostname = window.location.hostname;
+      // 只有在 localhost、127.0.0.1、或包含 usercontent.goog (Canvas 沙盒) 的網址下，才顯示提示
       const isSand = hostname.includes('usercontent.goog') || 
                      hostname.includes('localhost') || 
-                     !window.__NEXT_DATA__;
+                     hostname.includes('127.0.0.1');
       setIsSandbox(isSand);
     }
   }, []);
@@ -228,76 +229,85 @@ export default function App() {
       
       {!isLoggedIn ? (
         /* ==================== Apple ID 風格極簡極美登入頁 ==================== */
-        <div className="min-h-screen flex flex-col justify-between px-6 py-12 max-w-sm mx-auto">
-          <div className="text-center pt-24 space-y-6">
-            <div className="w-16 h-16 bg-black rounded-2xl mx-auto flex items-center justify-center shadow-lg transform hover:scale-105 transition-all duration-300">
-              <svg className="w-8 h-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-                <circle cx="12" cy="11" r="3" strokeWidth="1.5"/>
-              </svg>
+        <div className="min-h-screen flex flex-col justify-between px-6 py-10 max-w-sm mx-auto">
+          
+          {/* 上半部：品牌 Logo 與輸入區域組合（黃金比例居中） */}
+          <div className="flex-1 flex flex-col justify-center space-y-10 py-8">
+            <div className="text-center space-y-5">
+              <div className="w-16 h-16 bg-black rounded-[20px] mx-auto flex items-center justify-center shadow-[0_10px_25px_rgba(0,0,0,0.15)] transform hover:scale-105 transition-all duration-300">
+                <svg className="w-8 h-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                  <circle cx="12" cy="11" r="3" strokeWidth="1.5"/>
+                </svg>
+              </div>
+              
+              <div className="space-y-2">
+                <h1 className="text-3xl font-extrabold tracking-tight text-black">Foodie</h1>
+                <p className="text-sm text-[#86868B] font-medium leading-relaxed max-w-xs mx-auto">
+                  您的專屬美食足跡庫。<br />
+                  在 Threads 提及 <span className="text-[#1D1D1F] font-semibold">@fabrica</span> 即可自動寫入。
+                </p>
+              </div>
             </div>
-            
-            <div className="space-y-2">
-              <h1 className="text-3xl font-bold tracking-tight text-black">Foodie</h1>
-              <p className="text-sm text-[#86868B] font-medium leading-relaxed max-w-xs mx-auto">
-                您的專屬美食足跡庫。<br />
-                在 Threads 提及 <span className="text-[#1D1D1F] font-semibold">@fabrica</span> 即可自動寫入。
-              </p>
-            </div>
+
+            <form onSubmit={handleLogin} className="space-y-5">
+              {/* ⚠️ 僅在 顯性沙盒環境 (isSandbox) 下，才顯示 Firebase 警告 */}
+              {isSandbox && (authError === 'auth/configuration-not-found' || authError === 'auth/operation-not-allowed') && (
+                <div className="bg-[#FF9500]/10 border border-[#FF9500]/25 rounded-2xl p-4 text-xs text-[#D97300] font-medium leading-relaxed flex items-start gap-2.5 animate-in fade-in slide-in-from-top-4 duration-300">
+                  <span className="text-sm mt-0.5">⚠️</span>
+                  <div>
+                    <p className="font-bold text-[#C96300]">Firebase 匿名登入尚未啟用</p>
+                    <p className="mt-1 opacity-90">
+                      請前往 Firebase 控制台 ➔ <span className="font-semibold">Authentication</span> ➔ <span className="font-semibold">Sign-in method</span> 啟用「匿名 (Anonymous)」驗證。
+                    </p>
+                    <p className="mt-1.5 text-[10px] font-semibold underline opacity-80">已為您自動開啟「本地防禦降級模式」，您仍可登入並流暢測試功能！</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-3">
+                {/* 經過黃金比例校正、絕不重疊的精緻輸入框軌道 */}
+                <div className="relative flex items-center w-full">
+                  <span className="absolute left-5 top-1/2 -translate-y-1/2 text-base font-semibold text-[#86868B] select-none pointer-events-none">
+                    @
+                  </span>
+                  <input 
+                    type="text" 
+                    placeholder="輸入您的 Threads 帳號" 
+                    value={inputUsername}
+                    onChange={(e) => setInputUsername(e.target.value.replace("@", ""))}
+                    className="w-full bg-white text-base font-medium rounded-2xl py-4 pl-12 pr-5 border border-[#D2D2D7] focus:border-black focus:ring-1 focus:ring-black outline-none transition-all duration-200 placeholder-[#86868B]/70 shadow-[0_2px_8px_rgba(0,0,0,0.01)]"
+                  />
+                </div>
+                {loginError && (
+                  <p className="text-xs text-[#FF3B30] font-medium pl-3.5 flex items-center gap-1.5 animate-in fade-in duration-200">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                    {loginError}
+                  </p>
+                )}
+              </div>
+
+              <button 
+                type="submit"
+                className="w-full bg-[#1D1D1F] hover:bg-black active:scale-[0.98] transition-all duration-200 text-white py-4 rounded-2xl font-semibold text-sm tracking-wide shadow-md"
+              >
+                進入美食檔案
+              </button>
+            </form>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-6">
-            {/* ⚠️ 僅在 isSandbox 為 true 且 Firebase 匿名驗證未開啟時，才顯示 Apple 質感警告 Banner */}
-            {isSandbox && (authError === 'auth/configuration-not-found' || authError === 'auth/operation-not-allowed') && (
-              <div className="bg-[#FF9500]/10 border border-[#FF9500]/30 rounded-2xl p-4 text-xs text-[#D97300] font-medium leading-relaxed flex items-start gap-2.5 animate-in fade-in slide-in-from-top-4 duration-300">
-                <span className="text-sm mt-0.5">⚠️</span>
-                <div>
-                  <p className="font-bold text-[#C96300]">Firebase 匿名登入尚未啟用</p>
-                  <p className="mt-1 opacity-90">
-                    請前往 Firebase 控制台 ➔ <span className="font-semibold">Authentication</span> ➔ <span className="font-semibold">Sign-in method</span> 啟用「匿名 (Anonymous)」驗證。
-                  </p>
-                  <p className="mt-1.5 text-[10px] font-semibold underline opacity-80">已為您自動開啟「本地防禦降級模式」，您仍可登入並流暢測試功能！</p>
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-3">
-              <div className="relative flex items-center">
-                <span className="absolute left-4 text-base font-semibold text-[#86868B] select-none">@</span>
-                <input 
-                  type="text" 
-                  placeholder="輸入您的 Threads 帳號" 
-                  value={inputUsername}
-                  onChange={(e) => setInputUsername(e.target.value.replace("@", ""))}
-                  className="w-full bg-white text-base font-medium rounded-2xl py-4 pl-10 pr-4 border border-[#D2D2D7] focus:border-black focus:ring-1 focus:ring-black outline-none transition-all placeholder-[#86868B]"
-                />
-              </div>
-              {loginError && (
-                <p className="text-xs text-[#FF3B30] font-medium pl-2 flex items-center gap-1">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-                  </svg>
-                  {loginError}
-                </p>
-              )}
-            </div>
-
-            <button 
-              type="submit"
-              className="w-full bg-[#1D1D1F] hover:bg-black active:scale-[0.98] transition-all duration-200 text-white py-4 rounded-2xl font-semibold text-sm tracking-wide shadow-sm"
-            >
-              進入美食檔案
-            </button>
-          </form>
-
-          <footer className="text-center text-xs text-[#86868B] space-y-1">
-            <p className="font-semibold text-black/40">© @fabrica Tech Studio</p>
+          {/* 下半部：品牌聲明 */}
+          <footer className="text-center text-xs text-[#86868B] pt-4 border-t border-[#E5E5EA]/40">
+            <p className="font-semibold text-black/30">© Fabrica</p>
           </footer>
         </div>
       ) : (
         /* ==================== Apple Premium 主檔案庫看板 ==================== */
         <div className="pb-32">
-          <header className="sticky top-0 z-40 bg-white/60 backdrop-blur-xl border-b border-[#E5E5EA] px-6 py-4.5">
+          {/* iOS 高端磨砂玻璃頂部導覽列 */}
+          <header className="sticky top-0 z-40 bg-white/60 backdrop-blur-xl border-b border-[#E5E5EA] px-6 py-4">
             <div className="max-w-md mx-auto flex justify-between items-center">
               <div className="flex flex-col">
                 <span className="text-[10px] font-bold tracking-wider text-[#86868B] uppercase">FABRICA MAPS</span>
@@ -323,7 +333,11 @@ export default function App() {
             )}
 
             <section className="space-y-4">
-              <div className="relative">
+              <div className="relative flex items-center w-full">
+                {/* 絕對垂直置中且修正尺寸比例的標準放大鏡圖示 */}
+                <svg className="w-5 h-5 text-[#86868B] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none select-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
                 <input 
                   type="text" 
                   placeholder="搜尋餐廳、分類或推薦..." 
@@ -331,9 +345,6 @@ export default function App() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full bg-white text-sm rounded-2xl py-3.5 pl-11 pr-4 border border-[#E5E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] focus:outline-none focus:border-[#86868B] placeholder-[#86868B] transition-all"
                 />
-                <svg className="w-4.5 h-4.5 text-[#86868B] absolute left-4 top-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                </svg>
               </div>
 
               {categories.length > 1 && (
@@ -483,8 +494,7 @@ export default function App() {
           </div>
 
           <footer className="text-center mt-20 mb-8 text-[11px] text-[#86868B] space-y-1">
-            <p className="font-semibold text-[#1D1D1F]">@fabrica Tech Studio</p>
-            <p className="text-black/30 font-mono">Premium Serverless Architecture</p>
+            <p className="font-semibold text-[#1D1D1F]">© Fabrica</p>
           </footer>
         </div>
       )}
@@ -493,7 +503,7 @@ export default function App() {
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
           <form 
             onSubmit={handleAddRestaurant}
-            className="bg-white w-full max-w-sm rounded-[32px] p-6.5 space-y-5 shadow-2xl border border-[#E5E5EA] text-left animate-in zoom-in-95 slide-in-from-bottom-8 duration-300"
+            className="bg-white w-full max-w-sm rounded-[32px] p-6 space-y-5 shadow-2xl border border-[#E5E5EA] text-left animate-in zoom-in-95 slide-in-from-bottom-8 duration-300"
           >
             <div className="flex justify-between items-center pb-2 border-b border-[#F5F5F7]">
               <h3 className="text-base font-bold text-black tracking-tight">
