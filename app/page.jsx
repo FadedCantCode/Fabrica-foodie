@@ -13,25 +13,15 @@ import {
   onSnapshot, 
   addDoc, 
   serverTimestamp,
-  doc,          // 🌟 新增：用於指定刪除文件
-  deleteDoc     // 🌟 新增：用於刪除 Firestore 資料
+  doc,          
+  deleteDoc     
 } from 'firebase/firestore';
 
 import * as THREE from 'three';
 
-// --- 安全環境變數與降級防禦機制 ---
-let safeApiKey = ""; 
-let safeGeminiApiKey = ""; // 🌟 將明碼移除，徹底解決 GitHub Secret 警告
-
-try {
-  if (typeof window !== 'undefined' && typeof process !== 'undefined' && process.env) {
-    if (process.env.NEXT_PUBLIC_FIREBASE_API_KEY) safeApiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
-    if (process.env.NEXT_PUBLIC_GEMINI_API_KEY) safeGeminiApiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-  }
-} catch (e) { }
-
+// --- 安全環境變數：直接使用 Next.js 內建機制，並加上防呆字串防止 Vercel 編譯崩潰 ---
 const firebaseConfig = {
-  apiKey: safeApiKey, 
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "mock-key-for-build", 
   authDomain: "fabrica-foodie.firebaseapp.com",
   projectId: "fabrica-foodie",
   storageBucket: "fabrica-foodie.firebasestorage.app",
@@ -354,17 +344,16 @@ export default function App() {
         try {
           const cleanUsername = threadsUsername.replace("@", "").trim().toLowerCase();
           const docRef = doc(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants', id);
-          await deleteDoc(docRef); // 真正從資料庫抹除
+          await deleteDoc(docRef); 
         } catch (err) {
           console.error("Delete error:", err);
         }
       }
-      // 確保狀態乾淨，從陣列中移除
       setDeletingIds(prev => prev.filter(delId => delId !== id));
     }, 400); 
   };
 
-  // 🚀 AI 評價分析引擎 (含嚴格降級防護)
+  // 🚀 AI 評價分析引擎 
   const handleAddRestaurant = async (e) => {
     e.preventDefault();
     if (!newRestName.trim()) return;
@@ -374,8 +363,8 @@ export default function App() {
 
     if (!finalNote.trim()) {
       try {
-        // 🌟 修正：即使環境變數失效，也絕對能讀取到備用金鑰，防止 403 報錯！
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${safeGeminiApiKey}`;
+        const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
         const payload = {
           contents: [{ parts: [{ text: `請分析台灣的這間餐廳：${newRestName} ${newRestAddress}。請綜合網路評價、近期優惠、活動與特色給出建議。` }] }],
           systemInstruction: { parts: [{ text: "你是一個高端美食顧問 Fabrica。請用 50-80 字精煉總結這家餐廳的真實網路評價、特色招牌菜色，若近期有知名優惠或活動也請提及。語氣要專業、具質感，不需加上 Markdown 標籤，直接給出純文字結果。" }] },
@@ -562,8 +551,8 @@ export default function App() {
                       }`}
                       style={{ animationDelay: `${i * 100}ms` }}
                     >
-                      <div className="p-6 pb-4 relative">
-                        <div className="flex justify-between items-center pr-8">
+                      <div className="p-6 pb-4 relative group/card">
+                        <div className="flex justify-between items-center pr-10">
                           <span className="text-[10px] font-bold tracking-wider text-[#86868B] bg-[#F5F5F7] px-2.5 py-1 rounded-md uppercase">
                             {restaurant.category || "美食 • 精選"}
                           </span>
@@ -579,7 +568,7 @@ export default function App() {
                         {/* 🌟 優雅的垃圾桶刪除按鈕 */}
                         <button 
                           onClick={() => handleDeleteRestaurant(restaurant.id)}
-                          className="absolute top-5 right-5 w-8 h-8 flex items-center justify-center rounded-full bg-[#F5F5F7] text-[#86868B] hover:bg-[#FF3B30] hover:text-white transition-all duration-300"
+                          className="absolute top-5 right-5 w-8 h-8 flex items-center justify-center rounded-full bg-[#F5F5F7] text-[#86868B] hover:bg-[#FF3B30] hover:text-white transition-all duration-300 opacity-0 group-hover/card:opacity-100"
                           title="刪除這筆紀錄"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
