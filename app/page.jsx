@@ -68,11 +68,9 @@ float cnoise(vec3 P) {
     vec4 iy = vec4(Pi0.yy, Pi1.yy);
     vec4 iz0 = Pi0.zzzz;
     vec4 iz1 = Pi1.zzzz;
-
     vec4 ixy = permute(permute(ix) + iy);
     vec4 ixy0 = permute(ixy + iz0);
     vec4 ixy1 = permute(ixy + iz1);
-
     vec4 gx0 = ixy0 / 7.0;
     vec4 gy0 = fract(floor(gx0) / 7.0) - 0.5;
     gx0 = fract(gx0);
@@ -80,7 +78,6 @@ float cnoise(vec3 P) {
     vec4 sz0 = step(gz0, vec4(0.0));
     gx0 -= sz0 * (step(0.0, gx0) - 0.5);
     gy0 -= sz0 * (step(0.0, gy0) - 0.5);
-
     vec4 gx1 = ixy1 / 7.0;
     vec4 gy1 = fract(floor(gx1) / 7.0) - 0.5;
     gx1 = fract(gx1);
@@ -88,7 +85,6 @@ float cnoise(vec3 P) {
     vec4 sz1 = step(gz1, vec4(0.0));
     gx1 -= sz1 * (step(0.0, gx1) - 0.5);
     gy1 -= sz1 * (step(0.0, gy1) - 0.5);
-
     vec3 g000 = vec3(gx0.x,gy0.x,gz0.x);
     vec3 g100 = vec3(gx0.y,gy0.y,gz0.y);
     vec3 g010 = vec3(gx0.z,gy0.z,gz0.z);
@@ -97,18 +93,10 @@ float cnoise(vec3 P) {
     vec3 g101 = vec3(gx1.y,gy1.y,gz1.y);
     vec3 g011 = vec3(gx1.z,gy1.z,gz1.z);
     vec3 g111 = vec3(gx1.w,gy1.w,gz1.w);
-
     vec4 norm0 = taylorInvSqrt(vec4(dot(g000, g000), dot(g010, g010), dot(g100, g100), dot(g110, g110)));
-    g000 *= norm0.x;
-    g010 *= norm0.y;
-    g100 *= norm0.z;
-    g110 *= norm0.w;
+    g000 *= norm0.x; g010 *= norm0.y; g100 *= norm0.z; g110 *= norm0.w;
     vec4 norm1 = taylorInvSqrt(vec4(dot(g001, g001), dot(g011, g011), dot(g101, g101), dot(g111, g111)));
-    g001 *= norm1.x;
-    g011 *= norm1.y;
-    g101 *= norm1.z;
-    g111 *= norm1.w;
-
+    g001 *= norm1.x; g011 *= norm1.y; g101 *= norm1.z; g111 *= norm1.w;
     float n000 = dot(g000, Pf0);
     float n100 = dot(g100, vec3(Pf1.x, Pf0.yz));
     float n010 = dot(g010, vec3(Pf0.x, Pf1.y, Pf0.z));
@@ -117,14 +105,12 @@ float cnoise(vec3 P) {
     float n101 = dot(g101, vec3(Pf1.x, Pf0.y, Pf1.z));
     float n011 = dot(g011, vec3(Pf0.x, Pf1.yz));
     float n111 = dot(g111, Pf1);
-
     vec3 fade_xyz = fade(Pf0);
     vec4 n_z = mix(vec4(n000, n100, n010, n110), vec4(n001, n101, n011, n111), fade_xyz.z);
     vec2 n_yz = mix(n_z.xy, n_z.zw, fade_xyz.y);
     float n_xyz = mix(n_yz.x, n_yz.y, fade_xyz.x); 
     return 2.2 * n_xyz;
 }
-
 float turbulence(vec3 p) {
     float t = 0.0;
     float frequency = 1.0;
@@ -136,7 +122,6 @@ float turbulence(vec3 p) {
     }
     return t;
 }
-
 void main() {
     vUv = uv;
     float noise1 = cnoise(position * u_noiseScale + vec3(u_time * u_noiseSpeed));
@@ -154,24 +139,114 @@ void main() {
 const fragmentShader = `
 uniform float u_intensity;
 uniform float u_time;
-
 varying vec2 vUv;
 varying float vDisplacement;
-
 void main() {
     float distort = 2.0 * vDisplacement * u_intensity * sin(vUv.y * 10.0 + u_time);
-    
-    // 黑白質感映射 (純白底色，流動深邃黑色波紋)
     vec3 baseColor = vec3(0.96, 0.96, 0.97); 
     vec3 waveColor = vec3(0.05, 0.05, 0.06); 
-    
     vec3 color = mix(baseColor, waveColor, clamp(abs(distort) * 1.8, 0.0, 1.0));
     gl_FragColor = vec4(color, 1.0);
 }
 `;
 
 // ==========================================
-// 🚀 Page 組件
+// 🚀 專屬 Gooey Loader 元件 (Apple 質感果凍擴散)
+// ==========================================
+const GooeyLoader = () => {
+  return (
+    <div className="relative w-[300px] h-[300px] flex items-center justify-center">
+      <style>{`
+        .blobs {
+          width: 300px;
+          height: 300px;
+          position: absolute;
+          overflow: hidden;
+          border-radius: 70px;
+          transform-style: preserve-3d;
+          filter: url(#goo);
+        }
+        .blobs .blob-center {
+          transform-style: preserve-3d;
+          position: absolute;
+          background: #1D1D1F;
+          top: 50%;
+          left: 50%;
+          width: 30px;
+          height: 30px;
+          transform-origin: left top;
+          transform: scale(0.9) translate(-50%, -50%);
+          animation: blob-grow_2 linear 3.4s infinite;
+          border-radius: 50%;
+          box-shadow: 0 -10px 40px -5px #1D1D1F;
+        }
+        .blob {
+          position: absolute;
+          background: #1D1D1F;
+          top: 50%;
+          left: 50%;
+          width: 30px;
+          height: 30px;
+          border-radius: 50%;
+          animation: blobs_2 ease-out 3.4s infinite;
+          transform: scale(0.9) translate(-50%, -50%);
+          transform-origin: center top;
+          opacity: 0;
+        }
+        .blob:nth-child(1) { animation-delay: 0.2s; }
+        .blob:nth-child(2) { animation-delay: 0.4s; }
+        .blob:nth-child(3) { animation-delay: 0.6s; }
+        .blob:nth-child(4) { animation-delay: 0.8s; }
+        .blob:nth-child(5) { animation-delay: 1s; }
+        @keyframes blobs_2 {
+          0% { opacity: 0; transform: scale(0) translate(calc(-330px - 50%), -50%); }
+          1% { opacity: 1; }
+          35%, 65% { opacity: 1; transform: scale(0.9) translate(-50%, -50%); }
+          99% { opacity: 1; }
+          100% { opacity: 0; transform: scale(0) translate(calc(330px - 50%), -50%); }
+        }
+        @keyframes blob-grow_2 {
+          0%, 39% { transform: scale(0) translate(-50%, -50%); }
+          40%, 42% { transform: scale(1, 0.9) translate(-50%, -50%); }
+          43%, 44% { transform: scale(1.2, 1.1) translate(-50%, -50%); }
+          45%, 46% { transform: scale(1.3, 1.2) translate(-50%, -50%); }
+          47%, 48% { transform: scale(1.4, 1.3) translate(-50%, -50%); }
+          52% { transform: scale(1.5, 1.4) translate(-50%, -50%); }
+          54% { transform: scale(1.7, 1.6) translate(-50%, -50%); }
+          58% { transform: scale(1.8, 1.7) translate(-50%, -50%); }
+          68%, 70% { transform: scale(1.7, 1.5) translate(-50%, -50%); }
+          78% { transform: scale(1.6, 1.4) translate(-50%, -50%); }
+          80%, 81% { transform: scale(1.5, 1.4) translate(-50%, -50%); }
+          82%, 83% { transform: scale(1.4, 1.3) translate(-50%, -50%); }
+          84%, 85% { transform: scale(1.3, 1.2) translate(-50%, -50%); }
+          86%, 87% { transform: scale(1.2, 1.1) translate(-50%, -50%); }
+          90%, 91% { transform: scale(1, 0.9) translate(-50%, -50%); }
+          92%, 100% { transform: scale(0) translate(-50%, -50%); }
+        }
+      `}</style>
+      <div className="blobs">
+        <div className="blob-center" />
+        <div className="blob" />
+        <div className="blob" />
+        <div className="blob" />
+        <div className="blob" />
+        <div className="blob" />
+      </div>
+      <svg xmlns="http://www.w3.org/2000/svg" version="1.1" className="hidden absolute">
+        <defs>
+          <filter id="goo">
+            <feGaussianBlur in="SourceGraphic" stdDeviation={10} result="blur" />
+            <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7" result="goo" />
+            <feBlend in="SourceGraphic" in2="goo" />
+          </filter>
+        </defs>
+      </svg>
+    </div>
+  );
+};
+
+// ==========================================
+// 🚀 Page 主組件
 // ==========================================
 export default function App() {
   const [firebaseUser, setFirebaseUser] = useState(null);
@@ -183,10 +258,10 @@ export default function App() {
   const [selectedCategory, setSelectedCategory] = useState("全部");
   const [isLoading, setIsLoading] = useState(false);
   
-  // 彈出視窗與 AI 狀態
+  // 彈出視窗與全域轉場狀態
   const [showAddModal, setShowAddModal] = useState(false);
   const [isClosingModal, setIsClosingModal] = useState(false); 
-  const [isGeneratingAI, setIsGeneratingAI] = useState(false); // 控制 AI 生成狀態
+  const [isGlobalTransitioning, setIsGlobalTransitioning] = useState(false); 
 
   const [newRestName, setNewRestName] = useState("");
   const [newRestAddress, setNewRestAddress] = useState("");
@@ -198,10 +273,15 @@ export default function App() {
   const [authError, setAuthError] = useState(null); 
   
   const [mounted, setMounted] = useState(false); 
+  const [isSandbox, setIsSandbox] = useState(false); 
   const canvasContainerRef = useRef(null);
 
   useEffect(() => {
     setMounted(true);
+    if (typeof window !== 'undefined') {
+      const hostname = window.location.hostname;
+      setIsSandbox(hostname.includes('usercontent.goog') || hostname.includes('localhost'));
+    }
   }, []);
 
   // 🌟 原生 WebGL 初始化 
@@ -298,7 +378,6 @@ export default function App() {
         await signInAnonymously(auth);
       } catch (err) {
         setAuthError(err.code || err.message);
-        // 如果 Firebase 專案匿名登入未開啟，啟動本地防護方案，避免網頁卡死
         setFirebaseUser({ uid: "local-temp-guest", isAnonymous: true });
       }
     };
@@ -309,7 +388,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // 實時監聽 Firestore 資料
+  // 實時監聽 Firestore
   useEffect(() => {
     if (!firebaseUser || !isLoggedIn || !threadsUsername) return;
     if (firebaseUser.uid === "local-temp-guest") return; 
@@ -324,9 +403,6 @@ export default function App() {
       const sortedList = list.sort((a, b) => (b.savedAt?.seconds || 0) - (a.savedAt?.seconds || 0));
       setRestaurants(sortedList);
       setIsLoading(false);
-    }, (error) => {
-      console.error("Firestore Loading Error:", error);
-      setIsLoading(false);
     });
     return () => unsubscribe();
   }, [firebaseUser, isLoggedIn, threadsUsername]);
@@ -337,18 +413,27 @@ export default function App() {
       setLoginError("請輸入您的 Threads ID");
       return;
     }
-    let formatted = inputUsername.trim();
-    if (!formatted.startsWith("@")) formatted = "@" + formatted;
-    setThreadsUsername(formatted);
-    setIsLoggedIn(true);
-    setLoginError("");
+    
+    setIsGlobalTransitioning(true); // 🌟 啟動登入 Loader
+    setTimeout(() => {
+      let formatted = inputUsername.trim();
+      if (!formatted.startsWith("@")) formatted = "@" + formatted;
+      setThreadsUsername(formatted);
+      setIsLoggedIn(true);
+      setLoginError("");
+      setIsGlobalTransitioning(false); // 🌟 結束登入 Loader
+    }, 2200);
   };
 
   const handleLogout = () => {
-    setIsLoggedIn(false);
-    setThreadsUsername("");
-    setInputUsername("");
-    setRestaurants([]);
+    setIsGlobalTransitioning(true); // 🌟 啟動登出 Loader
+    setTimeout(() => {
+      setIsLoggedIn(false);
+      setThreadsUsername("");
+      setInputUsername("");
+      setRestaurants([]);
+      setIsGlobalTransitioning(false); // 🌟 結束登出 Loader
+    }, 1200);
   };
 
   const closeAddModal = () => {
@@ -356,7 +441,7 @@ export default function App() {
     setTimeout(() => {
       setShowAddModal(false);
       setIsClosingModal(false);
-    }, 300); 
+    }, 400); 
   };
 
   const getFreeMapEmbedUrl = (name, address) => {
@@ -376,11 +461,11 @@ export default function App() {
     e.preventDefault();
     if (!newRestName.trim()) return;
 
-    setIsGeneratingAI(true); // 進入 AI 生成狀態
+    setIsGlobalTransitioning(true); // 🌟 啟動 AI 生成果凍 Loader，顯示「AI 思考中」質感
 
     let finalNote = newRestNote;
 
-    // 如果使用者沒有寫筆記，自動呼叫 Google Gemini AI 聯網抓取真實評價
+    // 💡 關鍵：如果使用者沒有寫筆記（留白），自動呼叫 Google Gemini AI 聯網抓取真實評價
     if (!finalNote.trim()) {
       try {
         const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || ""; 
@@ -441,11 +526,15 @@ export default function App() {
       }
     }
 
-    setIsGeneratingAI(false);
     setNewRestName("");
     setNewRestAddress("");
     setNewRestNote("");
-    closeAddModal();
+    
+    // 生成與寫入完畢後，關閉 Loader 與彈出視窗
+    setTimeout(() => {
+      setIsGlobalTransitioning(false);
+      closeAddModal();
+    }, 1500);
   };
 
   const categories = ["全部", ...new Set(restaurants.map(r => r.category ? r.category.split(" • ")[0] : "未分類"))];
@@ -464,6 +553,15 @@ export default function App() {
   return (
     <div className="relative min-h-screen bg-[#F4F4F6] text-[#1D1D1F] tracking-tight font-sans antialiased overflow-x-hidden">
       
+      {/* 🌟 頂級果凍 Loader 全局轉場覆蓋層 */}
+      <div 
+        className={`fixed inset-0 z-[100] flex flex-col items-center justify-center bg-white/70 backdrop-blur-xl transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${
+          isGlobalTransitioning ? 'opacity-100 visible' : 'opacity-0 invisible'
+        }`}
+      >
+        <GooeyLoader />
+      </div>
+
       {/* 🌟 3D 原生 WebGL 黑白極簡液態 Shader 流體背景 (未登入時全螢幕鋪底) */}
       {!isLoggedIn && (
         <div 
@@ -472,8 +570,8 @@ export default function App() {
         />
       )}
 
-      {/* ==================== 頁面容器 ==================== */}
-      <div className={`relative z-10 transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)]`}>
+      {/* ==================== 頁面容器 (配合登入/登出/AI生成狀態做流暢縮放模糊轉場) ==================== */}
+      <div className={`relative z-10 transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isGlobalTransitioning ? 'scale-[0.98] opacity-50 blur-sm pointer-events-none' : 'scale-100 opacity-100 blur-0'}`}>
         
         {!isLoggedIn ? (
           /* ---------------- Apple ID 原生極簡登入介面 ---------------- */
@@ -499,6 +597,16 @@ export default function App() {
 
               <form onSubmit={handleLogin} className="space-y-5 bg-white/45 backdrop-blur-xl border border-white/60 p-6 rounded-[32px] shadow-[0_20px_40px_rgba(0,0,0,0.03)]">
                 
+                {(authError === 'auth/configuration-not-found' || authError === 'auth/operation-not-allowed') && (
+                  <div className="bg-[#FF9500]/10 border border-[#FF9500]/30 rounded-2xl p-4 text-xs text-[#D97300] font-medium leading-relaxed flex items-start gap-2.5">
+                    <span className="text-sm mt-0.5">⚠️</span>
+                    <div>
+                      <p className="font-bold text-[#C96300]">Firebase 匿名登入尚未啟用</p>
+                      <p className="mt-1 opacity-90">目前降級為記憶體暫存模式。請前往 Firebase 控制台 ➔ Authentication 啟用「匿名 (Anonymous)」以開啟雲端同步。</p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-3">
                   <div className="relative flex items-center w-full">
                     <span className="absolute left-5 top-1/2 -translate-y-1/2 text-base font-semibold text-[#86868B] select-none pointer-events-none">@</span>
@@ -529,6 +637,7 @@ export default function App() {
                     <span className="font-semibold text-sm">進入美食檔案</span>
                     <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
                   </div>
+                  {/* 絕對圓心擴散深色背景：使用 scale-0 徹底隱藏黑點 */}
                   <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-[#1D1D1F] scale-0 group-hover:scale-[35] transition-transform duration-500 ease-out z-10"></div>
                 </button>
               </form>
@@ -545,7 +654,6 @@ export default function App() {
             <header className="sticky top-0 z-40 bg-white/60 backdrop-blur-xl border-b border-[#E5E5EA] px-6 py-4">
               <div className="max-w-md mx-auto flex justify-between items-center">
                 <div className="flex flex-col">
-                  {/* 💡 全新連線指示器：給予開發者與使用者完美的雲端同步回饋 */}
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] font-bold tracking-wider text-[#86868B] uppercase">FABRICA MAPS</span>
                     {firebaseUser?.uid === "local-temp-guest" ? (
@@ -662,7 +770,7 @@ export default function App() {
                       </div>
 
                       <div className="mx-6 mb-5 p-4.5 bg-[#F5F5F7] rounded-2xl border border-[#E5E5EA]/40">
-                        {/* 🌟 完美的 AI Insight 連動評價分析 */}
+                        {/* 🌟 Fabrica AI Insight 標籤統一保留給所有筆記 */}
                         <div className="flex items-center gap-1.5 text-[9px] font-bold text-[#86868B] uppercase tracking-wider mb-1.5">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9.663 17h4.673M12 3v1m6.364 .364l-.707 .707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
                           Fabrica AI Insight
@@ -706,13 +814,13 @@ export default function App() {
       {/* ==================== 🚀 AI 賦能的新增美食彈出視窗 ==================== */}
       {showAddModal && (
         <div 
-          className={`fixed inset-0 z-50 bg-black/20 backdrop-blur-md flex items-center justify-center p-4 transition-opacity duration-300 ${
+          className={`fixed inset-0 z-50 bg-black/20 backdrop-blur-md flex items-center justify-center p-4 transition-opacity duration-400 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${
             isClosingModal ? 'opacity-0' : 'opacity-100'
           }`}
         >
           <form 
             onSubmit={handleAddRestaurant}
-            className={`bg-white/85 backdrop-blur-2xl w-full max-w-sm rounded-[36px] p-7 space-y-6 shadow-[0_24px_48px_rgba(0,0,0,0.08)] border border-white text-left transition-all duration-300 ${
+            className={`bg-white/85 backdrop-blur-2xl w-full max-w-sm rounded-[36px] p-7 space-y-6 shadow-[0_24px_48px_rgba(0,0,0,0.08)] border border-white text-left transition-all duration-400 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${
               isClosingModal ? 'scale-95 translate-y-8 opacity-0' : 'scale-100 translate-y-0 opacity-100'
             }`}
           >
@@ -721,8 +829,7 @@ export default function App() {
               <button 
                 type="button"
                 onClick={closeAddModal}
-                disabled={isGeneratingAI}
-                className="w-8 h-8 bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#86868B] hover:text-black font-semibold rounded-full flex items-center justify-center text-sm transition-colors disabled:opacity-50"
+                className="w-8 h-8 bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#86868B] hover:text-black font-semibold rounded-full flex items-center justify-center text-sm transition-colors"
               >
                 ✕
               </button>
@@ -731,15 +838,15 @@ export default function App() {
             <div className="space-y-4 text-sm">
               <div className="space-y-1.5">
                 <label className="font-bold text-[#1D1D1F] text-xs px-1">餐廳名稱 *</label>
-                <input type="text" required disabled={isGeneratingAI} value={newRestName} onChange={(e) => setNewRestName(e.target.value)} placeholder="例如：熟成宇治" className="w-full bg-white/70 rounded-2xl p-3.5 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)] disabled:opacity-60" />
+                <input type="text" required value={newRestName} onChange={(e) => setNewRestName(e.target.value)} placeholder="例如：熟成宇治" className="w-full bg-white/70 rounded-2xl p-3.5 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)]" />
               </div>
               <div className="space-y-1.5">
                 <label className="font-bold text-[#1D1D1F] text-xs px-1">地址（選填）</label>
-                <input type="text" disabled={isGeneratingAI} value={newRestAddress} onChange={(e) => setNewRestAddress(e.target.value)} placeholder="例如：台北市大安區永康街4巷8號" className="w-full bg-white/70 rounded-2xl p-3.5 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)] disabled:opacity-60" />
+                <input type="text" value={newRestAddress} onChange={(e) => setNewRestAddress(e.target.value)} placeholder="例如：台北市大安區永康街4巷8號" className="w-full bg-white/70 rounded-2xl p-3.5 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)]" />
               </div>
               <div className="space-y-1.5">
                 <label className="font-bold text-[#1D1D1F] text-xs px-1">餐飲分類</label>
-                <select disabled={isGeneratingAI} value={newRestCategory} onChange={(e) => setNewRestCategory(e.target.value)} className="w-full bg-white/70 rounded-2xl p-3.5 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-semibold text-[#1D1D1F] appearance-none transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)] disabled:opacity-60">
+                <select value={newRestCategory} onChange={(e) => setNewRestCategory(e.target.value)} className="w-full bg-white/70 rounded-2xl p-3.5 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-semibold text-[#1D1D1F] appearance-none transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
                   <option value="日式甜點 • 咖啡廳">日式甜點 • 咖啡廳</option>
                   <option value="義式料理 • 自然酒">義式料理 • 自然酒</option>
                   <option value="台灣傳統 • 小吃">台灣傳統 • 小吃</option>
@@ -748,36 +855,26 @@ export default function App() {
                 </select>
               </div>
               <div className="space-y-1.5">
-                <label className="font-bold text-[#1D1D1F] text-xs px-1 flex justify-between">
+                <label className="font-bold text-[#1D1D1F] text-xs px-1 flex justify-between items-end">
                   美食短評
-                  <span className="text-[#86868B] font-normal tracking-wide">💡 留白則由 AI 綜合網路評價分析</span>
+                  <span className="text-[#86868B] font-normal tracking-wide text-[10px]">💡 留白將自動呼叫 AI 分析</span>
                 </label>
-                <textarea disabled={isGeneratingAI} value={newRestNote} onChange={(e) => setNewRestNote(e.target.value)} placeholder="若留白，AI 將自動為您從網路爬取真實評價、近期優惠或招牌推薦..." className="w-full bg-white/70 rounded-2xl p-3.5 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none h-20 resize-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)] disabled:opacity-60" />
+                <textarea value={newRestNote} onChange={(e) => setNewRestNote(e.target.value)} placeholder="若留白，AI 將為您爬取網路評價、優惠與推薦..." className="w-full bg-white/70 rounded-2xl p-3.5 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none h-20 resize-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)]" />
               </div>
             </div>
 
             <button 
               type="submit" 
-              disabled={isGeneratingAI || firebaseUser?.uid === "local-temp-guest"}
-              className="group relative cursor-pointer w-full h-[56px] border border-[#D2D2D7] bg-white rounded-2xl overflow-hidden text-[#1D1D1F] font-semibold transition-all duration-300 shadow-sm active:scale-[0.98] outline-none mt-2 disabled:opacity-50 disabled:pointer-events-none"
+              className="group relative cursor-pointer w-full h-[56px] border border-[#D2D2D7] bg-white rounded-2xl overflow-hidden text-[#1D1D1F] font-semibold transition-all duration-300 shadow-sm active:scale-[0.98] outline-none mt-2"
             >
-              <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 z-20 pointer-events-none select-none ${isGeneratingAI ? 'opacity-0' : 'translate-x-0 group-hover:translate-x-16 group-hover:opacity-0'}`}>
-                {firebaseUser?.uid === "local-temp-guest" ? "請先啟用 Firebase 雲端驗證" : "儲存至個人地圖"}
+              <div className="absolute inset-0 flex items-center justify-center translate-x-0 group-hover:translate-x-16 group-hover:opacity-0 transition-all duration-300 z-20 pointer-events-none select-none">
+                儲存至個人地圖
               </div>
-              <div className={`absolute inset-0 flex gap-2 items-center justify-center text-white z-20 pointer-events-none select-none transition-all duration-300 ${isGeneratingAI ? 'translate-x-0 opacity-100 text-black mix-blend-difference' : 'translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100'}`}>
-                {isGeneratingAI ? (
-                  <>
-                    <svg className="animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                    <span className="font-semibold text-sm">✨ AI 正在分析網路評價...</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="font-semibold text-sm">確認新增</span>
-                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg>
-                  </>
-                )}
+              <div className="absolute inset-0 flex gap-2 items-center justify-center text-white z-20 translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none select-none">
+                <span className="font-semibold text-sm">確認新增</span>
+                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg>
               </div>
-              <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#1D1D1F] transition-all duration-500 ease-out z-10 ${isGeneratingAI ? 'h-full w-full scale-[1.5] rounded-none' : 'h-8 w-8 scale-0 group-hover:scale-[35]'}`}></div>
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-[#1D1D1F] scale-0 group-hover:scale-[35] transition-transform duration-500 ease-out z-10"></div>
             </button>
           </form>
         </div>
