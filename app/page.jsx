@@ -16,12 +16,9 @@ import {
 } from 'firebase/firestore';
 
 // --- 3D Mesh Gradient 背景所需的 Three.js 與 R3F 套件 ---
-import { Canvas, useFrame, extend } from '@react-three/fiber';
-import { MathUtils, Vector3, IcosahedronGeometry } from 'three';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { MathUtils, Vector3 } from 'three';
 import { Environment } from '@react-three/drei';
-
-// 延伸幾何體以防止 R3F 警報
-extend({ IcosahedronGeometry });
 
 // --- 安全環境變數與降級防禦機制 ---
 let safeApiKey = "AIzaSyC4YdF_pAKyMFuQVDCau_g3fP9zsMTcOcE"; // 預設降級備用金鑰
@@ -221,7 +218,8 @@ const Blob = () => {
       onPointerOver={() => (hover.current = true)}
       onPointerOut={() => (hover.current = false)}
     >
-      <icosahedronGeometry args={[2, 32]} />
+      {/* 🌟 安全與美學升級：原生高解像度 sphereGeometry 完美取代 icosahedron 避開 THREE namespace 報錯 */}
+      <sphereGeometry args={[2, 64, 64]} />
       <shaderMaterial
         vertexShader={vertexShader}
         fragmentShader={fragmentShader}
@@ -253,10 +251,13 @@ export default function App() {
   const [inputUsername, setInputUsername] = useState("");
   const [loginError, setLoginError] = useState("");
   const [authError, setAuthError] = useState(null); 
+  
   const [isSandbox, setIsSandbox] = useState(false); 
+  const [mounted, setMounted] = useState(false); // 💡 用於 100% 阻隔 Next.js SSR 期間 3D 運算引發的 hooks useContext 錯誤
 
-  // 精確判別環境，防止線上 Vercel 動態加載時誤判
+  // 客戶端載入守衛與環境偵測
   useEffect(() => {
+    setMounted(true);
     if (typeof window !== 'undefined') {
       const hostname = window.location.hostname;
       const isSand = hostname.includes('usercontent.goog') || 
@@ -412,8 +413,8 @@ export default function App() {
   return (
     <div className="relative min-h-screen bg-[#F4F4F6] text-[#1D1D1F] tracking-tight selection:bg-[#0071E3]/20 selection:text-[#0071E3] font-sans antialiased overflow-x-hidden">
       
-      {/* 🌟 3D 黑白極簡動態 Shader 流體背景 (未登入時全螢幕鋪底) */}
-      {!isLoggedIn && (
+      {/* 🌟 3D 黑白極簡動態 Shader 流體背景 (僅在未登入且客戶端 Mounted 後渲染，徹底防止 SSR useContext 報錯) */}
+      {mounted && !isLoggedIn && (
         <div className="fixed inset-0 z-0 pointer-events-auto bg-[#F4F4F6]">
           <Canvas camera={{ position: [0.0, 0.0, 8.0], fov: 35 }}>
             <Environment preset="studio" environmentIntensity={0.5} />
@@ -496,7 +497,7 @@ export default function App() {
                   </svg>
                 </div>
                 
-                {/* 絕對圓心擴散深色背景：預設為 h-0 w-0 不顯示（解決醜陋黑點），Hover 時放大至滿版 */}
+                {/* 絕對圓心擴散深色背景 */}
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-0 w-0 rounded-full bg-[#1D1D1F] group-hover:h-2.5 group-hover:w-2.5 group-hover:scale-[62] transition-all duration-500 ease-out z-10"></div>
               </button>
             </form>
