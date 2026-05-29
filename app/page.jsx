@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getAuth, 
@@ -24,9 +24,7 @@ try {
   if (typeof window !== 'undefined' && typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
     safeApiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
   }
-} catch (e) {
-  // 靜默降級，確保編譯時不中斷
-}
+} catch (e) { }
 
 const firebaseConfig = {
   apiKey: safeApiKey, 
@@ -41,7 +39,7 @@ const firebaseConfig = {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const db = getFirestore(app);
-const appId = 'fabrica-foodie-app'; // 用於嚴格路徑規則的專案 appId
+const appId = 'fabrica-foodie-app'; 
 
 // ==========================================
 // 🎨 原生 3D Vertex & Fragment Shaders (黑白液態)
@@ -162,18 +160,116 @@ varying float vDisplacement;
 
 void main() {
     float distort = 2.0 * vDisplacement * u_intensity * sin(vUv.y * 10.0 + u_time);
-    
-    // 黑白質感映射 (純白底色，流動深邃黑色波紋)
     vec3 baseColor = vec3(0.96, 0.96, 0.97); 
     vec3 waveColor = vec3(0.05, 0.05, 0.06); 
-    
     vec3 color = mix(baseColor, waveColor, clamp(abs(distort) * 1.8, 0.0, 1.0));
     gl_FragColor = vec4(color, 1.0);
 }
 `;
 
 // ==========================================
-// 🚀 Page 組件
+// 🚀 專屬 Gooey Loader 元件 (Apple 質感果凍擴散)
+// ==========================================
+const GooeyLoader = () => {
+  return (
+    <div className="relative w-[300px] h-[300px] flex items-center justify-center">
+      <style>{`
+        .blobs {
+          width: 300px;
+          height: 300px;
+          position: absolute;
+          overflow: hidden;
+          border-radius: 70px;
+          transform-style: preserve-3d;
+          filter: url(#goo);
+        }
+
+        .blobs .blob-center {
+          transform-style: preserve-3d;
+          position: absolute;
+          background: #1D1D1F;
+          top: 50%;
+          left: 50%;
+          width: 30px;
+          height: 30px;
+          transform-origin: left top;
+          transform: scale(0.9) translate(-50%, -50%);
+          animation: blob-grow_2 linear 3.4s infinite;
+          border-radius: 50%;
+          box-shadow: 0 -10px 40px -5px #1D1D1F;
+        }
+
+        .blob {
+          position: absolute;
+          background: #1D1D1F;
+          top: 50%;
+          left: 50%;
+          width: 30px;
+          height: 30px;
+          border-radius: 50%;
+          animation: blobs_2 ease-out 3.4s infinite;
+          transform: scale(0.9) translate(-50%, -50%);
+          transform-origin: center top;
+          opacity: 0;
+        }
+
+        .blob:nth-child(1) { animation-delay: 0.2s; }
+        .blob:nth-child(2) { animation-delay: 0.4s; }
+        .blob:nth-child(3) { animation-delay: 0.6s; }
+        .blob:nth-child(4) { animation-delay: 0.8s; }
+        .blob:nth-child(5) { animation-delay: 1s; }
+
+        @keyframes blobs_2 {
+          0% { opacity: 0; transform: scale(0) translate(calc(-330px - 50%), -50%); }
+          1% { opacity: 1; }
+          35%, 65% { opacity: 1; transform: scale(0.9) translate(-50%, -50%); }
+          99% { opacity: 1; }
+          100% { opacity: 0; transform: scale(0) translate(calc(330px - 50%), -50%); }
+        }
+
+        @keyframes blob-grow_2 {
+          0%, 39% { transform: scale(0) translate(-50%, -50%); }
+          40%, 42% { transform: scale(1, 0.9) translate(-50%, -50%); }
+          43%, 44% { transform: scale(1.2, 1.1) translate(-50%, -50%); }
+          45%, 46% { transform: scale(1.3, 1.2) translate(-50%, -50%); }
+          47%, 48% { transform: scale(1.4, 1.3) translate(-50%, -50%); }
+          52% { transform: scale(1.5, 1.4) translate(-50%, -50%); }
+          54% { transform: scale(1.7, 1.6) translate(-50%, -50%); }
+          58% { transform: scale(1.8, 1.7) translate(-50%, -50%); }
+          68%, 70% { transform: scale(1.7, 1.5) translate(-50%, -50%); }
+          78% { transform: scale(1.6, 1.4) translate(-50%, -50%); }
+          80%, 81% { transform: scale(1.5, 1.4) translate(-50%, -50%); }
+          82%, 83% { transform: scale(1.4, 1.3) translate(-50%, -50%); }
+          84%, 85% { transform: scale(1.3, 1.2) translate(-50%, -50%); }
+          86%, 87% { transform: scale(1.2, 1.1) translate(-50%, -50%); }
+          90%, 91% { transform: scale(1, 0.9) translate(-50%, -50%); }
+          92%, 100% { transform: scale(0) translate(-50%, -50%); }
+        }
+      `}</style>
+      <div className="blobs">
+        <div className="blob-center" />
+        <div className="blob" />
+        <div className="blob" />
+        <div className="blob" />
+        <div className="blob" />
+        <div className="blob" />
+      </div>
+      <svg xmlns="http://www.w3.org/2000/svg" version="1.1" className="hidden absolute">
+        <defs>
+          <filter id="goo">
+            <feGaussianBlur in="SourceGraphic" stdDeviation={10} result="blur" />
+            <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7" result="goo" />
+            <feBlend in="SourceGraphic" in2="goo" />
+          </filter>
+        </defs>
+      </svg>
+    </div>
+  );
+};
+
+
+// ==========================================
+// 🚀 Page 主組件
 // ==========================================
 export default function App() {
   const [firebaseUser, setFirebaseUser] = useState(null);
@@ -185,7 +281,11 @@ export default function App() {
   const [selectedCategory, setSelectedCategory] = useState("全部");
   const [isLoading, setIsLoading] = useState(false);
   
+  // 彈出視窗與全局轉場狀態 (Apple 柔和過渡)
   const [showAddModal, setShowAddModal] = useState(false);
+  const [isClosingModal, setIsClosingModal] = useState(false); 
+  const [isGlobalTransitioning, setIsGlobalTransitioning] = useState(false); 
+
   const [newRestName, setNewRestName] = useState("");
   const [newRestAddress, setNewRestAddress] = useState("");
   const [newRestCategory, setNewRestCategory] = useState("日式甜點 • 咖啡廳");
@@ -198,10 +298,8 @@ export default function App() {
   const [isSandbox, setIsSandbox] = useState(false); 
   const [mounted, setMounted] = useState(false); 
 
-  // 3D Canvas WebGL 容器節點引用
   const canvasContainerRef = useRef(null);
 
-  // 客戶端載入守衛與環境偵測
   useEffect(() => {
     setMounted(true);
     if (typeof window !== 'undefined') {
@@ -213,14 +311,12 @@ export default function App() {
     }
   }, []);
 
-  // 🌟 100% 穩定且不報錯的原生 WebGL Three.js 初始化與動畫迴圈 
+  // 🌟 原生 WebGL 初始化 
   useEffect(() => {
     if (!mounted || isLoggedIn) return;
-
     const container = canvasContainerRef.current;
     if (!container) return;
 
-    // 1. 初始化場景、相機與渲染器
     const width = container.clientWidth;
     const height = container.clientHeight;
 
@@ -233,7 +329,6 @@ export default function App() {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     container.appendChild(renderer.domElement);
 
-    // 2. 初始化自訂著色器材質與球形網格
     const uniforms = {
       u_time: { value: 0 },
       u_intensity: { value: 0.25 },
@@ -254,7 +349,6 @@ export default function App() {
     mesh.scale.setScalar(2.4);
     scene.add(mesh);
 
-    // 3. 移動端與桌面端的滑鼠軌跡傾斜互動
     const mouse = { x: 0, y: 0 };
     const targetPosition = new THREE.Vector3(0, 0, -1);
     const currentPosition = new THREE.Vector3(0, 0, -1);
@@ -264,17 +358,8 @@ export default function App() {
       mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
     };
 
-    const handleTouchMove = (event) => {
-      if (event.touches.length > 0) {
-        mouse.x = (event.touches[0].clientX / window.innerWidth) * 2 - 1;
-        mouse.y = -(event.touches[0].clientY / window.innerHeight) * 2 + 1;
-      }
-    };
-
     window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('touchmove', handleTouchMove);
 
-    // 4. 視窗適應尺寸變更處理
     const handleResize = () => {
       if (!container) return;
       const w = container.clientWidth;
@@ -283,21 +368,16 @@ export default function App() {
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
     };
-
     window.addEventListener('resize', handleResize);
 
-    // 5. 渲染動畫與流體擾動計算
     let animationFrameId;
     const clock = new THREE.Clock();
 
     const animate = () => {
       const elapsedTime = clock.getElapsedTime();
-      
-      // 更新著色器時間變數
       uniforms.u_time.value = 0.25 * elapsedTime;
       uniforms.u_noiseScale.value = Math.sin(elapsedTime * 0.1) * 0.5 + 1.2;
 
-      // 膠體微微向滑鼠方向偏倚
       targetPosition.set(mouse.x * 1.2, mouse.y * 1.2, -1);
       currentPosition.lerp(targetPosition, 0.05);
       mesh.position.copy(currentPosition);
@@ -305,20 +385,13 @@ export default function App() {
       renderer.render(scene, camera);
       animationFrameId = requestAnimationFrame(animate);
     };
-
     animate();
 
-    // 6. 卸載時徹底釋放顯存資源與監聽
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('resize', handleResize);
       cancelAnimationFrame(animationFrameId);
-      
-      if (container && renderer.domElement) {
-        container.removeChild(renderer.domElement);
-      }
-      
+      if (container && renderer.domElement) container.removeChild(renderer.domElement);
       geometry.dispose();
       material.dispose();
       renderer.dispose();
@@ -331,21 +404,18 @@ export default function App() {
       try {
         await signInAnonymously(auth);
       } catch (err) {
-        console.error("Firebase Auth Error:", err);
         setAuthError(err.code || err.message);
-        // 如果 Firebase 專案匿名登入未開啟，啟動本地防護方案，避免網頁卡死
         setFirebaseUser({ uid: "local-temp-guest", isAnonymous: true });
       }
     };
     initAuth();
-
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) setFirebaseUser(user);
     });
     return () => unsubscribe();
   }, []);
 
-  // 實時監聽 Firestore 資料
+  // 實時監聽 Firestore
   useEffect(() => {
     if (!firebaseUser || !isLoggedIn || !threadsUsername) return;
     if (firebaseUser.uid === "local-temp-guest") return; 
@@ -356,44 +426,54 @@ export default function App() {
 
     const unsubscribe = onSnapshot(userRestaurantsRef, (snapshot) => {
       const list = [];
-      snapshot.forEach((doc) => {
-        list.push({ id: doc.id, ...doc.data() });
-      });
-      
-      const sortedList = list.sort((a, b) => {
-        const timeA = a.savedAt?.seconds ? a.savedAt.seconds : 0;
-        const timeB = b.savedAt?.seconds ? b.savedAt.seconds : 0;
-        return timeB - timeA;
-      });
-
+      snapshot.forEach((doc) => list.push({ id: doc.id, ...doc.data() }));
+      const sortedList = list.sort((a, b) => (b.savedAt?.seconds || 0) - (a.savedAt?.seconds || 0));
       setRestaurants(sortedList);
       setIsLoading(false);
-    }, (error) => {
-      console.error("Firestore loading error:", error);
-      setIsLoading(false);
     });
-
     return () => unsubscribe();
   }, [firebaseUser, isLoggedIn, threadsUsername]);
 
+  // 🚀 Apple 風格全局轉場：登入
   const handleLogin = (e) => {
     e.preventDefault();
     if (!inputUsername.trim()) {
       setLoginError("請輸入您的 Threads ID");
       return;
     }
-    let formatted = inputUsername.trim();
-    if (!formatted.startsWith("@")) formatted = "@" + formatted;
-    setThreadsUsername(formatted);
-    setIsLoggedIn(true);
-    setLoginError("");
+    
+    // 觸發果凍 Loader 轉場
+    setIsGlobalTransitioning(true);
+    
+    setTimeout(() => {
+      let formatted = inputUsername.trim();
+      if (!formatted.startsWith("@")) formatted = "@" + formatted;
+      setThreadsUsername(formatted);
+      setIsLoggedIn(true);
+      setLoginError("");
+      setIsGlobalTransitioning(false);
+    }, 2200); // 模擬登入運算，讓精美 Loader 跑滿 2.2 秒
   };
 
+  // 🚀 Apple 風格全局轉場：登出
   const handleLogout = () => {
-    setIsLoggedIn(false);
-    setThreadsUsername("");
-    setInputUsername("");
-    setRestaurants([]);
+    setIsGlobalTransitioning(true);
+    setTimeout(() => {
+      setIsLoggedIn(false);
+      setThreadsUsername("");
+      setInputUsername("");
+      setRestaurants([]);
+      setIsGlobalTransitioning(false);
+    }, 1200);
+  };
+
+  // 🚀 Apple 風格轉場：關閉 Modal
+  const closeAddModal = () => {
+    setIsClosingModal(true);
+    setTimeout(() => {
+      setShowAddModal(false);
+      setIsClosingModal(false);
+    }, 400); // 對齊 CSS 動畫時間
   };
 
   const getFreeMapEmbedUrl = (name, address) => {
@@ -408,48 +488,56 @@ export default function App() {
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(queryText)}`;
   };
 
+  // 🚀 Apple 風格轉場：新增餐廳
   const handleAddRestaurant = async (e) => {
     e.preventDefault();
     if (!newRestName.trim()) return;
 
-    if (firebaseUser?.uid === "local-temp-guest") {
-      const mockDoc = {
-        id: Math.random().toString(),
-        name: newRestName,
-        address: newRestAddress || "僅提供店名定位",
-        category: newRestCategory,
-        note: newRestNote || "手動快速儲存的口袋名單。",
-        savedAt: { seconds: Math.floor(Date.now() / 1000) },
-        threadsUrl: ""
-      };
-      setRestaurants(prev => [mockDoc, ...prev]);
+    // 觸發全局果凍 Loader 模擬雲端寫入
+    setIsGlobalTransitioning(true);
+
+    const executeAdd = async () => {
+      if (firebaseUser?.uid === "local-temp-guest") {
+        const mockDoc = {
+          id: Math.random().toString(),
+          name: newRestName,
+          address: newRestAddress || "僅提供店名定位",
+          category: newRestCategory,
+          note: newRestNote || "手動快速儲存的口袋名單。",
+          savedAt: { seconds: Math.floor(Date.now() / 1000) },
+          threadsUrl: ""
+        };
+        setRestaurants(prev => [mockDoc, ...prev]);
+      } else {
+        try {
+          const cleanUsername = threadsUsername.replace("@", "").trim().toLowerCase();
+          const userRestaurantsRef = collection(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants');
+          await addDoc(userRestaurantsRef, {
+            name: newRestName,
+            address: newRestAddress || "僅提供店名定位",
+            category: newRestCategory,
+            note: newRestNote || "手動快速儲存的口袋名單。",
+            savedAt: serverTimestamp(),
+            threadsUrl: ""
+          });
+        } catch (err) {
+          console.error("Error adding document to Firestore:", err);
+        }
+      }
+
       setNewRestName("");
       setNewRestAddress("");
       setNewRestNote("");
-      setShowAddModal(false);
-      return;
-    }
+      
+      // 動畫結束後關閉視窗與 Loader
+      setTimeout(() => {
+        setIsGlobalTransitioning(false);
+        closeAddModal();
+      }, 1500); 
+    };
 
-    try {
-      const cleanUsername = threadsUsername.replace("@", "").trim().toLowerCase();
-      const userRestaurantsRef = collection(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants');
-
-      await addDoc(userRestaurantsRef, {
-        name: newRestName,
-        address: newRestAddress || "僅提供店名定位",
-        category: newRestCategory,
-        note: newRestNote || "手動快速儲存的口袋名單。",
-        savedAt: serverTimestamp(),
-        threadsUrl: ""
-      });
-
-      setNewRestName("");
-      setNewRestAddress("");
-      setNewRestNote("");
-      setShowAddModal(false);
-    } catch (err) {
-      console.error("Error adding document to Firestore:", err);
-    }
+    // 延遲執行寫入，讓特效流暢展現
+    setTimeout(executeAdd, 500);
   };
 
   const categories = ["全部", ...new Set(restaurants.map(r => r.category ? r.category.split(" • ")[0] : "未分類"))];
@@ -458,319 +546,284 @@ export default function App() {
     const address = restaurant.address || "";
     const note = restaurant.note || "";
     const category = restaurant.category || "";
-
     const matchesSearch = name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           address.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           note.toLowerCase().includes(searchQuery.toLowerCase());
-    
     const matchesCategory = selectedCategory === "全部" || category.startsWith(selectedCategory);
-    
     return matchesSearch && matchesCategory;
   });
 
   return (
-    <div className="relative min-h-screen bg-[#F4F4F6] text-[#1D1D1F] tracking-tight selection:bg-[#0071E3]/20 selection:text-[#0071E3] font-sans antialiased overflow-x-hidden">
+    <div className="relative min-h-screen bg-[#F4F4F6] text-[#1D1D1F] tracking-tight font-sans antialiased overflow-x-hidden">
       
-      {/* 🌟 3D 原生 WebGL 黑白極簡液態 Shader 流體背景 (未登入時全螢幕鋪底，無 R3F 報錯風險) */}
+      {/* 🌟 頂級果凍 Loader 全局轉場覆蓋層 */}
+      <div 
+        className={`fixed inset-0 z-[100] flex items-center justify-center bg-white/70 backdrop-blur-xl transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${
+          isGlobalTransitioning ? 'opacity-100 visible' : 'opacity-0 invisible'
+        }`}
+      >
+        <GooeyLoader />
+      </div>
+
+      {/* 🌟 3D 原生 WebGL 黑白極簡液態 Shader 流體背景 (未登入時全螢幕鋪底) */}
       {!isLoggedIn && (
         <div 
           ref={canvasContainerRef} 
-          className="fixed inset-0 z-0 bg-[#F4F4F6] w-screen h-screen pointer-events-auto"
+          className="fixed inset-0 z-0 bg-[#F4F4F6] w-screen h-screen pointer-events-auto transition-opacity duration-1000"
         />
       )}
 
-      {!isLoggedIn ? (
-        /* ==================== Apple ID 原生極簡登入介面 ==================== */
-        <div className="relative z-10 min-h-screen flex flex-col justify-between px-6 py-10 max-w-sm mx-auto animate-fade-in pointer-events-none">
-          
-          <div className="flex-1 flex flex-col justify-center space-y-10 py-8 pointer-events-auto">
-            <div className="text-center space-y-5">
-              <div className="w-16 h-16 bg-black rounded-[20px] mx-auto flex items-center justify-center shadow-[0_10px_25px_rgba(0,0,0,0.15)] transform hover:scale-[1.03] transition-all duration-300">
-                <svg className="w-8 h-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-                  <circle cx="12" cy="11" r="3" strokeWidth="1.5"/>
-                </svg>
+      {/* ==================== 頁面容器 (配合登入/登出狀態做流暢縮放淡入出) ==================== */}
+      <div className={`relative z-10 transition-all duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isGlobalTransitioning ? 'scale-[0.98] opacity-50 blur-sm' : 'scale-100 opacity-100 blur-0'}`}>
+        
+        {!isLoggedIn ? (
+          /* ---------------- Apple ID 原生極簡登入介面 ---------------- */
+          <div className="min-h-screen flex flex-col justify-between px-6 py-10 max-w-sm mx-auto pointer-events-none">
+            
+            <div className="flex-1 flex flex-col justify-center space-y-10 py-8 pointer-events-auto">
+              <div className="text-center space-y-5">
+                <div className="w-16 h-16 bg-black rounded-[20px] mx-auto flex items-center justify-center shadow-[0_10px_25px_rgba(0,0,0,0.15)] transform hover:scale-[1.03] transition-all duration-300">
+                  <svg className="w-8 h-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                    <circle cx="12" cy="11" r="3" strokeWidth="1.5"/>
+                  </svg>
+                </div>
+                
+                <div className="space-y-2">
+                  <h1 className="text-3xl font-extrabold tracking-tight text-black drop-shadow-sm">Foodie</h1>
+                  <p className="text-sm text-[#86868B] font-medium leading-relaxed max-w-xs mx-auto drop-shadow-sm">
+                    您的專屬美食足跡庫。<br />
+                    在 Threads 提及 <span className="text-[#1D1D1F] font-semibold">@fabrica</span> 即可自動寫入。
+                  </p>
+                </div>
               </div>
-              
-              <div className="space-y-2">
-                <h1 className="text-3xl font-extrabold tracking-tight text-black drop-shadow-sm">Foodie</h1>
-                <p className="text-sm text-[#86868B] font-medium leading-relaxed max-w-xs mx-auto drop-shadow-sm">
-                  您的專屬美食足跡庫。<br />
-                  在 Threads 提及 <span className="text-[#1D1D1F] font-semibold">@fabrica</span> 即可自動寫入。
-                </p>
-              </div>
+
+              <form onSubmit={handleLogin} className="space-y-5 bg-white/45 backdrop-blur-xl border border-white/60 p-6 rounded-[32px] shadow-[0_20px_40px_rgba(0,0,0,0.03)]">
+                {isSandbox && (authError === 'auth/configuration-not-found' || authError === 'auth/operation-not-allowed') && (
+                  <div className="bg-[#FF9500]/10 border border-[#FF9500]/25 rounded-2xl p-4 text-xs text-[#D97300] font-medium leading-relaxed flex items-start gap-2.5">
+                    <span className="text-sm mt-0.5">⚠️</span>
+                    <div>
+                      <p className="font-bold text-[#C96300]">Firebase 匿名登入尚未啟用</p>
+                      <p className="mt-1 opacity-90">請前往 Firebase 控制台啟用「匿名 (Anonymous)」驗證。</p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  <div className="relative flex items-center w-full">
+                    <span className="absolute left-5 top-1/2 -translate-y-1/2 text-base font-semibold text-[#86868B] select-none pointer-events-none">@</span>
+                    <input 
+                      type="text" 
+                      placeholder="輸入您的 Threads 帳號" 
+                      value={inputUsername}
+                      onChange={(e) => setInputUsername(e.target.value.replace("@", ""))}
+                      className="w-full bg-white/80 text-base font-medium rounded-2xl py-4.5 pl-12 pr-5 border border-[#D2D2D7] focus:border-black focus:ring-1 focus:ring-black outline-none transition-all duration-200 placeholder-[#86868B]/70 shadow-[0_2px_8px_rgba(0,0,0,0.01)]"
+                    />
+                  </div>
+                  {loginError && (
+                    <p className="text-xs text-[#FF3B30] font-medium pl-3.5 flex items-center gap-1.5 animate-in fade-in duration-200">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                      {loginError}
+                    </p>
+                  )}
+                </div>
+
+                <button 
+                  type="submit"
+                  className="group relative cursor-pointer w-full h-[56px] border border-[#D2D2D7] bg-white rounded-2xl overflow-hidden text-[#1D1D1F] font-semibold transition-all duration-300 shadow-sm active:scale-[0.98] outline-none"
+                >
+                  <div className="absolute inset-0 flex items-center justify-center translate-x-0 group-hover:translate-x-16 group-hover:opacity-0 transition-all duration-300 z-20 pointer-events-none select-none">
+                    進入美食檔案
+                  </div>
+                  <div className="absolute inset-0 flex gap-2 items-center justify-center text-white z-20 translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none select-none">
+                    <span className="font-semibold text-sm">進入美食檔案</span>
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                  </div>
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-[#1D1D1F] scale-0 group-hover:scale-[35] transition-transform duration-500 ease-out z-10"></div>
+                </button>
+              </form>
             </div>
 
-            <form onSubmit={handleLogin} className="space-y-5 bg-white/45 backdrop-blur-xl border border-white/60 p-6 rounded-[32px] shadow-[0_20px_40px_rgba(0,0,0,0.03)]">
-              {isSandbox && (authError === 'auth/configuration-not-found' || authError === 'auth/operation-not-allowed') && (
-                <div className="bg-[#FF9500]/10 border border-[#FF9500]/25 rounded-2xl p-4 text-xs text-[#D97300] font-medium leading-relaxed flex items-start gap-2.5 animate-in fade-in slide-in-from-top-4 duration-300">
-                  <span className="text-sm mt-0.5">⚠️</span>
-                  <div>
-                    <p className="font-bold text-[#C96300]">Firebase 匿名登入尚未啟用</p>
-                    <p className="mt-1 opacity-90">請前往 Firebase 控制台啟用「匿名 (Anonymous)」驗證。</p>
-                  </div>
+            <footer className="text-center text-xs text-[#86868B] pt-4 pointer-events-none">
+              <p className="font-semibold text-[#1D1D1F]/40">© Fabrica</p>
+            </footer>
+          </div>
+
+        ) : (
+          /* ---------------- iOS 主檔案庫面板 ---------------- */
+          <div className="pb-32 bg-[#F4F4F6] min-h-screen">
+            <header className="sticky top-0 z-40 bg-white/60 backdrop-blur-xl border-b border-[#E5E5EA] px-6 py-4">
+              <div className="max-w-md mx-auto flex justify-between items-center">
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-bold tracking-wider text-[#86868B] uppercase">FABRICA MAPS</span>
+                  <h1 className="text-lg font-bold tracking-tight text-black mt-0.5">{threadsUsername}</h1>
+                </div>
+                <button 
+                  onClick={handleLogout}
+                  className="text-xs font-semibold text-[#86868B] hover:text-black hover:bg-[#E8E8ED] bg-[#F5F5F7] px-3.5 py-1.5 rounded-full transition-all duration-200"
+                >
+                  登出
+                </button>
+              </div>
+            </header>
+
+            <main className="max-w-md mx-auto px-4 mt-8 space-y-8">
+              {isSandbox && firebaseUser?.uid === "local-temp-guest" && (
+                <div className="bg-[#FF9500]/10 border border-[#FF9500]/20 rounded-2xl p-4 text-xs text-[#D97300] font-medium leading-relaxed">
+                  📢 <span className="font-bold">目前處於本地預覽模式：</span>新增的餐廳足跡將暫存在本地記憶體中。
                 </div>
               )}
 
-              <div className="space-y-3">
+              <section className="space-y-4">
                 <div className="relative flex items-center w-full">
-                  <span className="absolute left-5 top-1/2 -translate-y-1/2 text-base font-semibold text-[#86868B] select-none pointer-events-none">
-                    @
-                  </span>
+                  <svg className="w-5 h-5 text-[#86868B] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none select-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                  </svg>
                   <input 
                     type="text" 
-                    placeholder="輸入您的 Threads 帳號" 
-                    value={inputUsername}
-                    onChange={(e) => setInputUsername(e.target.value.replace("@", ""))}
-                    className="w-full bg-white/80 text-base font-medium rounded-2xl py-4.5 pl-12 pr-5 border border-[#D2D2D7] focus:border-black focus:ring-1 focus:ring-black outline-none transition-all duration-200 placeholder-[#86868B]/70 shadow-[0_2px_8px_rgba(0,0,0,0.01)]"
+                    placeholder="搜尋餐廳、分類或推薦..." 
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-white text-sm rounded-2xl py-3.5 pl-11 pr-4 border border-[#E5E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] focus:outline-none focus:border-[#86868B] placeholder-[#86868B] transition-all"
                   />
                 </div>
-                {loginError && (
-                  <p className="text-xs text-[#FF3B30] font-medium pl-3.5 flex items-center gap-1.5 animate-in fade-in duration-200">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-                    </svg>
-                    {loginError}
-                  </p>
+
+                {categories.length > 1 && (
+                  <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                    {categories.map((cat) => (
+                      <button
+                        key={cat}
+                        onClick={() => setSelectedCategory(cat)}
+                        className={`px-4.5 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-200 ${
+                          selectedCategory === cat 
+                            ? 'bg-black text-white shadow-sm' 
+                            : 'bg-white text-[#1D1D1F] border border-[#E5E5EA] hover:bg-[#F5F5F7]'
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
                 )}
-              </div>
+              </section>
 
-              {/* 🚀 絕對置中的黑底擴散微動效按鈕 */}
-              <button 
-                type="submit"
-                className="group relative cursor-pointer w-full h-[56px] border border-[#D2D2D7] bg-white rounded-2xl overflow-hidden text-[#1D1D1F] font-semibold transition-all duration-300 shadow-sm active:scale-[0.98] outline-none"
-              >
-                {/* 靜止狀態文字 (絕對置中) */}
-                <div className="absolute inset-0 flex items-center justify-center translate-x-0 group-hover:translate-x-16 group-hover:opacity-0 transition-all duration-300 z-20 pointer-events-none select-none">
-                  進入美食檔案
-                </div>
-                
-                {/* 懸浮狀態新文字與箭頭 (絕對置中) */}
-                <div className="absolute inset-0 flex gap-2 items-center justify-center text-white z-20 translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none select-none">
-                  <span className="font-semibold text-sm">進入美食檔案</span>
-                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
-                  </svg>
-                </div>
-                
-                {/* 絕對圓心擴散深色背景：使用 scale-0 徹底隱藏，解決黑點殘留問題 */}
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-[#1D1D1F] scale-0 group-hover:scale-[35] transition-transform duration-500 ease-out z-10"></div>
-              </button>
-            </form>
-          </div>
+              <section className="space-y-8">
+                {isLoading && firebaseUser?.uid !== "local-temp-guest" ? (
+                  <div className="text-center py-20 space-y-3">
+                    <svg className="animate-spin h-5 w-5 text-black mx-auto" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                  </div>
+                ) : filteredRestaurants.length === 0 ? (
+                  <div className="text-center py-16 bg-white rounded-[28px] border border-[#E5E5EA] p-8 space-y-4 shadow-sm">
+                    <div className="w-12 h-12 bg-[#F5F5F7] rounded-full flex items-center justify-center mx-auto text-[#86868B]">
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold text-black">您的專屬美食地圖尚未收集足跡</p>
+                      <p className="text-xs text-[#86868B] max-w-[240px] mx-auto leading-relaxed">請在下方手動新增，或者讓 @fabrica 機器人自動為您收集 Threads 串文！</p>
+                    </div>
+                    <button 
+                      onClick={() => setShowAddModal(true)}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold bg-black hover:bg-black/90 text-white px-4 py-2 rounded-full transition-all"
+                    >
+                      手動新增第一筆
+                    </button>
+                  </div>
+                ) : (
+                  filteredRestaurants.map((restaurant, i) => (
+                    // 為每個列表元素加上階層浮現動畫 (Staggered fade in)
+                    <div 
+                      key={restaurant.id}
+                      className="bg-white rounded-[28px] shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-[#E5E5EA]/80 overflow-hidden hover:shadow-[0_12px_40px_rgb(0,0,0,0.05)] hover:border-[#D2D2D7]/80 transition-all duration-300 transform hover:-translate-y-0.5 animate-in fade-in slide-in-from-bottom-8 fill-mode-both"
+                      style={{ animationDelay: `${i * 100}ms`, animationDuration: '600ms' }}
+                    >
+                      <div className="p-6 pb-4">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] font-bold tracking-wider text-[#86868B] bg-[#F5F5F7] px-2.5 py-1 rounded-md uppercase">
+                            {restaurant.category || "美食 • 精選"}
+                          </span>
+                          {restaurant.savedAt && (
+                            <span className="text-[10px] font-medium text-[#86868B]">
+                              {restaurant.savedAt.seconds 
+                                ? new Date(restaurant.savedAt.seconds * 1000).toLocaleDateString('zh-TW', { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' })
+                                : "剛剛"}
+                            </span>
+                          )}
+                        </div>
+                        
+                        <h2 className="text-xl font-bold text-black mt-3 flex items-center justify-between tracking-tight">
+                          {restaurant.name}
+                          {restaurant.threadsUrl && (
+                            <a href={restaurant.threadsUrl} target="_blank" rel="noreferrer" className="text-[#86868B] hover:text-black transition-colors">
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                            </a>
+                          )}
+                        </h2>
+                        
+                        <p className="text-xs text-[#86868B] mt-2 flex items-center gap-1.5 font-medium">
+                          <svg className="w-4 h-4 text-[#86868B]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3" strokeWidth="2.5"/></svg>
+                          {restaurant.address || "僅提供店名定位"}
+                        </p>
+                      </div>
 
-          <footer className="relative z-10 text-center text-xs text-[#86868B] pt-4 pointer-events-none">
-            <p className="font-semibold text-[#1D1D1F]/40">© Fabrica</p>
-          </footer>
-        </div>
-      ) : (
-        /* ==================== iOS 主檔案庫面板 ==================== */
-        <div className="relative z-10 pb-32 animate-fade-in bg-[#F4F4F6] min-h-screen">
-          {/* 毛玻璃頂部導覽列 */}
-          <header className="sticky top-0 z-40 bg-white/60 backdrop-blur-xl border-b border-[#E5E5EA] px-6 py-4">
-            <div className="max-w-md mx-auto flex justify-between items-center">
-              <div className="flex flex-col">
-                <span className="text-[10px] font-bold tracking-wider text-[#86868B] uppercase">FABRICA MAPS</span>
-                <h1 className="text-lg font-bold tracking-tight text-black mt-0.5">
-                  {threadsUsername}
-                </h1>
-              </div>
+                      <div className="mx-6 mb-5 p-4.5 bg-[#F5F5F7] rounded-2xl border border-[#E5E5EA]/40">
+                        <div className="flex items-center gap-1.5 text-[9px] font-bold text-[#86868B] uppercase tracking-wider mb-1.5">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9.663 17h4.673M12 3v1m6.364 .364l-.707 .707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                          Fabrica AI Insight
+                        </div>
+                        <p className="text-xs text-[#3A3A3C] leading-relaxed font-medium">{restaurant.note}</p>
+                      </div>
+
+                      <div className="w-full h-44 bg-[#E5E5EA] relative overflow-hidden border-t border-[#F2F2F7]">
+                        <iframe title={`Map for ${restaurant.name}`} src={getFreeMapEmbedUrl(restaurant.name, restaurant.address)} className="w-full h-full border-0 grayscale hover:grayscale-0 transition-all duration-500" allowFullScreen="" loading="lazy"></iframe>
+                      </div>
+
+                      <div className="p-4 bg-white border-t border-[#F2F2F7] flex gap-3">
+                        <a href={getFreeMapAppUrl(restaurant.name, restaurant.address)} target="_blank" rel="noreferrer" className="w-full py-3 text-center text-xs font-semibold text-black bg-[#F5F5F7] hover:bg-[#E8E8ED] active:scale-95 transition-all rounded-xl flex items-center justify-center gap-1.5">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
+                          在地圖中開啟
+                        </a>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </section>
+            </main>
+
+            <div className="fixed bottom-6 left-0 right-0 z-40 flex justify-center pointer-events-none">
               <button 
-                onClick={handleLogout}
-                className="text-xs font-semibold text-[#86868B] hover:text-black hover:bg-[#E8E8ED] bg-[#F5F5F7] px-3.5 py-1.5 rounded-full transition-all duration-200"
+                onClick={() => setShowAddModal(true)}
+                className="pointer-events-auto bg-black hover:bg-black/90 active:scale-95 transition-all text-white font-semibold text-xs tracking-wide px-5 py-3 rounded-full flex items-center gap-1.5 shadow-[0_12px_40px_rgba(0,0,0,0.25)]"
               >
-                登出
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>
+                手動新增足跡
               </button>
             </div>
-          </header>
 
-          <main className="max-w-md mx-auto px-4 mt-8 space-y-8">
-            {isSandbox && firebaseUser?.uid === "local-temp-guest" && (
-              <div className="bg-[#FF9500]/10 border border-[#FF9500]/20 rounded-2xl p-4 text-xs text-[#D97300] font-medium leading-relaxed animate-in fade-in duration-300">
-                📢 <span className="font-bold">目前處於本地預覽模式：</span>新增的餐廳足跡將暫存在本地記憶體中。若要啟用多裝置實時雲端同步與 Threads 機器人自動寫入，請記得在 Firebase Authentication 啟用「匿名登入 (Anonymous)」功能。
-              </div>
-            )}
-
-            <section className="space-y-4">
-              <div className="relative flex items-center w-full">
-                <svg className="w-5 h-5 text-[#86868B] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none select-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                </svg>
-                <input 
-                  type="text" 
-                  placeholder="搜尋餐廳、分類或推薦..." 
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-white text-sm rounded-2xl py-3.5 pl-11 pr-4 border border-[#E5E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] focus:outline-none focus:border-[#86868B] placeholder-[#86868B] transition-all"
-                />
-              </div>
-
-              {categories.length > 1 && (
-                <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-                  {categories.map((cat) => (
-                    <button
-                      key={cat}
-                      onClick={() => setSelectedCategory(cat)}
-                      className={`px-4.5 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-200 ${
-                        selectedCategory === cat 
-                          ? 'bg-black text-white shadow-sm' 
-                          : 'bg-white text-[#1D1D1F] border border-[#E5E5EA] hover:bg-[#F5F5F7]'
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <section className="space-y-8">
-              {isLoading && firebaseUser?.uid !== "local-temp-guest" ? (
-                <div className="text-center py-20 space-y-3">
-                  <svg className="animate-spin h-5 w-5 text-black mx-auto" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  <p className="text-xs text-[#86868B] font-semibold">正在讀取雲端美食資料庫...</p>
-                </div>
-              ) : filteredRestaurants.length === 0 ? (
-                <div className="text-center py-16 bg-white rounded-[28px] border border-[#E5E5EA] p-8 space-y-4 shadow-sm">
-                  <div className="w-12 h-12 bg-[#F5F5F7] rounded-full flex items-center justify-center mx-auto text-[#86868B]">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
-                    </svg>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-sm font-semibold text-black">您的專屬美食地圖尚未收集足跡</p>
-                    <p className="text-xs text-[#86868B] max-w-[240px] mx-auto leading-relaxed">
-                      請在下方手動新增，或者讓 @fabrica 機器人自動為您收集 Threads 串文！
-                    </p>
-                  </div>
-                  <button 
-                    onClick={() => setShowAddModal(true)}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold bg-black hover:bg-black/90 text-white px-4 py-2 rounded-full transition-all"
-                  >
-                    手動新增第一筆
-                  </button>
-                </div>
-              ) : (
-                filteredRestaurants.map((restaurant) => (
-                  <div 
-                    key={restaurant.id}
-                    className="bg-white rounded-[28px] shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-[#E5E5EA]/80 overflow-hidden hover:shadow-[0_12px_40px_rgb(0,0,0,0.05)] hover:border-[#D2D2D7]/80 transition-all duration-300 transform hover:-translate-y-0.5"
-                  >
-                    <div className="p-6 pb-4">
-                      <div className="flex justify-between items-center">
-                        <span className="text-[10px] font-bold tracking-wider text-[#86868B] bg-[#F5F5F7] px-2.5 py-1 rounded-md uppercase">
-                          {restaurant.category || "美食 • 精選"}
-                        </span>
-                        {restaurant.savedAt && (
-                          <span className="text-[10px] font-medium text-[#86868B]">
-                            {restaurant.savedAt.seconds 
-                              ? new Date(restaurant.savedAt.seconds * 1000).toLocaleDateString('zh-TW', { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' })
-                              : "剛剛"}
-                          </span>
-                        )}
-                      </div>
-                      
-                      <h2 className="text-xl font-bold text-black mt-3 flex items-center justify-between tracking-tight">
-                        {restaurant.name}
-                        {restaurant.threadsUrl && (
-                          <a 
-                            href={restaurant.threadsUrl} 
-                            target="_blank" 
-                            rel="noreferrer"
-                            className="text-[#86868B] hover:text-black transition-colors"
-                          >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-                            </svg>
-                          </a>
-                        )}
-                      </h2>
-                      
-                      <p className="text-xs text-[#86868B] mt-2 flex items-center gap-1.5 font-medium">
-                        <svg className="w-4 h-4 text-[#86868B]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-                          <circle cx="12" cy="11" r="3" strokeWidth="2.5"/>
-                        </svg>
-                        {restaurant.address || "僅提供店名定位"}
-                      </p>
-                    </div>
-
-                    <div className="mx-6 mb-5 p-4.5 bg-[#F5F5F7] rounded-2xl border border-[#E5E5EA]/40">
-                      <div className="flex items-center gap-1.5 text-[9px] font-bold text-[#86868B] uppercase tracking-wider mb-1.5">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9.663 17h4.673M12 3v1m6.364 .364l-.707 .707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
-                        </svg>
-                        Fabrica AI Insight
-                      </div>
-                      <p className="text-xs text-[#3A3A3C] leading-relaxed font-medium">
-                        {restaurant.note}
-                      </p>
-                    </div>
-
-                    <div className="w-full h-44 bg-[#E5E5EA] relative overflow-hidden border-t border-[#F2F2F7]">
-                      <iframe
-                        title={`Map for ${restaurant.name}`}
-                        src={getFreeMapEmbedUrl(restaurant.name, restaurant.address)}
-                        className="w-full h-full border-0 grayscale hover:grayscale-0 transition-all duration-500"
-                        allowFullScreen=""
-                        loading="lazy"
-                      ></iframe>
-                    </div>
-
-                    <div className="p-4 bg-white border-t border-[#F2F2F7] flex gap-3">
-                      <a 
-                        href={getFreeMapAppUrl(restaurant.name, restaurant.address)}
-                        target="_blank" 
-                        rel="noreferrer"
-                        className="w-full py-3 text-center text-xs font-semibold text-black bg-[#F5F5F7] hover:bg-[#E8E8ED] active:scale-95 transition-all rounded-xl flex items-center justify-center gap-1.5"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-                        </svg>
-                        在地圖中開啟
-                      </a>
-                    </div>
-                  </div>
-                ))
-              )}
-            </section>
-          </main>
-
-          <div className="fixed bottom-6 left-0 right-0 z-40 flex justify-center pointer-events-none">
-            <button 
-              onClick={() => setShowAddModal(true)}
-              className="pointer-events-auto bg-black hover:bg-black/90 active:scale-95 transition-all text-white font-semibold text-xs tracking-wide px-5 py-3 rounded-full flex items-center gap-1.5 shadow-[0_12px_40px_rgba(0,0,0,0.25)]"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/>
-              </svg>
-              手動新增足跡
-            </button>
+            <footer className="text-center mt-20 mb-8 text-[11px] text-[#86868B] space-y-1">
+              <p className="font-semibold text-[#1D1D1F]">© Fabrica</p>
+            </footer>
           </div>
+        )}
+      </div>
 
-          <footer className="text-center mt-20 mb-8 text-[11px] text-[#86868B] space-y-1">
-            <p className="font-semibold text-[#1D1D1F]">© Fabrica</p>
-          </footer>
-        </div>
-      )}
-
-      {/* ==================== 🚀 升級版 Apple Glassmorphism 新增美食彈出視窗 ==================== */}
+      {/* ==================== 🚀 帶有流暢退出動畫的新增美食彈出視窗 ==================== */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-black/20 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+        <div 
+          className={`fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/20 backdrop-blur-md transition-opacity duration-400 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${
+            isClosingModal ? 'opacity-0' : 'opacity-100'
+          }`}
+        >
           <form 
             onSubmit={handleAddRestaurant}
-            className="bg-white/85 backdrop-blur-2xl w-full max-w-sm rounded-[36px] p-7 space-y-6 shadow-[0_24px_48px_rgba(0,0,0,0.08)] border border-white text-left animate-in zoom-in-95 slide-in-from-bottom-8 duration-300"
+            className={`bg-white/85 backdrop-blur-2xl w-full max-w-sm rounded-[36px] p-7 space-y-6 shadow-[0_24px_48px_rgba(0,0,0,0.08)] border border-white text-left transition-all duration-400 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${
+              isClosingModal ? 'scale-95 translate-y-8 opacity-0' : 'scale-100 translate-y-0 opacity-100'
+            }`}
           >
             <div className="flex justify-between items-center pb-3 border-b border-[#1D1D1F]/5">
-              <h3 className="text-lg font-bold text-black tracking-tight">
-                新增口袋美食
-              </h3>
+              <h3 className="text-lg font-bold text-black tracking-tight">新增口袋美食</h3>
               <button 
                 type="button"
-                onClick={() => setShowAddModal(false)}
+                onClick={closeAddModal}
                 className="w-8 h-8 bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#86868B] hover:text-black font-semibold rounded-full flex items-center justify-center text-sm transition-colors"
               >
                 ✕
@@ -780,34 +833,15 @@ export default function App() {
             <div className="space-y-4 text-sm">
               <div className="space-y-1.5">
                 <label className="font-bold text-[#1D1D1F] text-xs px-1">餐廳名稱 *</label>
-                <input 
-                  type="text" 
-                  required
-                  value={newRestName}
-                  onChange={(e) => setNewRestName(e.target.value)}
-                  placeholder="例如：熟成宇治"
-                  className="w-full bg-white/70 rounded-2xl p-3.5 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)]"
-                />
+                <input type="text" required value={newRestName} onChange={(e) => setNewRestName(e.target.value)} placeholder="例如：熟成宇治" className="w-full bg-white/70 rounded-2xl p-3.5 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)]" />
               </div>
-
               <div className="space-y-1.5">
                 <label className="font-bold text-[#1D1D1F] text-xs px-1">地址（選填）</label>
-                <input 
-                  type="text" 
-                  value={newRestAddress}
-                  onChange={(e) => setNewRestAddress(e.target.value)}
-                  placeholder="例如：台北市大安區永康街4巷8號"
-                  className="w-full bg-white/70 rounded-2xl p-3.5 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)]"
-                />
+                <input type="text" value={newRestAddress} onChange={(e) => setNewRestAddress(e.target.value)} placeholder="例如：台北市大安區永康街4巷8號" className="w-full bg-white/70 rounded-2xl p-3.5 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)]" />
               </div>
-
               <div className="space-y-1.5">
                 <label className="font-bold text-[#1D1D1F] text-xs px-1">餐飲分類</label>
-                <select 
-                  value={newRestCategory}
-                  onChange={(e) => setNewRestCategory(e.target.value)}
-                  className="w-full bg-white/70 rounded-2xl p-3.5 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-semibold text-[#1D1D1F] appearance-none transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)]"
-                >
+                <select value={newRestCategory} onChange={(e) => setNewRestCategory(e.target.value)} className="w-full bg-white/70 rounded-2xl p-3.5 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-semibold text-[#1D1D1F] appearance-none transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
                   <option value="日式甜點 • 咖啡廳">日式甜點 • 咖啡廳</option>
                   <option value="義式料理 • 自然酒">義式料理 • 自然酒</option>
                   <option value="台灣傳統 • 小吃">台灣傳統 • 小吃</option>
@@ -815,37 +849,18 @@ export default function App() {
                   <option value="異國料理 • 餐酒">異國料理 • 餐酒</option>
                 </select>
               </div>
-
               <div className="space-y-1.5">
                 <label className="font-bold text-[#1D1D1F] text-xs px-1">美食短評</label>
-                <textarea 
-                  value={newRestNote}
-                  onChange={(e) => setNewRestNote(e.target.value)}
-                  placeholder="輸入你對這家店的評價..."
-                  className="w-full bg-white/70 rounded-2xl p-3.5 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none h-20 resize-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)]"
-                />
+                <textarea value={newRestNote} onChange={(e) => setNewRestNote(e.target.value)} placeholder="輸入你對這家店的評價..." className="w-full bg-white/70 rounded-2xl p-3.5 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none h-20 resize-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)]" />
               </div>
             </div>
 
-            {/* 🚀 絕對置中的黑底擴散微動效按鈕 (附帶流暢打勾圖示) */}
-            <button 
-              type="submit"
-              className="group relative cursor-pointer w-full h-[56px] border border-[#D2D2D7] bg-white rounded-2xl overflow-hidden text-[#1D1D1F] font-semibold transition-all duration-300 shadow-sm active:scale-[0.98] outline-none mt-2"
-            >
-              {/* 靜止狀態文字 (絕對置中) */}
-              <div className="absolute inset-0 flex items-center justify-center translate-x-0 group-hover:translate-x-16 group-hover:opacity-0 transition-all duration-300 z-20 pointer-events-none select-none">
-                儲存至個人地圖
-              </div>
-              
-              {/* 懸浮狀態新文字與打勾符號 (絕對置中) */}
+            <button type="submit" className="group relative cursor-pointer w-full h-[56px] border border-[#D2D2D7] bg-white rounded-2xl overflow-hidden text-[#1D1D1F] font-semibold transition-all duration-300 shadow-sm active:scale-[0.98] outline-none mt-2">
+              <div className="absolute inset-0 flex items-center justify-center translate-x-0 group-hover:translate-x-16 group-hover:opacity-0 transition-all duration-300 z-20 pointer-events-none select-none">儲存至個人地圖</div>
               <div className="absolute inset-0 flex gap-2 items-center justify-center text-white z-20 translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none select-none">
                 <span className="font-semibold text-sm">確認新增</span>
-                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/>
-                </svg>
+                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg>
               </div>
-              
-              {/* 絕對圓心擴散深色背景：使用 scale-0 徹底隱藏，解決黑點殘留問題 */}
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-[#1D1D1F] scale-0 group-hover:scale-[35] transition-transform duration-500 ease-out z-10"></div>
             </button>
           </form>
