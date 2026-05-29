@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getAuth, 
@@ -15,13 +15,11 @@ import {
   serverTimestamp 
 } from 'firebase/firestore';
 
-// --- 3D Mesh Gradient 背景所需的 Three.js 與 R3F 套件 ---
-import { Canvas, useFrame } from '@react-three/fiber';
-import { MathUtils, Vector3 } from 'three';
-import { Environment } from '@react-three/drei';
+// --- 原生 WebGL 渲染，徹底避開 React Three Fiber 的 useContext 衝突 ---
+import * as THREE from 'three';
 
 // --- 安全環境變數與降級防禦機制 ---
-let safeApiKey = "AIzaSyC4YdF_pAKyMFuQVDCau_g3fP9zsMTcOcE"; // 預設降級備用金鑰
+let safeApiKey = "AIzaSyC4YdF_pAKyMFuQVDCau_g3fP9zsMTcOcE"; 
 try {
   if (typeof window !== 'undefined' && typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
     safeApiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
@@ -46,7 +44,7 @@ const db = getFirestore(app);
 const appId = 'fabrica-foodie-app'; // 用於嚴格路徑規則的專案 appId
 
 // ==========================================
-// 🎨 3D Vertex & Fragment Shaders (黑白極簡)
+// 🎨 原生 3D Vertex & Fragment Shaders (黑白液態)
 // ==========================================
 const vertexShader = `
 uniform float u_intensity;
@@ -174,61 +172,6 @@ void main() {
 }
 `;
 
-const Blob = () => {
-  const mesh = useRef(null);
-  const hover = useRef(false);
-
-  const uniforms = useMemo(
-    () => ({
-      u_time: { value: 0 },
-      u_intensity: { value: 0.25 },
-      u_noiseScale: { value: 1.5 },
-      u_noiseSpeed: { value: 0.8 },
-    }),
-    []
-  );
-
-  const targetPosition = useRef(new Vector3(0, 0, 0));
-  const currentPosition = useRef(new Vector3(0, 0, 0));
-
-  useFrame((state) => {
-    const { clock, mouse } = state;
-    if (mesh.current) {
-      const material = mesh.current.material;
-      material.uniforms.u_time.value = 0.25 * clock.getElapsedTime();
-      material.uniforms.u_noiseScale.value = Math.sin(clock.getElapsedTime() * 0.1) * 0.5 + 1.2;
-      material.uniforms.u_intensity.value = MathUtils.lerp(
-        material.uniforms.u_intensity.value,
-        hover.current ? 0.35 : 0.2,
-        0.02
-      );
-      
-      // 3D 膠體微微跟隨滑鼠軌跡產生偏移，極具互動感
-      targetPosition.current.set(mouse.x * 1.2, mouse.y * 1.2, 0);
-      currentPosition.current.lerp(targetPosition.current, 0.05);
-      mesh.current.position.copy(currentPosition.current);
-    }
-  });
-
-  return (
-    <mesh
-      ref={mesh}
-      scale={2.4}
-      position={[0, 0, -1]}
-      onPointerOver={() => (hover.current = true)}
-      onPointerOut={() => (hover.current = false)}
-    >
-      {/* 🌟 安全與美學升級：原生高解像度 sphereGeometry 完美取代 icosahedron 避開 THREE namespace 報錯 */}
-      <sphereGeometry args={[2, 64, 64]} />
-      <shaderMaterial
-        vertexShader={vertexShader}
-        fragmentShader={fragmentShader}
-        uniforms={uniforms}
-      />
-    </mesh>
-  );
-};
-
 // ==========================================
 // 🚀 Page 組件
 // ==========================================
@@ -253,7 +196,10 @@ export default function App() {
   const [authError, setAuthError] = useState(null); 
   
   const [isSandbox, setIsSandbox] = useState(false); 
-  const [mounted, setMounted] = useState(false); // 💡 用於 100% 阻隔 Next.js SSR 期間 3D 運算引發的 hooks useContext 錯誤
+  const [mounted, setMounted] = useState(false); 
+
+  // 3D Canvas WebGL 容器節點引用
+  const canvasContainerRef = useRef(null);
 
   // 客戶端載入守衛與環境偵測
   useEffect(() => {
@@ -266,6 +212,118 @@ export default function App() {
       setIsSandbox(isSand);
     }
   }, []);
+
+  // 🌟 100% 穩定且不報錯的原生 WebGL Three.js 初始化與動畫迴圈 
+  useEffect(() => {
+    if (!mounted || isLoggedIn) return;
+
+    const container = canvasContainerRef.current;
+    if (!container) return;
+
+    // 1. 初始化場景、相機與渲染器
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(35, width / height, 0.1, 100);
+    camera.position.set(0, 0, 8);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    container.appendChild(renderer.domElement);
+
+    // 2. 初始化自訂著色器材質與球形網格
+    const uniforms = {
+      u_time: { value: 0 },
+      u_intensity: { value: 0.25 },
+      u_noiseScale: { value: 1.5 },
+      u_noiseSpeed: { value: 0.8 },
+    };
+
+    const geometry = new THREE.SphereGeometry(2, 64, 64);
+    const material = new THREE.ShaderMaterial({
+      vertexShader: vertexShader,
+      fragmentShader: fragmentShader,
+      uniforms: uniforms,
+      transparent: true,
+    });
+
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(0, 0, -1);
+    mesh.scale.setScalar(2.4);
+    scene.add(mesh);
+
+    // 3. 移動端與桌面端的滑鼠軌跡傾斜互動
+    const mouse = { x: 0, y: 0 };
+    const targetPosition = new THREE.Vector3(0, 0, -1);
+    const currentPosition = new THREE.Vector3(0, 0, -1);
+
+    const handleMouseMove = (event) => {
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    };
+
+    const handleTouchMove = (event) => {
+      if (event.touches.length > 0) {
+        mouse.x = (event.touches[0].clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.touches[0].clientY / window.innerHeight) * 2 + 1;
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('touchmove', handleTouchMove);
+
+    // 4. 視窗適應尺寸變更處理
+    const handleResize = () => {
+      if (!container) return;
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    // 5. 渲染動畫與流體擾動計算
+    let animationFrameId;
+    const clock = new THREE.Clock();
+
+    const animate = () => {
+      const elapsedTime = clock.getElapsedTime();
+      
+      // 更新著色器時間變數
+      uniforms.u_time.value = 0.25 * elapsedTime;
+      uniforms.u_noiseScale.value = Math.sin(elapsedTime * 0.1) * 0.5 + 1.2;
+
+      // 膠體微微向滑鼠方向偏倚
+      targetPosition.set(mouse.x * 1.2, mouse.y * 1.2, -1);
+      currentPosition.lerp(targetPosition, 0.05);
+      mesh.position.copy(currentPosition);
+
+      renderer.render(scene, camera);
+      animationFrameId = requestAnimationFrame(animate);
+    };
+
+    animate();
+
+    // 6. 卸載時徹底釋放顯存資源與監聽
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('resize', handleResize);
+      cancelAnimationFrame(animationFrameId);
+      
+      if (container && renderer.domElement) {
+        container.removeChild(renderer.domElement);
+      }
+      
+      geometry.dispose();
+      material.dispose();
+      renderer.dispose();
+    };
+  }, [mounted, isLoggedIn]);
 
   // Firebase 初始化認證
   useEffect(() => {
@@ -413,14 +471,12 @@ export default function App() {
   return (
     <div className="relative min-h-screen bg-[#F4F4F6] text-[#1D1D1F] tracking-tight selection:bg-[#0071E3]/20 selection:text-[#0071E3] font-sans antialiased overflow-x-hidden">
       
-      {/* 🌟 3D 黑白極簡動態 Shader 流體背景 (僅在未登入且客戶端 Mounted 後渲染，徹底防止 SSR useContext 報錯) */}
-      {mounted && !isLoggedIn && (
-        <div className="fixed inset-0 z-0 pointer-events-auto bg-[#F4F4F6]">
-          <Canvas camera={{ position: [0.0, 0.0, 8.0], fov: 35 }}>
-            <Environment preset="studio" environmentIntensity={0.5} />
-            <Blob />
-          </Canvas>
-        </div>
+      {/* 🌟 3D 原生 WebGL 黑白極簡液態 Shader 流體背景 (未登入時全螢幕鋪底，無 R3F 報錯風險) */}
+      {!isLoggedIn && (
+        <div 
+          ref={canvasContainerRef} 
+          className="fixed inset-0 z-0 bg-[#F4F4F6] w-screen h-screen pointer-events-auto"
+        />
       )}
 
       {!isLoggedIn ? (
@@ -635,8 +691,8 @@ export default function App() {
                       
                       <p className="text-xs text-[#86868B] mt-2 flex items-center gap-1.5 font-medium">
                         <svg className="w-4 h-4 text-[#86868B]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                          <circle cx="12" cy="11" r="3" strokeWidth="2.5"/>
                         </svg>
                         {restaurant.address || "僅提供店名定位"}
                       </p>
@@ -701,55 +757,56 @@ export default function App() {
         </div>
       )}
 
+      {/* ==================== 🚀 升級版 Apple Glassmorphism 新增美食彈出視窗 ==================== */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 bg-black/20 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
           <form 
             onSubmit={handleAddRestaurant}
-            className="bg-white w-full max-w-sm rounded-[32px] p-6.5 space-y-5 shadow-2xl border border-[#E5E5EA] text-left animate-in zoom-in-95 slide-in-from-bottom-8 duration-300"
+            className="bg-white/85 backdrop-blur-2xl w-full max-w-sm rounded-[36px] p-7 space-y-6 shadow-[0_24px_48px_rgba(0,0,0,0.08)] border border-white text-left animate-in zoom-in-95 slide-in-from-bottom-8 duration-300"
           >
-            <div className="flex justify-between items-center pb-2 border-b border-[#F5F5F7]">
-              <h3 className="text-base font-bold text-black tracking-tight">
-                手動新增足跡
+            <div className="flex justify-between items-center pb-3 border-b border-[#1D1D1F]/5">
+              <h3 className="text-lg font-bold text-black tracking-tight">
+                新增口袋美食
               </h3>
               <button 
                 type="button"
                 onClick={() => setShowAddModal(false)}
-                className="w-7 h-7 bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#86868B] hover:text-black font-semibold rounded-full flex items-center justify-center text-xs transition-colors"
+                className="w-8 h-8 bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#86868B] hover:text-black font-semibold rounded-full flex items-center justify-center text-sm transition-colors"
               >
                 ✕
               </button>
             </div>
 
-            <div className="space-y-4 text-xs">
+            <div className="space-y-4 text-sm">
               <div className="space-y-1.5">
-                <label className="font-bold text-[#1D1D1F]">餐廳名稱 *</label>
+                <label className="font-bold text-[#1D1D1F] text-xs px-1">餐廳名稱 *</label>
                 <input 
                   type="text" 
                   required
                   value={newRestName}
                   onChange={(e) => setNewRestName(e.target.value)}
                   placeholder="例如：熟成宇治"
-                  className="w-full bg-[#F5F5F7] rounded-xl p-3 border-0 focus:ring-1 focus:ring-black outline-none font-medium"
+                  className="w-full bg-white/70 rounded-2xl p-3.5 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)]"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="font-bold text-[#1D1D1F]">地址（選填）</label>
+                <label className="font-bold text-[#1D1D1F] text-xs px-1">地址（選填）</label>
                 <input 
                   type="text" 
                   value={newRestAddress}
                   onChange={(e) => setNewRestAddress(e.target.value)}
                   placeholder="例如：台北市大安區永康街4巷8號"
-                  className="w-full bg-[#F5F5F7] rounded-xl p-3 border-0 focus:ring-1 focus:ring-black outline-none font-medium"
+                  className="w-full bg-white/70 rounded-2xl p-3.5 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)]"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="font-bold text-[#1D1D1F]">餐飲分類</label>
+                <label className="font-bold text-[#1D1D1F] text-xs px-1">餐飲分類</label>
                 <select 
                   value={newRestCategory}
                   onChange={(e) => setNewRestCategory(e.target.value)}
-                  className="w-full bg-[#F5F5F7] rounded-xl p-3 border-0 focus:ring-1 focus:ring-black outline-none font-semibold text-[#1D1D1F] appearance-none"
+                  className="w-full bg-white/70 rounded-2xl p-3.5 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-semibold text-[#1D1D1F] appearance-none transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)]"
                 >
                   <option value="日式甜點 • 咖啡廳">日式甜點 • 咖啡廳</option>
                   <option value="義式料理 • 自然酒">義式料理 • 自然酒</option>
@@ -760,22 +817,36 @@ export default function App() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="font-bold text-[#1D1D1F]">美食短評</label>
+                <label className="font-bold text-[#1D1D1F] text-xs px-1">美食短評</label>
                 <textarea 
-                  type="text"
                   value={newRestNote}
                   onChange={(e) => setNewRestNote(e.target.value)}
                   placeholder="輸入你對這家店的評價..."
-                  className="w-full bg-[#F5F5F7] rounded-xl p-3 border-0 focus:ring-1 focus:ring-black outline-none h-16 resize-none font-medium"
+                  className="w-full bg-white/70 rounded-2xl p-3.5 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none h-20 resize-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)]"
                 />
               </div>
             </div>
 
+            {/* 🚀 絕對置中的黑底擴散微動效按鈕 (附帶流暢打勾圖示) */}
             <button 
               type="submit"
-              className="w-full py-3.5 bg-black text-white text-xs font-semibold rounded-2xl hover:bg-black/90 active:scale-[0.98] transition-all"
+              className="group relative cursor-pointer w-full h-[56px] border border-[#D2D2D7] bg-white rounded-2xl overflow-hidden text-[#1D1D1F] font-semibold transition-all duration-300 shadow-sm active:scale-[0.98] outline-none mt-2"
             >
-              同步儲存至個人地圖
+              {/* 靜止狀態文字 (絕對置中) */}
+              <div className="absolute inset-0 flex items-center justify-center translate-x-0 group-hover:translate-x-16 group-hover:opacity-0 transition-all duration-300 z-20 pointer-events-none select-none">
+                儲存至個人地圖
+              </div>
+              
+              {/* 懸浮狀態新文字與打勾符號 (絕對置中) */}
+              <div className="absolute inset-0 flex gap-2 items-center justify-center text-white z-20 translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none select-none">
+                <span className="font-semibold text-sm">確認新增</span>
+                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/>
+                </svg>
+              </div>
+              
+              {/* 絕對圓心擴散深色背景：使用 scale-0 徹底隱藏，解決黑點殘留問題 */}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-[#1D1D1F] scale-0 group-hover:scale-[35] transition-transform duration-500 ease-out z-10"></div>
             </button>
           </form>
         </div>
