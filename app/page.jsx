@@ -344,14 +344,22 @@ export default function App() {
       
       try {
         const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        // 🚨 修正：移除網址後方的 ?key=，改用更安全的 Header 傳遞
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`;
         const payload = {
           contents: [{ parts: [{ text: `我現在的 GPS 座標是：緯度 ${latitude}，經度 ${longitude}。請幫我搜尋這附近評價最好的 3 間特色餐廳或咖啡廳。` }] }],
           systemInstruction: { parts: [{ text: "你是一個高端美食顧問 Fabrica。請根據座標，搜尋附近 3 間真實高評價餐廳。嚴格輸出一個 JSON 陣列，格式如下：[{\"name\": \"店名\", \"address\": \"真實地址\", \"category\": \"餐飲分類 (如 咖啡廳、義式)\", \"note\": \"推薦原因 (30字)\"}]。不要輸出任何 markdown 標記。" }] },
           tools: [{ google_search: {} }]
         };
 
-        const response = await fetch(geminiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        const response = await fetch(geminiUrl, { 
+          method: "POST", 
+          headers: { 
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey // 🌟 解決 AQ. 新格式金鑰解析 Bug 的完美解法
+          }, 
+          body: JSON.stringify(payload) 
+        });
         const data = await response.json();
         
         const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
@@ -400,14 +408,22 @@ export default function App() {
     if (!finalNote.trim()) {
       try {
         const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        // 🚨 修正：移除網址後方的 ?key=
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`;
         const payload = {
           contents: [{ parts: [{ text: `請分析台灣的這間餐廳：${newRestName} ${newRestAddress}。請綜合網路評價、近期優惠、活動與特色給出建議。` }] }],
           systemInstruction: { parts: [{ text: "你是一個高端美食顧問 Fabrica。請用 50-80 字精煉總結這家餐廳的真實網路評價、特色招牌菜色，若近期有知名優惠或活動也請提及。語氣要專業、具質感，不需加上 Markdown 標籤，直接給出純文字結果。" }] },
           tools: [{ google_search: {} }]
         };
 
-        const geminiResponse = await fetch(geminiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        const geminiResponse = await fetch(geminiUrl, { 
+          method: "POST", 
+          headers: { 
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey // 🌟 解決 AQ. 新格式金鑰解析 Bug 的完美解法
+          }, 
+          body: JSON.stringify(payload) 
+        });
         const geminiData = await geminiResponse.json();
         
         if (geminiData.error) {
@@ -501,7 +517,7 @@ export default function App() {
                 <div className="space-y-2">
                   <h1 className="text-3xl font-extrabold tracking-tight text-black drop-shadow-sm">Foodie</h1>
                   <p className="text-sm text-[#86868B] font-medium leading-relaxed max-w-xs mx-auto drop-shadow-sm">
-                    免註冊、免密碼、零個資。<br />輸入 Threads 帳號，一秒生成專屬美食地圖。
+                    探索、珍藏、分享。<br />輸入 Threads 帳號，即刻開啟您的專屬美食地圖。
                   </p>
                 </div>
               </div>
