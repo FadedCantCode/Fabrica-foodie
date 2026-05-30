@@ -45,7 +45,7 @@ const getFreeMapAppUrl = (name, address) => {
 const getSmartTag = (name, currentCategory = "") => {
   const n = name || "";
   if (n.includes("鍋") || n.includes("麻辣") || n.includes("涮涮") || n.includes("石二鍋") || n.includes("海底撈")) return "火鍋專賣";
-  if (n.includes("茶") || n.includes("嵐") || n.includes("五桐") || n.includes("渴") || n.includes("奶") || n.includes("飲料") || n.includes("手搖")) return "手搖茶攤";
+  if (n.includes("茶") || n.includes("嵐") || n.includes("五桐") || n.includes("渴") || n.includes("奶") || n.includes("飲料") || n.includes("紅茶") || n.includes("綠茶") || n.includes("手搖")) return "手搖茶攤";
   if (n.includes("咖啡") || n.toLowerCase().includes("cafe") || n.includes("甜點") || n.includes("烘焙") || n.includes("蛋糕")) return "咖啡甜點";
   if (n.includes("拉麵") || n.includes("日式") || n.includes("壽司") || n.includes("丼") || n.includes("居酒屋")) return "日式料理";
   if (n.includes("便當") || n.includes("飯") || n.includes("麵") || n.includes("小吃") || n.includes("排骨")) return "台式小吃 • 便當";
@@ -207,9 +207,9 @@ export default function App() {
   const canvasContainerRef = useRef(null);
   const hasSearchedRef = useRef(false);
 
-  // 🌟 原生 GPU 加速物理拖曳 Refs (取代 React State 避免卡頓)
+  // 🌟 原生 GPU 加速物理拖曳 Refs (全面升級為全域 window 級追蹤)
   const dragRef = useRef({ id: null, startX: 0, startY: 0, el: null, hoveredIndex: -1 });
-  const [draggingId, setDraggingId] = useState(null); // 僅用於控制 z-index 與透明度
+  const [draggingId, setDraggingId] = useState(null); // 用於控制 z-index 與透明度
 
   // 🌟 全台神級備用資料庫
   const TAIWAN_TRENDY_RECS = [
@@ -358,27 +358,49 @@ export default function App() {
       console.warn("Overpass API failed, falling back to Nominatim...", err);
     }
 
-    // 2. Nominatim 備援防禦 (修復命名與精確度問題)
+    // 2. Nominatim 智慧特色多點探測防禦 (精確搜尋特定餐飲地標，確保抓出真實店家姓名)
     if (results.length === 0) {
       try {
-        const lonDelta = 0.05; const latDelta = 0.05;
-        // 搜尋更精準的 "美食 小吃" 來取代泛泛的 "餐廳"
-        const nomUrl = `https://nominatim.openstreetmap.org/search?q=美食+小吃&format=json&addressdetails=1&limit=8&viewbox=${lng - lonDelta},${lat + latDelta},${lng + lonDelta},${lat - latDelta}&bounded=1`;
-        const nomRes = await fetch(nomUrl, { headers: { 'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8' } });
-        const nomData = await nomRes.json();
-        if (nomData && nomData.length > 0) {
-          results = nomData.map(place => {
-            const name = place.name || place.display_name.split(',')[0];
-            // 過濾掉名字只叫「餐廳」或「美食」的無效地標
-            if (name === "餐廳" || name === "美食") return null;
+        console.log("Overpass empty, launching multi-amenity Nominatim georadar...");
+        const lonDelta = 0.02; const latDelta = 0.02;
+        
+        // 分別抓取餐廳與咖啡廳這兩大類實時地標
+        const urlRestaurant = `https://nominatim.openstreetmap.org/search?amenity=restaurant&format=json&addressdetails=1&limit=6&viewbox=${lng - lonDelta},${lat + latDelta},${lng + lonDelta},${lat - latDelta}&bounded=1`;
+        const urlCafe = `https://nominatim.openstreetmap.org/search?amenity=cafe&format=json&addressdetails=1&limit=4&viewbox=${lng - lonDelta},${lat + latDelta},${lng + lonDelta},${lat - latDelta}&bounded=1`;
+        
+        const [resRest, resCafe] = await Promise.all([
+          fetch(urlRestaurant, { headers: { 'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8' } }),
+          fetch(urlCafe, { headers: { 'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8' } })
+        ]);
+        
+        const dataRest = await resRest.json();
+        const dataCafe = await resCafe.json();
+        
+        const mergedData = [...(Array.isArray(dataRest) ? dataRest : []), ...(Array.isArray(dataCafe) ? dataCafe : [])];
+        
+        if (mergedData.length > 0) {
+          results = mergedData.map(place => {
+            const name = place.name || place.display_name.split(',')[0].trim();
+            // 過濾無名或泛稱的垃圾數據
+            if (!name || name === "餐廳" || name === "咖啡廳" || name === "美食") return null;
+            
+            let address = place.display_name || "臺灣";
+            const addrParts = place.display_name.split(',');
+            if (addrParts.length > 3) {
+              address = addrParts.slice(0, 3).join(',').trim();
+            }
+
             return {
-              id: place.place_id.toString(), name: name, address: place.display_name,
-              category: getSmartTag(name, "美食餐廳"), note: "📍 透過智慧地理雷達探測到的精選店家。"
+              id: place.place_id.toString(),
+              name: name,
+              address: address,
+              category: getSmartTag(name, place.type === "cafe" ? "咖啡甜點" : "精選美食"),
+              note: "📍 透過智慧地理雷達探測到的精選店家。"
             };
           }).filter(Boolean);
         }
       } catch (err) {
-        console.error("Nominatim fallback also failed:", err);
+        console.error("Nominatim fallback failed:", err);
       }
     }
 
@@ -582,93 +604,100 @@ export default function App() {
     setDisplayRestaurants(filteredRestaurants);
   }, [restaurants, searchQuery, selectedCategory]);
 
-  // 🌟 補回遺失的變數聲明：過濾掉已經被使用者點擊「略過」或「實體化」的推薦卡片
   const activeRecommendations = nearbyRecommendations.filter(rec => !dismissedRecommendationIds.includes(rec.id));
 
   // ==========================================
-  // 🚀 原生 60FPS 物理手感拖曳排序系統 (Ref-Based GPU Acceleration)
+  // 🚀 全域級 Window 指標追蹤拖曳排序系統 (100% 解決鼠標脫離、卡住問題)
   // ==========================================
   const handlePointerDown = (e, restaurant, index) => {
-    // 防止點選到按鈕/連結時也觸發拖曳
     if (e.target.closest("button") || e.target.closest("a")) return;
     
-    e.currentTarget.setPointerCapture(e.pointerId);
-    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(40); // 拿起的觸覺回饋
+    e.preventDefault();
+    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(40); // 物理微動震動
+    
+    const cardEl = e.currentTarget;
+    cardEl.style.transition = 'none';
+    cardEl.style.zIndex = "100";
+    cardEl.style.boxShadow = "0 30px 60px rgba(0,0,0,0.35)";
+    document.body.style.userSelect = 'none'; // 全域禁止選取文字
     
     dragRef.current = {
       id: restaurant.id,
       startX: e.clientX,
       startY: e.clientY,
-      el: e.currentTarget,
+      el: cardEl,
       hoveredIndex: index
     };
     
-    // 取消漸變，準備零延遲跟隨滑鼠
-    e.currentTarget.style.transition = 'none';
     setDraggingId(restaurant.id);
-  };
 
-  const handlePointerMove = (e) => {
-    if (dragRef.current.id === null || !dragRef.current.el) return;
-    e.preventDefault(); 
-    
-    const dx = e.clientX - dragRef.current.startX;
-    const dy = e.clientY - dragRef.current.startY;
+    // 🌟 全域移動偵測器
+    const handleGlobalPointerMove = (moveEvent) => {
+      if (dragRef.current.id === null || !dragRef.current.el) return;
+      const dx = moveEvent.clientX - dragRef.current.startX;
+      const dy = moveEvent.clientY - dragRef.current.startY;
 
-    // GPU 加速 DOM 直接操作：完美跟隨並帶有物理傾斜
-    dragRef.current.el.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(1.05) rotate(${dx * 0.05}deg)`;
-    dragRef.current.el.style.zIndex = "100";
-    dragRef.current.el.style.boxShadow = "0 30px 60px rgba(0,0,0,0.3)";
+      // 60FPS 硬體加速：順滑位移並伴隨與滑動速度成正比的物理頃角特效
+      dragRef.current.el.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(1.04) rotate(${dx * 0.05}deg)`;
 
-    // 計算碰撞 (暫時隱藏自身以防止射線探測打中自己)
-    dragRef.current.el.style.pointerEvents = 'none';
-    const elements = document.elementsFromPoint(e.clientX, e.clientY);
-    dragRef.current.el.style.pointerEvents = 'auto';
+      // 自我射線穿透排除，確保拖拽至其他卡片時能被順利偵測碰撞
+      dragRef.current.el.style.pointerEvents = 'none';
+      const elements = document.elementsFromPoint(moveEvent.clientX, moveEvent.clientY);
+      dragRef.current.el.style.pointerEvents = 'auto';
 
-    const dropTarget = elements.find(el => el.hasAttribute('data-sort-index') && el.getAttribute('data-restaurant-id') !== dragRef.current.id);
+      const dropTarget = elements.find(el => el.hasAttribute('data-sort-index') && el.getAttribute('data-restaurant-id') !== dragRef.current.id);
 
-    if (dropTarget) {
-      const targetIdx = parseInt(dropTarget.getAttribute('data-sort-index'), 10);
-      if (!isNaN(targetIdx) && targetIdx !== dragRef.current.hoveredIndex) {
-        if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(15); // 交換位置的輕微觸覺
-        dragRef.current.hoveredIndex = targetIdx;
-        
-        // 陣列重新排序觸發其他元素的流暢推擠
-        setDisplayRestaurants(prev => {
-          const arr = [...prev];
-          const oldIdx = arr.findIndex(r => r.id === dragRef.current.id);
-          if (oldIdx !== -1) {
-             const item = arr.splice(oldIdx, 1)[0];
-             arr.splice(targetIdx, 0, item);
-          }
-          return arr;
-        });
+      if (dropTarget) {
+        const targetIdx = parseInt(dropTarget.getAttribute('data-sort-index'), 10);
+        if (!isNaN(targetIdx) && targetIdx !== dragRef.current.hoveredIndex) {
+          if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(15); // 位移交換震動
+          dragRef.current.hoveredIndex = targetIdx;
+          
+          // 零遲延快速調整顯示數組，製造彈性順滑卡片推開效果
+          setDisplayRestaurants(prev => {
+            const arr = [...prev];
+            const oldIdx = arr.findIndex(r => r.id === dragRef.current.id);
+            if (oldIdx !== -1) {
+               const item = arr.splice(oldIdx, 1)[0];
+               arr.splice(targetIdx, 0, item);
+            }
+            return arr;
+          });
+        }
       }
-    }
-  };
+    };
 
-  const handlePointerUp = (e, restaurant) => {
-    if (dragRef.current.id === null) return;
-    e.currentTarget.releasePointerCapture(e.pointerId);
-    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(20); // 放下的觸覺回饋
+    // 🌟 全域釋放偵測器
+    const handleGlobalPointerUp = (upEvent) => {
+      const dx = upEvent.clientX - dragRef.current.startX;
+      const dy = upEvent.clientY - dragRef.current.startY;
+      
+      // 點擊判定臨界值：微移小於 5 像素判定為正常卡片展開點擊
+      if (Math.abs(dx) < 5 && Math.abs(dy) < 5) {
+        setSelectedRestaurant(restaurant);
+      }
 
-    // 判斷是否為點擊 (位移小於 5px)
-    const dx = e.clientX - dragRef.current.startX;
-    const dy = e.clientY - dragRef.current.startY;
-    if (Math.abs(dx) < 5 && Math.abs(dy) < 5) {
-      setSelectedRestaurant(restaurant);
-    }
+      if (dragRef.current.el) {
+        // 放下時觸發 3D 彈跳回彈物理曲線特效
+        dragRef.current.el.style.transition = 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s ease';
+        dragRef.current.el.style.transform = 'translate3d(0,0,0) scale(1) rotate(0deg)';
+        dragRef.current.el.style.zIndex = "1";
+        dragRef.current.el.style.boxShadow = "none";
+      }
 
-    // 恢復平滑過渡並清空 Transform，讓卡片彈回對齊位置
-    if (dragRef.current.el) {
-      dragRef.current.el.style.transition = 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s ease';
-      dragRef.current.el.style.transform = 'translate3d(0,0,0) scale(1) rotate(0deg)';
-      dragRef.current.el.style.zIndex = "1";
-      dragRef.current.el.style.boxShadow = "none";
-    }
+      document.body.style.userSelect = 'auto';
+      dragRef.current = { id: null, startX: 0, startY: 0, el: null, hoveredIndex: -1 };
+      setDraggingId(null);
 
-    dragRef.current = { id: null, startX: 0, startY: 0, el: null, hoveredIndex: -1 };
-    setDraggingId(null);
+      // 解除全域監聽器，確保不留任何垃圾殘影
+      window.removeEventListener('pointermove', handleGlobalPointerMove);
+      window.removeEventListener('pointerup', handleGlobalPointerUp);
+      window.removeEventListener('pointercancel', handleGlobalPointerUp);
+    };
+
+    window.addEventListener('pointermove', handleGlobalPointerMove, { passive: false });
+    window.addEventListener('pointerup', handleGlobalPointerUp);
+    window.addEventListener('pointercancel', handleGlobalPointerUp);
   };
 
   return (
@@ -689,8 +718,10 @@ export default function App() {
       )}
 
       <div className="relative z-10 w-full min-h-screen flex items-center justify-center">
+        
         {!isLoggedIn ? (
           <div className="relative w-full min-h-screen flex flex-row justify-between items-stretch">
+            
             <div className="hidden md:flex flex-row justify-center gap-6 w-32 border-r border-black/5 bg-white/5 backdrop-blur-sm relative z-20">
               <VerticalMarquee direction="up" text="WELCOME TO FOODIE BETA TEST" />
               <VerticalMarquee direction="down" text="EXPLORE SHARE COLLECT" />
@@ -698,6 +729,7 @@ export default function App() {
 
             <div className={`flex-1 flex flex-col justify-between px-6 py-10 max-w-sm mx-auto transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isGlobalTransitioning ? 'opacity-0 scale-[0.98] blur-md translate-y-4' : 'opacity-100 scale-100 blur-0 translate-y-0'} relative z-30`}>
               <div className="flex-1 flex flex-col justify-center space-y-10 py-8 pointer-events-auto">
+                
                 <div className="text-center space-y-5">
                   <div className="w-16 h-16 bg-black rounded-[20px] mx-auto flex items-center justify-center shadow-[0_10px_25px_rgba(0,0,0,0.15)] transform hover:scale-110 active:scale-90 transition-all duration-300 cursor-pointer">
                     <svg className="w-8 h-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3" strokeWidth="1.5"/></svg>
@@ -717,6 +749,7 @@ export default function App() {
                       <input type="text" placeholder="輸入您的 Threads 帳號" value={inputUsername} onChange={(e) => setInputUsername(e.target.value.replace("@", ""))} className="w-full bg-white/80 text-base font-medium rounded-2xl py-4.5 pl-12 pr-5 border border-[#D2D2D7] focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all duration-300 placeholder-[#86868B]/70 shadow-[0_2px_8px_rgba(0,0,0,0.01)]" />
                     </div>
                   </div>
+
                   <button type="submit" className="group relative cursor-pointer w-full h-[56px] border border-[#D2D2D7] bg-white rounded-2xl overflow-hidden text-[#1D1D1F] font-semibold transition-all duration-300 shadow-sm hover:shadow-md active:scale-90 outline-none">
                     <div className="absolute inset-0 flex items-center justify-center translate-x-0 group-hover:translate-x-16 group-hover:opacity-0 transition-all duration-300 z-20 pointer-events-none select-none">進入美食檔案</div>
                     <div className="absolute inset-0 flex gap-2 items-center justify-center text-white z-20 translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none select-none">
@@ -726,13 +759,16 @@ export default function App() {
                   </button>
                 </form>
               </div>
-              <footer className="text-center text-xs text-[#86868B] pt-4 pointer-events-none"><p className="font-semibold text-[#1D1D1F]/40">© Fabrica</p></footer>
+              <footer className="text-center text-xs text-[#86868B] pt-4 pointer-events-none">
+                <p className="font-semibold text-[#1D1D1F]/40">© Fabrica</p>
+              </footer>
             </div>
 
             <div className="hidden md:flex flex-row justify-center gap-6 w-32 border-l border-black/5 bg-white/5 backdrop-blur-sm relative z-20">
               <VerticalMarquee direction="down" text="EXPLORE SHARE COLLECT" />
               <VerticalMarquee direction="up" text="WELCOME TO FOODIE BETA TEST" />
             </div>
+
           </div>
 
         ) : (
@@ -803,6 +839,7 @@ export default function App() {
                 </section>
               )}
 
+              {/* 🌟 餐廳列表 (套用物理手感全域指標拖曳排序系統) */}
               <section className="space-y-4 pb-10 relative">
                 {isLoading ? (
                   <div className="text-center py-10">
@@ -819,12 +856,10 @@ export default function App() {
                         data-sort-index={index}
                         data-restaurant-id={restaurant.id}
                         onPointerDown={(e) => handlePointerDown(e, restaurant, index)}
-                        onPointerMove={handlePointerMove}
-                        onPointerUp={(e) => handlePointerUp(e, restaurant)}
-                        onPointerCancel={(e) => handlePointerUp(e, restaurant)}
-                        className={`group cursor-grab active:cursor-grabbing w-full ${deletingIds.includes(restaurant.id) ? 'scale-95 opacity-0' : 'scale-100 opacity-100'}`}
+                        className={`group select-none cursor-grab active:cursor-grabbing w-full ${deletingIds.includes(restaurant.id) ? 'scale-95 opacity-0' : 'scale-100 opacity-100'}`}
                         style={{
-                          transition: 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s ease'
+                          transition: isDraggingThis ? 'none' : 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s ease',
+                          touchAction: 'none' // 防止行動裝置拖曳與頁面原生滾動衝突
                         }}
                       >
                         <LiquidGlassCard className={`p-2 transition-shadow duration-300 ${!isDraggingThis && 'hover:shadow-lg hover:-translate-y-1'}`}>
@@ -839,7 +874,7 @@ export default function App() {
                             <span className="absolute top-3 left-3 text-[10px] font-bold text-white bg-black/30 backdrop-blur-md px-2.5 py-1 rounded-md border border-white/20 shadow-sm z-10">{smartCategory}</span>
                             
                             {restaurant.recommendedBy && (
-                              <a href={`https://www.threads.net/@${restaurant.recommendedBy.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="absolute top-3 right-3 z-20 bg-white/90 backdrop-blur-md px-2.5 py-1 rounded-full flex items-center gap-1.5 text-[10px] font-bold text-[#1D1D1F] shadow-md hover:scale-110 transition-transform pointer-events-auto">
+                              <a href={`https://www.threads.net/@${restaurant.recommendedBy.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="absolute top-3 right-3 z-20 bg-white/90 backdrop-blur-md px-2.5 py-1 rounded-full flex items-center gap-1.5 text-[10px] font-bold text-[#1D1D1F] shadow-md hover:scale-110 active:scale-90 transition-transform pointer-events-auto">
                                 <div className="w-3.5 h-3.5 rounded-full bg-gradient-to-br from-purple-500 to-orange-400 flex items-center justify-center text-white text-[8px]">{restaurant.recommendedBy.replace('@', '').charAt(0).toUpperCase()}</div>@{restaurant.recommendedBy.replace('@', '')}
                               </a>
                             )}
@@ -938,7 +973,7 @@ export default function App() {
                 <div className="flex justify-between items-center ml-1">
                   <label className="text-xs font-bold text-[#86868B] uppercase tracking-wider">筆記與短評</label>
                   <span className="text-[10px] font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#0071E3] to-[#A334FA] flex items-center gap-1">
-                    <svg className="w-3 h-3 text-[#0071E3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>空白時由 AI 自動產生
+                    <svg className="w-3 h-3 text-[#0071E3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"/></svg>空白時由 AI 自動產生
                   </span>
                 </div>
                 <textarea placeholder="寫下你想記住的餐點或特色，或是留白讓 Fabrica AI 幫你總結網路評價..." value={newRestNote} onChange={(e) => setNewRestNote(e.target.value)} className="w-full bg-black/5 text-sm font-bold rounded-xl py-3.5 px-4 border border-transparent focus:bg-white focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all min-h-[100px] resize-none shadow-inner" />
