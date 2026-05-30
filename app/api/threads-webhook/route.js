@@ -74,12 +74,12 @@ export async function POST(request) {
       return NextResponse.json({ error: "內部 API 設定未完成" }, { status: 500 });
     }
 
-    // 🚀 讓 AI 扮演真正的美食顧問
+    // 🚀 讓 AI 扮演您的專屬高端美食顧問
     const systemPrompt = `你是一個高端的專業美食顧問 AI 助理 Fabrica。請閱讀使用者提供的 Threads 貼文內容，分析並提取出「餐廳名稱」、「分類」以及「地址」。
 
     【核心指令】
     1. 提取店名與推測台灣地址。
-    2. 最重要：請根據你對該餐廳的認知或是綜合近期的網路真實評價、特色招牌菜色，甚至是近期的優惠與活動，寫出極具質感的「aiNote」。
+    2. 最重要：請根據你對該餐廳的認知或是綜合近期的網路真實評價、特色招牌菜色，或者是近期的優惠與活動，寫出極具質感的「aiNote」。
     3. 嚴格只能輸出一個 JSON 物件，不要任何 Markdown 標記（如 \`\`\`json 等符號）。
 
     【輸出 JSON 格式】
@@ -98,21 +98,20 @@ export async function POST(request) {
     };
 
     try {
-      // 🌟 升級為最新且最穩定的 gemini-2.0-flash 模型
+      // 🌟 升級為 2026 最新主力萬用模型 gemini-2.5-flash
       // 網址保留 ?key= 參數，這是 Google API 路由分配的必要條件
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`;
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
       
       const payload = {
         contents: [{ parts: [{ text: `Threads貼文內容：${textToAnalyze}` }] }],
         systemInstruction: { parts: [{ text: systemPrompt }] }
-        // ⚠️ 移除不穩定的 google_search 工具，完全依賴 Gemini 2.0 強大的原生知識庫
       };
 
       const geminiResponse = await fetch(geminiUrl, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
-          "x-goog-api-key": geminiApiKey // 🌟 補上 Header，完美解決 AQ. 新版金鑰解析 Bug
+          "x-goog-api-key": geminiApiKey // 🌟 補上 Header 雙重驗證，解決新版 AQ. 金鑰格式 Bug
         },
         body: JSON.stringify(payload)
       });
