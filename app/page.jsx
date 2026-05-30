@@ -182,6 +182,12 @@ export default function App() {
   // 新增：追蹤正在播放「實體化動畫」的卡片 ID
   const [animatingRecId, setAnimatingRecId] = useState(null);
 
+  // 新增：Google Maps 地理與自動完成相關狀態
+  const [userLocation, setUserLocation] = useState(null);
+  const [nameSuggestions, setNameSuggestions] = useState([]);
+  const [isTypingName, setIsTypingName] = useState(false);
+  const [isSearchingPlaces, setIsSearchingPlaces] = useState(false);
+
   const [newRestName, setNewRestName] = useState("");
   const [newRestAddress, setNewRestAddress] = useState("");
   const [newRestCategory, setNewRestCategory] = useState("日式甜點 • 咖啡廳");
@@ -285,52 +291,119 @@ export default function App() {
     return () => unsubscribe();
   }, [firebaseUser, isLoggedIn, threadsUsername]);
 
-  // 🌟 自動發起 GPS 請求並探測周邊美食
+  // 🌟 自動發起 GPS 請求並探測周邊美食 (使用強化版完全免費開源方案)
   useEffect(() => {
     if (isLoggedIn && typeof window !== 'undefined' && navigator.geolocation && !hasSearchedRef.current) {
       hasSearchedRef.current = true;
-      triggerSilentNearbySearch();
+      navigator.geolocation.getCurrentPosition((position) => {
+        const { latitude, longitude } = position.coords;
+        setUserLocation({ lat: latitude, lng: longitude });
+        triggerSilentNearbySearch(latitude, longitude);
+      }, (err) => {
+        console.warn("Geolocation permission denied:", err);
+      });
     }
   }, [isLoggedIn]);
 
-  // 🌟 零成本靜默 GPS 探店 (保持使用 Overpass API，不扣 AI 額度)
-  const triggerSilentNearbySearch = () => {
+  // 🌟 強化版 Overpass API (解決找不到店家的問題)
+  const triggerSilentNearbySearch = async (lat, lng) => {
     setIsLocating(true);
-    navigator.geolocation.getCurrentPosition(async (position) => {
-      const { latitude, longitude } = position.coords;
-      try {
-        // 擴大搜尋範圍 (1500m)，增加快餐與冰淇淋標籤，增加回傳數量
-        const query = `[out:json][timeout:15];(node(around:1500, ${latitude}, ${longitude})["amenity"~"restaurant|cafe|fast_food|ice_cream"]["name"];);out 5;`;
-        const osmUrl = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
 
-        const response = await fetch(osmUrl);
-        const data = await response.json();
+    try {
+      // 關鍵修正：將 node 改為 nwr (Node, Way, Relation)，捕捉畫成多邊形(Way)的店家
+      // 加入更多台灣常見的 tags：如 beverages(手搖飲), food_court(美食街)
+      const query = `
+        [out:json][timeout:15];
+        (
+          nwr(around:2000, ${lat}, ${lng})["amenity"~"restaurant|cafe|fast_food|food_court|ice_cream|bar"];
+          nwr(around:2000, ${lat}, ${lng})["shop"~"bakery|beverages|pastry|food"];
+        );
+        out center 8;
+      `;
+      const osmUrl = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
 
-        if (data && data.elements && data.elements.length > 0) {
-          const formattedRecs = data.elements.map((el) => {
-            const tags = el.tags || {};
-            const isCafe = tags.amenity === 'cafe';
-            const isFastFood = tags.amenity === 'fast_food';
-            return {
-              id: el.id.toString(),
-              name: tags.name || "隱藏版美食",
-              address: tags['addr:street'] ? `${tags['addr:city'] || ''}${tags['addr:street']}${tags['addr:housenumber'] || ''}` : "點擊查看地圖定位",
-              category: isCafe ? "咖啡廳 • 甜點" : isFastFood ? "在地美食 • 快餐" : "在地美食 • 餐廳",
-              note: "📍 根據您目前的精確定位，為您探索的 Foodie 周圍店家。"
-            };
-          });
-          setNearbyRecommendations(formattedRecs);
-        } else {
-          console.warn("附近未發現已標記的地標，請嘗試手動輸入。");
-        }
-      } catch (err) {
-        console.error("Auto nearby exploration failed:", err);
+      const response = await fetch(osmUrl);
+      const data = await response.json();
+
+      if (data && data.elements && data.elements.length > 0) {
+        const formattedRecs = data.elements.map((el) => {
+          const tags = el.tags || {};
+          let category = "在地美食 • 餐廳";
+          if (tags.amenity === 'cafe') category = "咖啡廳 • 甜點";
+          else if (tags.amenity === 'fast_food') category = "在地美食 • 速食";
+          else if (tags.shop === 'beverages') category = "飲料 • 手搖飲";
+          else if (tags.shop === 'bakery') category = "烘焙坊 • 甜點";
+
+          return {
+            id: el.id.toString(),
+            name: tags.name || tags['name:zh'] || tags['name:en'] || "隱藏版美食",
+            address: tags['addr:street'] ? `${tags['addr:city'] || ''}${tags['addr:street']}${tags['addr:housenumber'] || ''}` : "點擊查看地圖定位",
+            category: category,
+            note: "📍 透過開源地圖雷達探測到的周邊店家。"
+          };
+        }).filter(rec => rec.name !== "隱藏版美食"); // 過濾掉沒有名字的雜訊
+        
+        setNearbyRecommendations(formattedRecs);
       }
-      setIsLocating(false);
-    }, (err) => {
-      console.warn("Geolocation permission denied:", err);
-      setIsLocating(false);
-    });
+    } catch (err) {
+      console.error("Auto nearby exploration failed:", err);
+    }
+    setIsLocating(false);
+  };
+
+  // 🌟 監聽輸入框，自動呼叫 Nominatim (OSM 免費搜尋 API) 進行店名補全
+  useEffect(() => {
+    const fetchPlaces = async () => {
+      if (!newRestName.trim() || !isTypingName) {
+        setNameSuggestions([]);
+        return;
+      }
+
+      setIsSearchingPlaces(true);
+      try {
+        // 使用 Nominatim 免費 API，限制台灣優先
+        let url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(newRestName)}&format=json&addressdetails=1&limit=5&countrycodes=tw`;
+        
+        if (userLocation) {
+          // 增加 viewbox 權重，讓定位附近的店家更容易出現在選單上方
+          const lonDelta = 0.05; const latDelta = 0.05;
+          url += `&viewbox=${userLocation.lng - lonDelta},${userLocation.lat + latDelta},${userLocation.lng + lonDelta},${userLocation.lat - latDelta}&bounded=0`;
+        }
+        
+        const response = await fetch(url, {
+          headers: { 'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8' }
+        });
+        const data = await response.json();
+        setNameSuggestions(data || []);
+      } catch (err) {
+        console.error("Nominatim API error:", err);
+      }
+      setIsSearchingPlaces(false);
+    };
+
+    const timer = setTimeout(fetchPlaces, 800); // 800ms 防抖 (OSM 要求較嚴格，降低發送頻率)
+    return () => clearTimeout(timer);
+  }, [newRestName, isTypingName, userLocation]);
+
+  const handleSelectSuggestion = (place) => {
+    // Nominatim 有時候只給 full address，我們抓第一段當店名
+    const displayNameArray = place.display_name.split(',');
+    const name = place.name || displayNameArray[0].trim();
+    
+    setNewRestName(name);
+    setNewRestAddress(place.display_name || "");
+    
+    // 從 OSM 資料猜測餐廳分類
+    let category = "美食餐廳";
+    if (place.type === "cafe") category = "咖啡廳";
+    else if (place.type === "fast_food") category = "速食餐飲";
+    else if (place.type === "bakery") category = "烘焙坊";
+    else if (place.type === "beverages") category = "飲料店 • 手搖飲";
+    else if (place.type === "restaurant") category = "餐廳";
+    
+    setNewRestCategory(category);
+    setIsTypingName(false);
+    setNameSuggestions([]);
   };
 
   const handleLogin = (e) => {
@@ -697,6 +770,20 @@ export default function App() {
                             <span className="line-clamp-2 underline decoration-transparent group-hover:decoration-[#0071E3]/30 underline-offset-2">{restaurant.address}</span>
                           </a>
 
+                          {/* Google 小地圖預覽 */}
+                          <div className="w-full h-28 mt-3 rounded-xl overflow-hidden border border-[#E5E5EA] shadow-inner bg-[#F5F5F7]">
+                            <iframe 
+                              width="100%" 
+                              height="100%" 
+                              frameBorder="0" 
+                              style={{ border: 0 }} 
+                              src={getFreeMapEmbedUrl(restaurant.name, restaurant.address)} 
+                              allowFullScreen 
+                              loading="lazy"
+                              referrerPolicy="no-referrer-when-downgrade"
+                            ></iframe>
+                          </div>
+
                           {restaurant.note && (
                             <div className="bg-[#F5F5F7] p-3 rounded-xl mt-3">
                               <p className="text-[13px] text-[#333336] leading-relaxed break-words whitespace-pre-wrap">{restaurant.note}</p>
@@ -704,12 +791,17 @@ export default function App() {
                           )}
                           
                           {restaurant.recommendedBy && (
-                            <div className="flex items-center gap-1.5 text-[11px] font-medium text-[#86868B] pt-1">
-                              <div className="w-4 h-4 rounded-full bg-gradient-to-br from-purple-500 to-orange-400 flex items-center justify-center text-white font-bold text-[8px]">
-                                {restaurant.recommendedBy.charAt(0).toUpperCase()}
+                            <a 
+                              href={`https://www.threads.net/@${restaurant.recommendedBy.replace('@', '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1.5 text-[11px] font-medium text-[#86868B] pt-2 hover:text-[#1D1D1F] transition-colors w-fit group inline-flex"
+                            >
+                              <div className="w-4 h-4 rounded-full bg-gradient-to-br from-purple-500 to-orange-400 flex items-center justify-center text-white font-bold text-[8px] group-hover:scale-110 transition-transform shadow-sm">
+                                {restaurant.recommendedBy.replace('@', '').charAt(0).toUpperCase()}
                               </div>
-                              由 @{restaurant.recommendedBy} 推薦
-                            </div>
+                              由 @{restaurant.recommendedBy.replace('@', '')} 推薦
+                            </a>
                           )}
                         </div>
                       </div>
@@ -757,9 +849,36 @@ export default function App() {
             </div>
 
             <form onSubmit={handleAddRestaurant} className="space-y-4">
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 relative">
                 <label className="text-xs font-bold text-[#86868B] ml-1 uppercase tracking-wider">店名 *</label>
-                <input required type="text" placeholder="例如：Fabrica 咖啡廳" value={newRestName} onChange={(e) => setNewRestName(e.target.value)} className="w-full bg-[#F5F5F7] text-sm font-medium rounded-xl py-3.5 px-4 border border-transparent focus:bg-white focus:border-black focus:ring-1 focus:ring-black outline-none transition-all" />
+                <input 
+                  required 
+                  type="text" 
+                  placeholder="例如：Fabrica 咖啡廳" 
+                  value={newRestName} 
+                  onChange={(e) => { setNewRestName(e.target.value); setIsTypingName(true); }} 
+                  className="w-full bg-[#F5F5F7] text-sm font-medium rounded-xl py-3.5 px-4 border border-transparent focus:bg-white focus:border-black focus:ring-1 focus:ring-black outline-none transition-all" 
+                />
+                
+                {/* 地點建議下拉選單 (OSM 免費版) */}
+                {isTypingName && (nameSuggestions.length > 0 || isSearchingPlaces) && (
+                  <div className="absolute top-[76px] left-0 right-0 bg-white rounded-xl shadow-xl border border-[#E5E5EA] overflow-hidden z-50 max-h-48 overflow-y-auto">
+                    {isSearchingPlaces ? (
+                       <div className="p-3 text-xs text-center text-[#86868B]">搜尋地圖座標中...</div>
+                    ) : (
+                       nameSuggestions.map(place => (
+                         <div 
+                           key={place.place_id} 
+                           onClick={() => handleSelectSuggestion(place)}
+                           className="p-3 hover:bg-[#F5F5F7] cursor-pointer border-b border-[#F2F2F7] last:border-0"
+                         >
+                           <div className="font-bold text-sm text-[#1D1D1F] text-left">{place.name || place.display_name.split(',')[0]}</div>
+                           <div className="text-[11px] text-[#86868B] mt-0.5 line-clamp-1 text-left">{place.display_name}</div>
+                         </div>
+                       ))
+                    )}
+                  </div>
+                )}
               </div>
               
               <div className="space-y-1.5">
