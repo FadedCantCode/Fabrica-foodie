@@ -548,6 +548,8 @@ export default function App() {
     setDisplayRestaurants(filteredRestaurants);
   }, [restaurants, searchQuery, selectedCategory]);
 
+  const activeRecommendations = nearbyRecommendations.filter(rec => !dismissedRecommendationIds.includes(rec.id));
+
   // ==========================================
   // 🚀 原生 60FPS 物理手感拖曳排序系統 (Pointer Events)
   // ==========================================
