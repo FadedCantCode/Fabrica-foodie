@@ -19,7 +19,7 @@ import {
 
 import * as THREE from 'three';
 
-// --- 安全環境變數：直接使用 Next.js 內建機制，並加上防呆字串防止 Vercel 編譯崩潰 ---
+// --- 安全環境變數與降級防禦機制 ---
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "mock-key-for-build", 
   authDomain: "fabrica-foodie.firebaseapp.com",
@@ -114,7 +114,7 @@ void main() {
 `;
 
 // ==========================================
-// 🚀 專屬 Gooey Loader 元件 (Apple 質感果凍擴散)
+// 🚀 專屬 Gooey Loader 元件
 // ==========================================
 const GooeyLoader = () => {
   return (
@@ -157,17 +157,17 @@ export default function App() {
   const [selectedCategory, setSelectedCategory] = useState("全部");
   const [isLoading, setIsLoading] = useState(false);
   
-  // 彈出視窗、全域轉場與刪除狀態
   const [showAddModal, setShowAddModal] = useState(false);
   const [isClosingModal, setIsClosingModal] = useState(false); 
   const [isGlobalTransitioning, setIsGlobalTransitioning] = useState(false); 
   const [isGeneratingAI, setIsGeneratingAI] = useState(false); 
-  const [deletingIds, setDeletingIds] = useState([]); // 🌟 新增：追蹤正在播放刪除動畫的卡片 ID
+  const [deletingIds, setDeletingIds] = useState([]); 
 
   const [newRestName, setNewRestName] = useState("");
   const [newRestAddress, setNewRestAddress] = useState("");
   const [newRestCategory, setNewRestCategory] = useState("日式甜點 • 咖啡廳");
   const [newRestNote, setNewRestNote] = useState("");
+  const [newRestRecommender, setNewRestRecommender] = useState("");
 
   const [inputUsername, setInputUsername] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -185,38 +185,26 @@ export default function App() {
     }
   }, []);
 
-  // 🌟 原生 WebGL 初始化 
+  // WebGL 背景
   useEffect(() => {
     if (!mounted || isLoggedIn) return;
     const container = canvasContainerRef.current;
     if (!container) return;
 
-    const width = container.clientWidth;
-    const height = container.clientHeight;
+    const width = container.clientWidth; const height = container.clientHeight;
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(35, width / height, 0.1, 100);
     camera.position.set(0, 0, 8);
-
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     container.appendChild(renderer.domElement);
 
-    const uniforms = {
-      u_time: { value: 0 },
-      u_intensity: { value: 0.25 },
-      u_noiseScale: { value: 1.5 },
-      u_noiseSpeed: { value: 0.8 },
-    };
-
+    const uniforms = { u_time: { value: 0 }, u_intensity: { value: 0.25 }, u_noiseScale: { value: 1.5 }, u_noiseSpeed: { value: 0.8 } };
     const geometry = new THREE.SphereGeometry(2, 64, 64);
-    const material = new THREE.ShaderMaterial({
-      vertexShader, fragmentShader, uniforms, transparent: true,
-    });
-
+    const material = new THREE.ShaderMaterial({ vertexShader, fragmentShader, uniforms, transparent: true });
     const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.set(0, 0, -1);
-    mesh.scale.setScalar(2.4);
+    mesh.position.set(0, 0, -1); mesh.scale.setScalar(2.4);
     scene.add(mesh);
 
     const mouse = { x: 0, y: 0 };
@@ -224,78 +212,55 @@ export default function App() {
     const currentPosition = new THREE.Vector3(0, 0, -1);
 
     const handleMouseMove = (event) => {
-      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1; mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
     };
-
     window.addEventListener('mousemove', handleMouseMove);
 
     const handleResize = () => {
       if (!container) return;
-      camera.aspect = container.clientWidth / container.clientHeight;
-      camera.updateProjectionMatrix();
+      camera.aspect = container.clientWidth / container.clientHeight; camera.updateProjectionMatrix();
       renderer.setSize(container.clientWidth, container.clientHeight);
     };
     window.addEventListener('resize', handleResize);
 
-    let animationFrameId;
-    const clock = new THREE.Clock();
-
+    let animationFrameId; const clock = new THREE.Clock();
     const animate = () => {
       const elapsedTime = clock.getElapsedTime();
-      uniforms.u_time.value = 0.25 * elapsedTime;
-      uniforms.u_noiseScale.value = Math.sin(elapsedTime * 0.1) * 0.5 + 1.2;
-
-      targetPosition.set(mouse.x * 1.2, mouse.y * 1.2, -1);
-      currentPosition.lerp(targetPosition, 0.05);
-      mesh.position.copy(currentPosition);
-
-      renderer.render(scene, camera);
-      animationFrameId = requestAnimationFrame(animate);
+      uniforms.u_time.value = 0.25 * elapsedTime; uniforms.u_noiseScale.value = Math.sin(elapsedTime * 0.1) * 0.5 + 1.2;
+      targetPosition.set(mouse.x * 1.2, mouse.y * 1.2, -1); currentPosition.lerp(targetPosition, 0.05); mesh.position.copy(currentPosition);
+      renderer.render(scene, camera); animationFrameId = requestAnimationFrame(animate);
     };
     animate();
 
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('resize', handleResize);
-      cancelAnimationFrame(animationFrameId);
-      if (container && renderer.domElement) container.removeChild(renderer.domElement);
+      window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('resize', handleResize);
+      cancelAnimationFrame(animationFrameId); if (container && renderer.domElement) container.removeChild(renderer.domElement);
       geometry.dispose(); material.dispose(); renderer.dispose();
     };
   }, [mounted, isLoggedIn]);
 
-  // Firebase 初始化
+  // Firebase Init
   useEffect(() => {
     const initAuth = async () => {
-      try {
-        await signInAnonymously(auth);
-      } catch (err) {
-        setAuthError(err.code || err.message);
-        setFirebaseUser({ uid: "local-temp-guest", isAnonymous: true });
-      }
+      try { await signInAnonymously(auth); } 
+      catch (err) { setAuthError(err.code || err.message); setFirebaseUser({ uid: "local-temp-guest", isAnonymous: true }); }
     };
     initAuth();
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) setFirebaseUser(user);
-    });
+    const unsubscribe = onAuthStateChanged(auth, (user) => { if (user) setFirebaseUser(user); });
     return () => unsubscribe();
   }, []);
 
-  // 實時監聽 Firestore
+  // Firestore Snapshot
   useEffect(() => {
-    if (!firebaseUser || !isLoggedIn || !threadsUsername) return;
-    if (firebaseUser.uid === "local-temp-guest") return; 
-
+    if (!firebaseUser || !isLoggedIn || !threadsUsername || firebaseUser.uid === "local-temp-guest") return; 
     setIsLoading(true);
     const cleanUsername = threadsUsername.replace("@", "").trim().toLowerCase();
     const userRestaurantsRef = collection(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants');
 
     const unsubscribe = onSnapshot(userRestaurantsRef, (snapshot) => {
-      const list = [];
-      snapshot.forEach((doc) => list.push({ id: doc.id, ...doc.data() }));
+      const list = []; snapshot.forEach((doc) => list.push({ id: doc.id, ...doc.data() }));
       const sortedList = list.sort((a, b) => (b.savedAt?.seconds || 0) - (a.savedAt?.seconds || 0));
-      setRestaurants(sortedList);
-      setIsLoading(false);
+      setRestaurants(sortedList); setIsLoading(false);
     });
     return () => unsubscribe();
   }, [firebaseUser, isLoggedIn, threadsUsername]);
@@ -305,55 +270,38 @@ export default function App() {
     if (!inputUsername.trim()) { setLoginError("請輸入您的 Threads ID"); return; }
     setIsGlobalTransitioning(true);
     setTimeout(() => {
-      let formatted = inputUsername.trim();
-      if (!formatted.startsWith("@")) formatted = "@" + formatted;
-      setThreadsUsername(formatted);
-      setIsLoggedIn(true);
-      setLoginError("");
-      setIsGlobalTransitioning(false);
+      let formatted = inputUsername.trim(); if (!formatted.startsWith("@")) formatted = "@" + formatted;
+      setThreadsUsername(formatted); setIsLoggedIn(true); setLoginError(""); setIsGlobalTransitioning(false);
     }, 2200);
   };
 
   const handleLogout = () => {
     setIsGlobalTransitioning(true);
     setTimeout(() => {
-      setIsLoggedIn(false);
-      setThreadsUsername(""); setInputUsername(""); setRestaurants([]);
-      setIsGlobalTransitioning(false);
+      setIsLoggedIn(false); setThreadsUsername(""); setInputUsername(""); setRestaurants([]); setIsGlobalTransitioning(false);
     }, 1200);
   };
 
   const closeAddModal = () => {
     setIsClosingModal(true);
-    setTimeout(() => {
-      setShowAddModal(false);
-      setIsClosingModal(false);
-    }, 400); 
+    setTimeout(() => { setShowAddModal(false); setIsClosingModal(false); }, 400); 
   };
 
-  // 🌟 帶有 Apple 流暢轉場的刪除功能
   const handleDeleteRestaurant = async (id) => {
-    // 1. 將該 ID 加入刪除佇列，觸發 CSS 的縮小與淡出動畫
     setDeletingIds(prev => [...prev, id]);
-
-    // 2. 等待動畫 400ms 播放完畢後，才實際向 Firestore 發送刪除請求
     setTimeout(async () => {
-      if (firebaseUser?.uid === "local-temp-guest") {
-        setRestaurants(prev => prev.filter(r => r.id !== id));
-      } else {
+      if (firebaseUser?.uid === "local-temp-guest") { setRestaurants(prev => prev.filter(r => r.id !== id)); } 
+      else {
         try {
           const cleanUsername = threadsUsername.replace("@", "").trim().toLowerCase();
           const docRef = doc(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants', id);
           await deleteDoc(docRef); 
-        } catch (err) {
-          console.error("Delete error:", err);
-        }
+        } catch (err) { console.error("Delete error:", err); }
       }
       setDeletingIds(prev => prev.filter(delId => delId !== id));
     }, 400); 
   };
 
-  // 🚀 AI 評價分析引擎 
   const handleAddRestaurant = async (e) => {
     e.preventDefault();
     if (!newRestName.trim()) return;
@@ -371,12 +319,7 @@ export default function App() {
           tools: [{ google_search: {} }]
         };
 
-        const geminiResponse = await fetch(geminiUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
-
+        const geminiResponse = await fetch(geminiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         const geminiData = await geminiResponse.json();
         
         if (geminiData.error) {
@@ -392,10 +335,13 @@ export default function App() {
       }
     }
 
+    const cleanRecommender = newRestRecommender.replace("@", "").trim();
+
     if (firebaseUser?.uid === "local-temp-guest") {
       const mockDoc = {
         id: Math.random().toString(),
         name: newRestName, address: newRestAddress || "僅提供店名定位", category: newRestCategory, note: finalNote,
+        recommendedBy: cleanRecommender, 
         savedAt: { seconds: Math.floor(Date.now() / 1000) }, threadsUrl: "" 
       };
       setRestaurants(prev => [mockDoc, ...prev]);
@@ -405,12 +351,13 @@ export default function App() {
         const userRestaurantsRef = collection(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants');
         await addDoc(userRestaurantsRef, {
           name: newRestName, address: newRestAddress || "僅提供店名定位", category: newRestCategory, note: finalNote,
+          recommendedBy: cleanRecommender, 
           savedAt: serverTimestamp(), threadsUrl: "" 
         });
       } catch (err) { console.error("Error adding document:", err); }
     }
 
-    setNewRestName(""); setNewRestAddress(""); setNewRestNote("");
+    setNewRestName(""); setNewRestAddress(""); setNewRestNote(""); setNewRestRecommender("");
     setTimeout(() => { setIsGlobalTransitioning(false); closeAddModal(); }, 1500);
   };
 
@@ -425,8 +372,18 @@ export default function App() {
 
   const categories = ["全部", ...new Set(restaurants.map(r => r.category ? r.category.split(" • ")[0] : "未分類"))];
   const filteredRestaurants = restaurants.filter(restaurant => {
-    const name = restaurant.name || ""; const address = restaurant.address || ""; const note = restaurant.note || ""; const category = restaurant.category || "";
-    const matchesSearch = name.toLowerCase().includes(searchQuery.toLowerCase()) || address.toLowerCase().includes(searchQuery.toLowerCase()) || note.toLowerCase().includes(searchQuery.toLowerCase());
+    const name = restaurant.name || ""; 
+    const address = restaurant.address || ""; 
+    const note = restaurant.note || ""; 
+    const category = restaurant.category || "";
+    const recommender = restaurant.recommendedBy || ""; // 🌟 策略三：將推薦人加入搜尋範圍
+
+    const q = searchQuery.toLowerCase();
+    const matchesSearch = name.toLowerCase().includes(q) || 
+                          address.toLowerCase().includes(q) || 
+                          note.toLowerCase().includes(q) ||
+                          recommender.toLowerCase().includes(q.replace("@", "")); // 支援直接輸入 @帳號 尋找
+                          
     const matchesCategory = selectedCategory === "全部" || category.startsWith(selectedCategory);
     return matchesSearch && matchesCategory;
   });
@@ -455,7 +412,9 @@ export default function App() {
                 </div>
                 <div className="space-y-2">
                   <h1 className="text-3xl font-extrabold tracking-tight text-black drop-shadow-sm">Foodie</h1>
-                  <p className="text-sm text-[#86868B] font-medium leading-relaxed max-w-xs mx-auto drop-shadow-sm">您的專屬美食足跡庫。<br />在 Threads 提及 <span className="text-[#1D1D1F] font-semibold">@fabrica</span> 即可自動寫入。</p>
+                  <p className="text-sm text-[#86868B] font-medium leading-relaxed max-w-xs mx-auto drop-shadow-sm">
+                    免註冊、免密碼、零個資。<br />輸入 Threads 帳號，一秒生成專屬美食地圖。
+                  </p>
                 </div>
               </div>
 
@@ -509,7 +468,7 @@ export default function App() {
               <section className="space-y-4">
                 <div className="relative flex items-center w-full">
                   <svg className="w-5 h-5 text-[#86868B] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none select-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                  <input type="text" placeholder="搜尋餐廳、分類或推薦..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-white text-sm rounded-2xl py-3.5 pl-11 pr-4 border border-[#E5E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] focus:outline-none focus:border-[#86868B] placeholder-[#86868B] transition-all" />
+                  <input type="text" placeholder="搜尋餐廳、@推薦人或評論..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-white text-sm rounded-2xl py-3.5 pl-11 pr-4 border border-[#E5E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] focus:outline-none focus:border-[#86868B] placeholder-[#86868B] transition-all" />
                 </div>
                 {categories.length > 1 && (
                   <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
@@ -543,37 +502,34 @@ export default function App() {
                   </div>
                 ) : (
                   filteredRestaurants.map((restaurant, i) => (
-                    // 🌟 卡片外層：加入了 deletingIds 判斷，觸發絲滑退場動畫
                     <div 
                       key={restaurant.id}
-                      className={`bg-white rounded-[28px] shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-[#E5E5EA]/80 overflow-hidden hover:shadow-[0_12px_40px_rgb(0,0,0,0.05)] hover:border-[#D2D2D7]/80 transform hover:-translate-y-0.5 animate-in fade-in slide-in-from-bottom-8 fill-mode-both transition-all duration-400 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${
-                        deletingIds.includes(restaurant.id) ? 'scale-90 opacity-0 pointer-events-none' : 'scale-100 opacity-100'
-                      }`}
+                      className={`bg-white rounded-[28px] shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-[#E5E5EA]/80 overflow-hidden hover:shadow-[0_12px_40px_rgb(0,0,0,0.05)] hover:border-[#D2D2D7]/80 transform hover:-translate-y-0.5 animate-in fade-in slide-in-from-bottom-8 fill-mode-both transition-all duration-400 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${deletingIds.includes(restaurant.id) ? 'scale-90 opacity-0 pointer-events-none' : 'scale-100 opacity-100'}`}
                       style={{ animationDelay: `${i * 100}ms` }}
                     >
                       <div className="p-6 pb-4 relative group/card">
-                        <div className="flex justify-between items-center pr-10">
+                        {/* 🌟 策略三：社群化「美食認證」標籤 (升級可點擊徽章) */}
+                        <div className="flex flex-wrap items-center gap-2 pr-10">
                           <span className="text-[10px] font-bold tracking-wider text-[#86868B] bg-[#F5F5F7] px-2.5 py-1 rounded-md uppercase">
                             {restaurant.category || "美食 • 精選"}
                           </span>
-                          {restaurant.savedAt && (
-                            <span className="text-[10px] font-medium text-[#86868B]">
-                              {restaurant.savedAt.seconds 
-                                ? new Date(restaurant.savedAt.seconds * 1000).toLocaleDateString('zh-TW', { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' })
-                                : "剛剛"}
-                            </span>
+                          
+                          {restaurant.recommendedBy && (
+                            <a 
+                              href={`https://www.threads.net/@${restaurant.recommendedBy}`} 
+                              target="_blank" 
+                              rel="noreferrer"
+                              className="text-[10px] font-bold tracking-wide text-[#1D1D1F] bg-[#E5E5EA] hover:bg-[#D2D2D7] px-2.5 py-1 rounded-md flex items-center gap-1 transition-colors"
+                              title="前往 Threads 查看推薦人"
+                            >
+                              <svg className="w-3 h-3 text-[#86868B]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                              @{restaurant.recommendedBy}
+                            </a>
                           )}
                         </div>
 
-                        {/* 🌟 優雅的垃圾桶刪除按鈕 */}
-                        <button 
-                          onClick={() => handleDeleteRestaurant(restaurant.id)}
-                          className="absolute top-5 right-5 w-8 h-8 flex items-center justify-center rounded-full bg-[#F5F5F7] text-[#86868B] hover:bg-[#FF3B30] hover:text-white transition-all duration-300 opacity-0 group-hover/card:opacity-100"
-                          title="刪除這筆紀錄"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
+                        <button onClick={() => handleDeleteRestaurant(restaurant.id)} className="absolute top-5 right-5 w-8 h-8 flex items-center justify-center rounded-full bg-[#F5F5F7] text-[#86868B] hover:bg-[#FF3B30] hover:text-white transition-all duration-300 opacity-0 group-hover/card:opacity-100" title="刪除這筆紀錄">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                         </button>
                         
                         <h2 className="text-xl font-bold text-black mt-3 flex items-center justify-between tracking-tight pr-6">
@@ -630,38 +586,51 @@ export default function App() {
       {/* ==================== 🚀 AI 賦能的新增美食彈出視窗 ==================== */}
       {showAddModal && (
         <div className={`fixed inset-0 z-50 bg-black/20 backdrop-blur-md flex items-center justify-center p-4 transition-opacity duration-400 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isClosingModal ? 'opacity-0' : 'opacity-100'}`}>
-          <form onSubmit={handleAddRestaurant} className={`bg-white/85 backdrop-blur-2xl w-full max-w-sm rounded-[36px] p-7 space-y-6 shadow-[0_24px_48px_rgba(0,0,0,0.08)] border border-white text-left transition-all duration-400 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isClosingModal ? 'scale-95 translate-y-8 opacity-0' : 'scale-100 translate-y-0 opacity-100'}`}>
-            <div className="flex justify-between items-center pb-3 border-b border-[#1D1D1F]/5">
+          <form onSubmit={handleAddRestaurant} className={`bg-white/85 backdrop-blur-2xl w-full max-w-sm rounded-[36px] p-7 space-y-5 shadow-[0_24px_48px_rgba(0,0,0,0.08)] border border-white text-left transition-all duration-400 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isClosingModal ? 'scale-95 translate-y-8 opacity-0' : 'scale-100 translate-y-0 opacity-100'}`}>
+            <div className="flex justify-between items-center pb-2 border-b border-[#1D1D1F]/5">
               <h3 className="text-lg font-bold text-black tracking-tight">新增口袋美食</h3>
               <button type="button" onClick={closeAddModal} disabled={isGeneratingAI} className="w-8 h-8 bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#86868B] hover:text-black font-semibold rounded-full flex items-center justify-center text-sm transition-colors disabled:opacity-50">✕</button>
             </div>
 
-            <div className="space-y-4 text-sm">
+            <div className="space-y-3 text-sm">
               <div className="space-y-1.5">
                 <label className="font-bold text-[#1D1D1F] text-xs px-1">餐廳名稱 *</label>
-                <input type="text" required value={newRestName} onChange={(e) => setNewRestName(e.target.value)} placeholder="例如：熟成宇治" className="w-full bg-white/70 rounded-2xl p-3.5 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)]" />
+                <input type="text" required disabled={isGeneratingAI} value={newRestName} onChange={(e) => setNewRestName(e.target.value)} placeholder="例如：熟成宇治" className="w-full bg-white/70 rounded-2xl p-3 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)] disabled:opacity-60" />
               </div>
+              
+              <div className="flex gap-3">
+                <div className="space-y-1.5 w-1/2">
+                  <label className="font-bold text-[#1D1D1F] text-xs px-1">餐飲分類</label>
+                  <select disabled={isGeneratingAI} value={newRestCategory} onChange={(e) => setNewRestCategory(e.target.value)} className="w-full bg-white/70 rounded-2xl p-3 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-semibold text-[#1D1D1F] appearance-none transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)] disabled:opacity-60">
+                    <option value="日式甜點 • 咖啡廳">甜點咖啡</option>
+                    <option value="義式料理 • 自然酒">義式餐酒</option>
+                    <option value="台灣傳統 • 小吃">台灣小吃</option>
+                    <option value="美味肉食 • 鍋物">肉食鍋物</option>
+                    <option value="異國料理 • 餐酒">異國料理</option>
+                  </select>
+                </div>
+                {/* 🌟 策略三：新增社群推薦人欄位 */}
+                <div className="space-y-1.5 w-1/2">
+                  <label className="font-bold text-[#1D1D1F] text-xs px-1">推薦人 (選填)</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-3 text-[#86868B] text-sm font-bold">@</span>
+                    <input type="text" disabled={isGeneratingAI} value={newRestRecommender} onChange={(e) => setNewRestRecommender(e.target.value.replace("@", ""))} placeholder="username" className="w-full bg-white/70 rounded-2xl p-3 pl-7 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)] disabled:opacity-60" />
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-1.5">
                 <label className="font-bold text-[#1D1D1F] text-xs px-1">地址（選填）</label>
-                <input type="text" value={newRestAddress} onChange={(e) => setNewRestAddress(e.target.value)} placeholder="例如：台北市大安區永康街4巷8號" className="w-full bg-white/70 rounded-2xl p-3.5 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)]" />
+                <input type="text" disabled={isGeneratingAI} value={newRestAddress} onChange={(e) => setNewRestAddress(e.target.value)} placeholder="例如：台北市大安區永康街4巷8號" className="w-full bg-white/70 rounded-2xl p-3 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)] disabled:opacity-60" />
               </div>
-              <div className="space-y-1.5">
-                <label className="font-bold text-[#1D1D1F] text-xs px-1">餐飲分類</label>
-                <select value={newRestCategory} onChange={(e) => setNewRestCategory(e.target.value)} className="w-full bg-white/70 rounded-2xl p-3.5 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-semibold text-[#1D1D1F] appearance-none transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
-                  <option value="日式甜點 • 咖啡廳">日式甜點 • 咖啡廳</option>
-                  <option value="義式料理 • 自然酒">義式料理 • 自然酒</option>
-                  <option value="台灣傳統 • 小吃">台灣傳統 • 小吃</option>
-                  <option value="美味肉食 • 鍋物">美味肉食 • 鍋物</option>
-                  <option value="異國料理 • 餐酒">異國料理 • 餐酒</option>
-                </select>
-              </div>
+              
               <div className="space-y-1.5">
                 <label className="font-bold text-[#1D1D1F] text-xs px-1 flex justify-between items-end">美食短評 <span className="text-[#86868B] font-normal tracking-wide text-[10px]">💡 留白將自動呼叫 AI 分析</span></label>
-                <textarea value={newRestNote} onChange={(e) => setNewRestNote(e.target.value)} placeholder="若留白，AI 將為您爬取網路評價、優惠與推薦..." className="w-full bg-white/70 rounded-2xl p-3.5 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none h-20 resize-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)]" />
+                <textarea value={newRestNote} onChange={(e) => setNewRestNote(e.target.value)} placeholder="若留白，AI 將為您爬取網路評價、優惠與推薦..." className="w-full bg-white/70 rounded-2xl p-3 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none h-16 resize-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)] disabled:opacity-60" />
               </div>
             </div>
 
-            <button type="submit" className="group relative cursor-pointer w-full h-[56px] border border-[#D2D2D7] bg-white rounded-2xl overflow-hidden text-[#1D1D1F] font-semibold transition-all duration-300 shadow-sm active:scale-[0.98] outline-none mt-2">
+            <button type="submit" className="group relative cursor-pointer w-full h-[52px] border border-[#D2D2D7] bg-white rounded-2xl overflow-hidden text-[#1D1D1F] font-semibold transition-all duration-300 shadow-sm active:scale-[0.98] outline-none mt-2">
               <div className="absolute inset-0 flex items-center justify-center translate-x-0 group-hover:translate-x-16 group-hover:opacity-0 transition-all duration-300 z-20 pointer-events-none select-none">儲存至個人地圖</div>
               <div className="absolute inset-0 flex gap-2 items-center justify-center text-white z-20 translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none select-none">
                 <span className="font-semibold text-sm">確認新增</span><svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg>
@@ -669,6 +638,51 @@ export default function App() {
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-[#1D1D1F] scale-0 group-hover:scale-[35] transition-transform duration-500 ease-out z-10"></div>
             </button>
           </form>
+        </div>
+      )}
+
+      {/* ==================== 🚀 新增：GPS AI 推薦視窗 ==================== */}
+      {showRecommendModal && (
+        <div className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300">
+          <div className="bg-[#F4F4F6] w-full max-w-sm rounded-[36px] overflow-hidden shadow-[0_24px_48px_rgba(0,0,0,0.15)] border border-white/50 text-left animate-in zoom-in-95 slide-in-from-bottom-8 duration-400">
+            <div className="bg-white px-6 py-5 flex justify-between items-center border-b border-[#E5E5EA]">
+              <div>
+                <h3 className="text-lg font-extrabold text-black tracking-tight flex items-center gap-1.5">
+                  <svg className="w-5 h-5 text-[#0071E3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3" strokeWidth="2.5"/></svg>
+                  附近好評推薦
+                </h3>
+                <p className="text-[10px] font-bold text-[#86868B] uppercase tracking-wider mt-0.5">Fabrica AI • Location Based</p>
+              </div>
+              <button onClick={() => setShowRecommendModal(false)} className="w-8 h-8 bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#86868B] hover:text-black font-semibold rounded-full flex items-center justify-center text-sm transition-colors">✕</button>
+            </div>
+            
+            <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto no-scrollbar">
+              {nearbyRecommendations.map((rec, idx) => (
+                <div key={idx} className="bg-white p-5 rounded-[24px] shadow-sm border border-[#E5E5EA]/50 space-y-3">
+                  <div className="flex justify-between items-start">
+                    <span className="text-[10px] font-bold tracking-wider text-[#0071E3] bg-[#0071E3]/10 px-2 py-1 rounded-md">{rec.category}</span>
+                  </div>
+                  <h4 className="font-bold text-black text-base leading-tight">{rec.name}</h4>
+                  <p className="text-[11px] text-[#86868B] flex items-center gap-1"><svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>{rec.address}</p>
+                  <p className="text-xs text-[#3A3A3C] bg-[#F5F5F7] p-3 rounded-xl font-medium leading-relaxed">{rec.note}</p>
+                  <button onClick={() => saveRecommendation(rec)} className="w-full bg-[#F5F5F7] hover:bg-[#E8E8ED] text-black active:scale-95 transition-all py-2.5 rounded-xl text-xs font-bold flex justify-center items-center gap-1.5">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4"/></svg>
+                    一鍵存入地圖
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🌟 新增：Toast 提示框 */}
+      {toastMessage && (
+        <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[110] animate-in slide-in-from-top-4 fade-in duration-300">
+          <div className="bg-[#1D1D1F]/90 backdrop-blur-md text-white px-5 py-3 rounded-full shadow-2xl text-sm font-semibold tracking-wide flex items-center gap-2">
+            <svg className="w-4 h-4 text-[#34C759]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg>
+            {toastMessage}
+          </div>
         </div>
       )}
     </div>
