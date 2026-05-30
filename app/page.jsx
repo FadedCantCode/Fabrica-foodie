@@ -64,13 +64,18 @@ const getSmartTag = (name, currentCategory = "") => {
 // 🎨 UI 視覺增強組件
 // ==========================================
 
-// 1. Scroll Base Marquee (跑馬燈)
-const ScrollBaseAnimation = ({ children, delay = 0, baseVelocity = -1, className }) => {
+// 1. 垂直雙向滾動跑馬燈組件 (登入頁專用黑色跑馬燈)
+const VerticalMarquee = ({ direction = "up", text = "WELCOME TO FOODIE BETA TEST" }) => {
+  const listItems = Array(12).fill(text);
+  const animationClass = direction === "up" ? "animate-marquee-vertical-up" : "animate-marquee-vertical-down";
   return (
-    <div className={`relative flex overflow-hidden whitespace-nowrap py-1 ${className}`}>
-      <div className={`flex animate-marquee${baseVelocity > 0 ? '-reverse' : ''} gap-8 text-black/5`}>
-        <span>{children}</span><span>{children}</span><span>{children}</span><span>{children}</span>
-        <span>{children}</span><span>{children}</span><span>{children}</span><span>{children}</span>
+    <div className="relative w-8 h-full overflow-hidden flex flex-col justify-start select-none py-4">
+      <div className={`flex flex-col gap-12 text-black/15 font-black text-lg tracking-widest writing-mode-vertical ${animationClass}`}>
+        {listItems.map((item, idx) => (
+          <span key={idx} className="whitespace-nowrap uppercase transform rotate-90 my-8">
+            {item}
+          </span>
+        ))}
       </div>
     </div>
   );
@@ -84,7 +89,6 @@ const LiquidGlassCard = ({ children, className, onClick }) => {
       className={`relative overflow-hidden bg-white/20 backdrop-blur-2xl border border-white/40 shadow-[0_8px_32px_0_rgba(0,0,0,0.05)] rounded-[24px] ${className}`}
       style={{ boxShadow: "inset 0 0 20px rgba(255,255,255,0.5), 0 8px 32px 0 rgba(0,0,0,0.05)" }}
     >
-      {/* Subtle Inner Glow */}
       <div className="absolute inset-0 pointer-events-none rounded-[24px] border border-white/60 mix-blend-overlay"></div>
       {children}
     </div>
@@ -92,7 +96,7 @@ const LiquidGlassCard = ({ children, className, onClick }) => {
 };
 
 // 3. Blur Vignette (邊緣模糊暗角特效)
-const BlurVignette = ({ children, className, inset = '0px', blur = '20px' }) => {
+const BlurVignette = ({ children, className, blur = '20px' }) => {
   return (
     <div className={`relative ${className}`}>
       {children}
@@ -135,7 +139,7 @@ const GooeyLoader = () => (
   </div>
 );
 
-// 🌈 WebGL 高品質無色系 Shader 背景
+// 🌈 WebGL 高品質無色系 Shader 背景 (登入後渲染)
 const ColorfulBackground = ({ show }) => {
   const containerRef = useRef(null);
   useEffect(() => {
@@ -226,9 +230,10 @@ export default function App() {
   const [loginError, setLoginError] = useState("");
   
   const [mounted, setMounted] = useState(false); 
+  const canvasContainerRef = useRef(null);
   const hasSearchedRef = useRef(false);
 
-  // 🌟 精選備用資料庫
+  // 🌟 精選優質台灣地標 (TDX 降級防禦資料庫)
   const TAIWAN_TRENDY_RECS = [
     { id: "fallback-1", name: "詹記麻辣火鍋", address: "台北市大安區和平東路三段60號", category: "火鍋專賣", note: "📍 台北極致傳奇麻辣鍋，鴨血豆腐堪稱美味天花板，絕對必吃。" },
     { id: "fallback-2", name: "五之神製作所", address: "台北市信義區忠孝東路四段553巷6弄6號", category: "日式料理", note: "📍 超濃厚蝦沾麵名店，濃郁蝦湯搭配特色配菜，排隊不間斷。" },
@@ -236,21 +241,110 @@ export default function App() {
     { id: "fallback-4", name: "榕錦時光生活園區 - 興波咖啡", address: "台北市大安區金華街167號", category: "咖啡甜點", note: "📍 世界冠軍大師級精品咖啡館，日式老木屋改建極富質感。" }
   ];
 
+  // 登入前「黑白液態 WebGL 3D 著色器背景」的特效
+  const vertexShaderLogin = `
+    uniform float u_intensity; uniform float u_time; uniform float u_noiseScale; uniform float u_noiseSpeed;
+    varying vec2 vUv; varying float vDisplacement;
+    vec4 permute(vec4 x) { return mod(((x*34.0)+1.0)*x, 289.0); }
+    vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+    vec3 fade(vec3 t) { return t*t*t*(t*(t*6.0-15.0)+10.0); }
+    float cnoise(vec3 P) {
+        vec3 Pi0 = floor(P); vec3 Pi1 = Pi0 + vec3(1.0); Pi0 = mod(Pi0, 289.0); Pi1 = mod(Pi1, 289.0);
+        vec3 Pf0 = fract(P); vec3 Pf1 = Pf0 - vec3(1.0); vec4 ix = vec4(Pi0.x, Pi1.x, Pi0.x, Pi1.x); vec4 iy = vec4(Pi0.yy, Pi1.yy);
+        vec4 iz0 = Pi0.zzzz; vec4 iz1 = Pi1.zzzz; vec4 ixy = permute(permute(ix) + iy); vec4 ixy0 = permute(ixy + iz0); vec4 ixy1 = permute(ixy + iz1);
+        vec4 gx0 = ixy0 / 7.0; vec4 gy0 = fract(floor(gx0) / 7.0) - 0.5; gx0 = fract(gx0); vec4 gz0 = vec4(0.5) - abs(gx0) - abs(gy0); vec4 sz0 = step(gz0, vec4(0.0));
+        gx0 -= sz0 * (step(0.0, gx0) - 0.5); gy0 -= sz0 * (step(0.0, gy0) - 0.5); vec4 gx1 = ixy1 / 7.0; vec4 gy1 = fract(floor(gx1) / 7.0) - 0.5; gx1 = fract(gx1);
+        vec4 gz1 = vec4(0.5) - abs(gx1) - abs(gy1); vec4 sz1 = step(gz1, vec4(0.0)); gx1 -= sz1 * (step(0.0, gx1) - 0.5); gy1 -= sz1 * (step(0.0, gy1) - 0.5);
+        vec3 g000 = vec3(gx0.x,gy0.x,gz0.x); vec3 g100 = vec3(gx0.y,gy0.y,gz0.y); vec3 g010 = vec3(gx0.z,gy0.z,gz0.z); vec3 g110 = vec3(gx0.w,gy0.w,gz0.w);
+        vec3 g001 = vec3(gx1.x,gy1.x,gz1.x); vec3 g101 = vec3(gx1.y,gy1.y,gz1.y); vec3 g011 = vec3(gx1.z,gy1.z,gz1.z); vec3 g111 = vec3(gx1.w,gy1.w,gz1.w);
+        vec4 norm0 = taylorInvSqrt(vec4(dot(g000, g000), dot(g010, g010), dot(g100, g100), dot(g110, g110))); g000 *= norm0.x; g010 *= norm0.y; g100 *= norm0.z; g110 *= norm0.w;
+        vec4 norm1 = taylorInvSqrt(vec4(dot(g001, g001), dot(g011, g011), dot(g101, g101), dot(g111, g111))); g001 *= norm1.x; g011 *= norm1.y; g101 *= norm1.z; g111 *= norm1.w;
+        float n000 = dot(g000, Pf0); float n100 = dot(g100, vec3(Pf1.x, Pf0.yz)); float n010 = dot(g010, vec3(Pf0.x, Pf1.y, Pf0.z)); float n110 = dot(g110, vec3(Pf1.xy, Pf0.z));
+        float n001 = dot(g001, vec3(Pf0.xy, Pf1.z)); float n101 = dot(g101, vec3(Pf1.x, Pf0.y, Pf1.z)); float n011 = dot(g011, vec3(Pf0.x, Pf1.yz)); float n111 = dot(g111, Pf1);
+        vec3 fade_xyz = fade(Pf0); vec4 n_z = mix(vec4(n000, n100, n010, n110), vec4(n001, n101, n011, n111), fade_xyz.z); vec2 n_yz = mix(n_z.xy, n_z.zw, fade_xyz.y); float n_xyz = mix(n_yz.x, n_yz.y, fade_xyz.x); return 2.2 * n_xyz;
+    }
+    float turbulence(vec3 p) {
+        float t = 0.0; float frequency = 1.0; float amplitude = 1.0;
+        for (int i = 0; i < 4; i++) { t += abs(cnoise(p * frequency)) * amplitude; frequency *= 2.0; amplitude *= 0.5; } return t;
+    }
+    void main() {
+        vUv = uv;
+        float noise1 = cnoise(position * u_noiseScale + vec3(u_time * u_noiseSpeed));
+        float noise2 = cnoise(position * (u_noiseScale * 2.0) + vec3(u_time * u_noiseSpeed * 1.5)) * 0.5;
+        float turbulenceNoise = turbulence(position + vec3(u_time)) * 0.3;
+        vDisplacement = noise1 + noise2 + turbulenceNoise;
+        vec3 newPosition = position + normal * (u_intensity * vDisplacement);
+        vec4 modelPosition = modelMatrix * vec4(newPosition, 1.0);
+        gl_Position = projectionMatrix * viewMatrix * modelPosition;
+    }
+  `;
+
+  const fragmentShaderLogin = `
+    uniform float u_intensity; uniform float u_time; varying vec2 vUv; varying float vDisplacement;
+    void main() {
+        float distort = 2.0 * vDisplacement * u_intensity * sin(vUv.y * 10.0 + u_time);
+        vec3 baseColor = vec3(0.96, 0.96, 0.97); vec3 waveColor = vec3(0.05, 0.05, 0.06); 
+        vec3 color = mix(baseColor, waveColor, clamp(abs(distort) * 1.8, 0.0, 1.0)); gl_FragColor = vec4(color, 1.0);
+    }
+  `;
+
   useEffect(() => {
     setMounted(true);
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('share_name')) {
-        setSharedItem({
-          name: params.get('share_name'),
-          address: params.get('share_address') || "",
-          category: getSmartTag(params.get('share_name'), params.get('share_category') || ""),
-          note: params.get('share_note') || "",
-          recommendedBy: params.get('share_by') || "Foodie好友"
-        });
-      }
-    }
   }, []);
+
+  // 還原黑白 3D WebGL 互動球體背景 (登入前使用)
+  useEffect(() => {
+    if (!mounted || isLoggedIn) return;
+    const container = canvasContainerRef.current;
+    if (!container) return;
+
+    const width = container.clientWidth; const height = container.clientHeight;
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(35, width / height, 0.1, 100);
+    camera.position.set(0, 0, 8);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    container.appendChild(renderer.domElement);
+
+    const uniforms = { u_time: { value: 0 }, u_intensity: { value: 0.25 }, u_noiseScale: { value: 1.5 }, u_noiseSpeed: { value: 0.8 } };
+    const geometry = new THREE.SphereGeometry(2, 64, 64);
+    const material = new THREE.ShaderMaterial({ vertexShader: vertexShaderLogin, fragmentShader: fragmentShaderLogin, uniforms, transparent: true });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(0, 0, -1); mesh.scale.setScalar(2.4);
+    scene.add(mesh);
+
+    const mouse = { x: 0, y: 0 };
+    const targetPosition = new THREE.Vector3(0, 0, -1);
+    const currentPosition = new THREE.Vector3(0, 0, -1);
+
+    const handleMouseMove = (event) => {
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1; mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+
+    const handleResize = () => {
+      if (!container) return;
+      camera.aspect = container.clientWidth / container.clientHeight; camera.updateProjectionMatrix();
+      renderer.setSize(container.clientWidth, container.clientHeight);
+    };
+    window.addEventListener('resize', handleResize);
+
+    let animationId; const clock = new THREE.Clock();
+    const animate = () => {
+      const elapsed = clock.getElapsedTime();
+      uniforms.u_time.value = 0.25 * elapsed; uniforms.u_noiseScale.value = Math.sin(elapsed * 0.1) * 0.5 + 1.2;
+      targetPosition.set(mouse.x * 1.2, mouse.y * 1.2, -1); currentPosition.lerp(targetPosition, 0.05); mesh.position.copy(currentPosition);
+      renderer.render(scene, camera); animationId = requestAnimationFrame(animate);
+    };
+    animate();
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('resize', handleResize);
+      cancelAnimationFrame(animationId); if (container && renderer.domElement) container.removeChild(renderer.domElement);
+      geometry.dispose(); material.dispose(); renderer.dispose();
+    };
+  }, [mounted, isLoggedIn]);
 
   useEffect(() => {
     const initAuth = async () => { try { await signInAnonymously(auth); } catch (err) { setFirebaseUser({ uid: "local-temp-guest", isAnonymous: true }); } };
@@ -272,7 +366,7 @@ export default function App() {
     return () => unsubscribe();
   }, [firebaseUser, isLoggedIn, threadsUsername]);
 
-  // 🌟 整合 TDX API 取代開源地圖
+  // 🌟 整合 TDX API 取代開源地圖 (官方觀光數據)
   useEffect(() => {
     if (isLoggedIn && typeof window !== 'undefined' && navigator.geolocation && !hasSearchedRef.current) {
       hasSearchedRef.current = true;
@@ -290,7 +384,6 @@ export default function App() {
   const triggerTDXNearbySearch = async (lat, lng) => {
     setIsLocating(true);
     try {
-      // 調用 TDX 官方觀光餐飲 API (免 Token 公開額度)
       const tdxUrl = `https://tdx.transportdata.tw/api/basic/v2/Tourism/Restaurant?$spatialFilter=nearby(${lat},${lng},3000)&$format=JSON&$top=8`;
       const response = await fetch(tdxUrl);
       const data = await response.json();
@@ -300,14 +393,14 @@ export default function App() {
           const name = el.RestaurantName || "在地美食";
           const rawCategory = el.Class || "在地美食";
           const autoCategory = getSmartTag(name, rawCategory);
-          const imageUrl = el.Picture?.PictureUrl1 || null; // 獲取 TDX 真實照片
+          const imageUrl = el.Picture?.PictureUrl1 || null;
 
           return {
             id: el.RestaurantID || Math.random().toString(),
             name: name,
             address: el.Address || "點擊查看地圖定位",
             category: autoCategory,
-            note: el.Description ? el.Description.substring(0, 80) + "..." : "📍 透過 TDX 官方觀光資料庫探測到的周邊名店。",
+            note: el.Description ? el.Description.substring(0, 80) + "..." : "📍 透過官方觀光資料庫探測到的周邊名店。",
             tdxImage: imageUrl
           };
         });
@@ -406,7 +499,6 @@ export default function App() {
   const dismissRecommendation = (id) => setDismissedRecommendationIds(prev => [...prev, id]);
 
   const getFoodImage = (restaurant) => {
-    // 若 TDX API 提供真實照片，優先採用
     if (restaurant?.tdxImage) return restaurant.tdxImage;
     const name = restaurant?.name || "";
     const images = [
@@ -512,60 +604,79 @@ export default function App() {
         <GooeyLoader />
       </div>
 
+      {/* 登入前的黑白原生 3D 液態球體著色器背景 */}
+      {!isLoggedIn && (
+        <div 
+          ref={canvasContainerRef} 
+          className={`fixed inset-0 z-0 w-screen h-screen pointer-events-auto transition-opacity duration-1000 ease-in-out ${isGlobalTransitioning ? 'opacity-0 invisible' : 'opacity-100 visible'}`} 
+        />
+      )}
+
       {/* ==================== 頁面容器 ==================== */}
-      <div className="relative z-10 w-full min-h-screen">
+      <div className="relative z-10 w-full min-h-screen flex items-center justify-center">
         
         {!isLoggedIn ? (
-          // --- 登入畫面 ---
-          <div className={`min-h-screen flex flex-col justify-between px-6 py-10 max-w-sm mx-auto transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isGlobalTransitioning ? 'opacity-0 scale-[0.98] blur-md translate-y-4' : 'opacity-100 scale-100 blur-0 translate-y-0'}`}>
-            <div className="flex-1 flex flex-col justify-center space-y-10 py-8 pointer-events-auto mt-10">
-              
-              {/* Scroll Marquee 特效公告 */}
-              <ScrollBaseAnimation delay={200} baseVelocity={-2} className="font-black text-4xl uppercase opacity-40 mix-blend-overlay tracking-widest absolute top-12 left-0 w-full pointer-events-none">
-                WELCOME TO FOODIE BETA TEST
-              </ScrollBaseAnimation>
-
-              <div className="text-center space-y-5">
-                <div className="w-16 h-16 bg-black rounded-[20px] mx-auto flex items-center justify-center shadow-[0_10px_25px_rgba(0,0,0,0.15)] transform hover:scale-110 active:scale-95 transition-all duration-300">
-                  <svg className="w-8 h-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3" strokeWidth="1.5"/></svg>
-                </div>
-                <div className="space-y-2">
-                  <h1 className="text-3xl font-extrabold tracking-tight text-black drop-shadow-sm">Foodie</h1>
-                  <p className="text-sm text-[#86868B] font-medium leading-relaxed max-w-xs mx-auto drop-shadow-sm">
-                    探索、珍藏、分享。<br />輸入 Threads 帳號，開啟您的專屬美食地圖。
-                  </p>
-                </div>
-              </div>
-
-              <form onSubmit={handleLogin} className="space-y-5 bg-white/45 backdrop-blur-xl border border-white/60 p-6 rounded-[32px] shadow-[0_20px_40px_rgba(0,0,0,0.03)] hover:shadow-lg transition-shadow">
-                <div className="space-y-3">
-                  <div className="relative flex items-center w-full group">
-                    <span className="absolute left-5 top-1/2 -translate-y-1/2 text-base font-semibold text-[#86868B] select-none pointer-events-none group-focus-within:text-black transition-colors">@</span>
-                    <input 
-                      type="text" placeholder="輸入您的 Threads 帳號" value={inputUsername} onChange={(e) => setInputUsername(e.target.value.replace("@", ""))}
-                      className="w-full bg-white/80 text-base font-medium rounded-2xl py-4.5 pl-12 pr-5 border border-[#D2D2D7] focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all duration-300 placeholder-[#86868B]/70 shadow-[0_2px_8px_rgba(0,0,0,0.01)]"
-                    />
-                  </div>
-                  {loginError && <p className="text-xs text-[#FF3B30] font-medium pl-3.5 flex items-center gap-1.5 animate-in fade-in duration-200"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>{loginError}</p>}
-                </div>
-
-                <button type="submit" className="group relative cursor-pointer w-full h-[56px] border border-[#D2D2D7] bg-white rounded-2xl overflow-hidden text-[#1D1D1F] font-semibold transition-all duration-300 shadow-sm hover:shadow-md active:scale-[0.98] outline-none">
-                  <div className="absolute inset-0 flex items-center justify-center translate-x-0 group-hover:translate-x-16 group-hover:opacity-0 transition-all duration-300 z-20 pointer-events-none select-none">進入美食檔案</div>
-                  <div className="absolute inset-0 flex gap-2 items-center justify-center text-white z-20 translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none select-none">
-                    <span className="font-semibold text-sm">進入美食檔案</span><svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
-                  </div>
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-[#1D1D1F] scale-0 group-hover:scale-[35] transition-transform duration-500 ease-out z-10"></div>
-                </button>
-              </form>
+          // --- 登入畫面 (加入左右側各兩軌雙向黑色垂直跑馬燈) ---
+          <div className="relative w-full min-h-screen flex flex-row justify-between items-stretch">
+            
+            {/* ⬅️ 左側雙向垂直黑色跑馬燈區塊 (大於 768px 電腦版顯現) */}
+            <div className="hidden md:flex flex-row justify-center gap-6 w-32 border-r border-black/5 bg-white/5 backdrop-blur-sm relative z-20">
+              <VerticalMarquee direction="up" text="WELCOME TO FOODIE BETA TEST" />
+              <VerticalMarquee direction="down" text="EXPLORE SHARE COLLECT" />
             </div>
-            <footer className="text-center text-xs text-[#86868B] pt-4 pointer-events-none">
-              <p className="font-semibold text-[#1D1D1F]/40">© Fabrica</p>
-            </footer>
+
+            {/* 居中主登入卡片 */}
+            <div className={`flex-1 flex flex-col justify-between px-6 py-10 max-w-sm mx-auto transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isGlobalTransitioning ? 'opacity-0 scale-[0.98] blur-md translate-y-4' : 'opacity-100 scale-100 blur-0 translate-y-0'} relative z-30`}>
+              <div className="flex-1 flex flex-col justify-center space-y-10 py-8 pointer-events-auto">
+                
+                <div className="text-center space-y-5">
+                  <div className="w-16 h-16 bg-black rounded-[20px] mx-auto flex items-center justify-center shadow-[0_10px_25px_rgba(0,0,0,0.15)] transform hover:scale-110 active:scale-95 transition-all duration-300 cursor-pointer">
+                    <svg className="w-8 h-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3" strokeWidth="1.5"/></svg>
+                  </div>
+                  <div className="space-y-2">
+                    <h1 className="text-3xl font-extrabold tracking-tight text-black drop-shadow-sm">Foodie</h1>
+                    <p className="text-sm text-[#86868B] font-medium leading-relaxed max-w-xs mx-auto drop-shadow-sm">
+                      探索、珍藏、分享。<br />輸入 Threads 帳號，開啟您的專屬美食地圖。
+                    </p>
+                  </div>
+                </div>
+
+                <form onSubmit={handleLogin} className="space-y-5 bg-white/45 backdrop-blur-xl border border-white/60 p-6 rounded-[32px] shadow-[0_20px_40px_rgba(0,0,0,0.03)] hover:shadow-lg transition-shadow">
+                  <div className="space-y-3">
+                    <div className="relative flex items-center w-full group">
+                      <span className="absolute left-5 top-1/2 -translate-y-1/2 text-base font-semibold text-[#86868B] select-none pointer-events-none group-focus-within:text-black transition-colors">@</span>
+                      <input 
+                        type="text" placeholder="輸入您的 Threads 帳號" value={inputUsername} onChange={(e) => setInputUsername(e.target.value.replace("@", ""))}
+                        className="w-full bg-white/80 text-base font-medium rounded-2xl py-4.5 pl-12 pr-5 border border-[#D2D2D7] focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all duration-300 placeholder-[#86868B]/70 shadow-[0_2px_8px_rgba(0,0,0,0.01)]"
+                      />
+                    </div>
+                  </div>
+
+                  <button type="submit" className="group relative cursor-pointer w-full h-[56px] border border-[#D2D2D7] bg-white rounded-2xl overflow-hidden text-[#1D1D1F] font-semibold transition-all duration-300 shadow-sm hover:shadow-md active:scale-[0.98] outline-none">
+                    <div className="absolute inset-0 flex items-center justify-center translate-x-0 group-hover:translate-x-16 group-hover:opacity-0 transition-all duration-300 z-20 pointer-events-none select-none">進入美食檔案</div>
+                    <div className="absolute inset-0 flex gap-2 items-center justify-center text-white z-20 translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none select-none">
+                      <span className="font-semibold text-sm">進入美食檔案</span><svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                    </div>
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-[#1D1D1F] scale-0 group-hover:scale-[35] transition-transform duration-500 ease-out z-10"></div>
+                  </button>
+                </form>
+              </div>
+              <footer className="text-center text-xs text-[#86868B] pt-4 pointer-events-none">
+                <p className="font-semibold text-[#1D1D1F]/40">© Fabrica</p>
+              </footer>
+            </div>
+
+            {/* ➡️ 右側雙向垂直黑色跑馬燈區塊 (大於 768px 電腦版顯現) */}
+            <div className="hidden md:flex flex-row justify-center gap-6 w-32 border-l border-black/5 bg-white/5 backdrop-blur-sm relative z-20">
+              <VerticalMarquee direction="down" text="EXPLORE SHARE COLLECT" />
+              <VerticalMarquee direction="up" text="WELCOME TO FOODIE BETA TEST" />
+            </div>
+
           </div>
 
         ) : (
-          // --- 登入後主檔案庫面板 ---
-          <div className={`pb-10 min-h-screen transition-all duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isGlobalTransitioning ? 'opacity-0 translate-y-12 scale-[0.97] blur-md' : 'opacity-100 translate-y-0 scale-100 blur-0'}`}>
+          // --- 登入後主檔案庫面板 (半透明磨砂) ---
+          <div className={`w-full pb-10 min-h-screen transition-all duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isGlobalTransitioning ? 'opacity-0 translate-y-12 scale-[0.97] blur-md' : 'opacity-100 translate-y-0 scale-100 blur-0'}`}>
             <header className="sticky top-0 z-40 bg-white/40 backdrop-blur-2xl border-b border-white/30 px-6 py-4 shadow-[0_4px_30px_rgba(0,0,0,0.05)]">
               <div className="max-w-md mx-auto flex justify-between items-center">
                 <div className="flex flex-col">
@@ -613,17 +724,16 @@ export default function App() {
                       {cat}
                     </button>
                   ))}
-                  {/* 防止滾動截斷 Spacer */}
                   <div className="w-2 flex-shrink-0" />
                 </div>
               </section>
 
-              {/* 附近推薦區域 (TDX 整合) */}
+              {/* 附近推薦區域 (TDX 整合且完美修復橫向滾動截斷) */}
               {activeRecommendations.length > 0 && (
                 <section className="space-y-3">
                   <h2 className="text-[13px] font-bold text-[#555] uppercase tracking-wider flex items-center gap-1.5 backdrop-blur-sm w-fit px-2 py-0.5 rounded-lg bg-white/20 shadow-[inset_0_1px_4px_rgba(255,255,255,0.4)]">
                     <svg className="w-4 h-4 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                    TDX 附近探索與精選名店
+                    附近探索與精選名店
                   </h2>
                   <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide -mx-4 px-4">
                     {activeRecommendations.map(rec => (
@@ -651,8 +761,8 @@ export default function App() {
                         </article>
                       </LiquidGlassCard>
                     ))}
-                    {/* 防止橫向滾動截斷 Spacer */}
-                    <div className="w-2 flex-shrink-0" />
+                    {/* 防止橫向滾動截斷的 Spacer 元件 */}
+                    <div className="w-6 flex-shrink-0" />
                   </div>
                 </section>
               )}
@@ -922,10 +1032,26 @@ export default function App() {
         .animate-fade-in-up { animation: fade-in-up 0.5s cubic-bezier(0.2,0.8,0.2,1) forwards; }
         @keyframes bounce-in { 0% { opacity: 0; transform: scale(0.9) translateY(10px); } 60% { opacity: 1; transform: scale(1.02) translateY(-2px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
         .animate-bounce-in { animation: bounce-in 0.6s cubic-bezier(0.2,0.8,0.2,1) forwards; }
-        @keyframes marquee { 0% { transform: translateX(0%); } 100% { transform: translateX(-50%); } }
-        @keyframes marquee-reverse { 0% { transform: translateX(-50%); } 100% { transform: translateX(0%); } }
-        .animate-marquee { animation: marquee 30s linear infinite; min-width: 200%; }
-        .animate-marquee-reverse { animation: marquee-reverse 30s linear infinite; min-width: 200%; }
+        
+        /* 垂直跑馬燈核心動畫效果 */
+        @keyframes marquee-vertical-up {
+          0% { transform: translateY(0%); }
+          100% { transform: translateY(-50%); }
+        }
+        @keyframes marquee-vertical-down {
+          0% { transform: translateY(-50%); }
+          100% { transform: translateY(0%); }
+        }
+        .animate-marquee-vertical-up {
+          animation: marquee-vertical-up 35s linear infinite;
+        }
+        .animate-marquee-vertical-down {
+          animation: marquee-vertical-down 35s linear infinite;
+        }
+        .writing-mode-vertical {
+          writing-mode: vertical-rl;
+          text-orientation: mixed;
+        }
       `}</style>
     </div>
   );
