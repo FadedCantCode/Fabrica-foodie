@@ -164,10 +164,10 @@ export default function App() {
   const [isGeneratingAI, setIsGeneratingAI] = useState(false); 
   const [deletingIds, setDeletingIds] = useState([]); 
 
-  // 🌟 新增：GPS 推薦與分享功能狀態
+  // GPS 推薦與分享功能狀態
   const [isLocating, setIsLocating] = useState(false);
-  const [nearbyRecommendations, setNearbyRecommendations] = useState([]);
-  const [showRecommendModal, setShowRecommendModal] = useState(false);
+  const [nearbyRecommendations, setNearbyRecommendations] = useState([]); // 存儲自動推薦
+  const [dismissedRecommendationIds, setDismissedRecommendationIds] = useState([]); // 記錄被忽略的推薦
   const [toastMessage, setToastMessage] = useState("");
 
   const [newRestName, setNewRestName] = useState("");
@@ -192,7 +192,7 @@ export default function App() {
     }
   }, []);
 
-  // WebGL 背景
+  // 3D 背景 WebGL
   useEffect(() => {
     if (!mounted || isLoggedIn) return;
     const container = canvasContainerRef.current;
@@ -246,7 +246,7 @@ export default function App() {
     };
   }, [mounted, isLoggedIn]);
 
-  // Firebase Init
+  // Firebase 驗證
   useEffect(() => {
     const initAuth = async () => {
       try { await signInAnonymously(auth); } 
@@ -257,7 +257,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Firestore Snapshot
+  // 實時監聽資料庫
   useEffect(() => {
     if (!firebaseUser || !isLoggedIn || !threadsUsername || firebaseUser.uid === "local-temp-guest") return; 
     setIsLoading(true);
@@ -272,6 +272,52 @@ export default function App() {
     return () => unsubscribe();
   }, [firebaseUser, isLoggedIn, threadsUsername]);
 
+  // 🌟 核心：使用者登入成功後，自動靜默發起 GPS 請求並探測周邊美食
+  useEffect(() => {
+    if (isLoggedIn && typeof window !== 'undefined' && navigator.geolocation) {
+      triggerSilentNearbySearch();
+    }
+  }, [isLoggedIn]);
+
+  // 🌟 靜默 GPS 定位尋找美食邏輯
+  const triggerSilentNearbySearch = () => {
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(async (position) => {
+      const { latitude, longitude } = position.coords;
+      try {
+        const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
+        // 使用絕對穩定的 2.0-flash 架構 + Header 防護
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+        const payload = {
+          contents: [{ parts: [{ text: `我現在的 GPS 座標是：緯度 ${latitude}，經度 ${longitude}。請幫我推薦這附近最熱門、最受脆友歡迎的 2 間特色排隊美食餐廳。` }] }],
+          systemInstruction: { parts: [{ text: "你是一個高端美食顧問 Fabrica。請根據經緯度座標，搜尋附近 2 間真實存在高評價店。嚴格且唯一輸出一個 JSON 陣列，格式如下：[{\"id\": 1, \"name\": \"店名\", \"address\": \"真實地址\", \"category\": \"甜點咖啡 或 台灣小吃\", \"note\": \"一小句話推薦此店與特色(25字)\"}]。絕不包含 markdown 格式字串。" }] }
+        };
+
+        const response = await fetch(geminiUrl, { 
+          method: "POST", 
+          headers: { 
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey 
+          }, 
+          body: JSON.stringify(payload) 
+        });
+        const data = await response.json();
+        const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
+        const parsed = JSON.parse(rawText.replace(/```json|```/g, "").trim());
+        
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setNearbyRecommendations(parsed);
+        }
+      } catch (err) {
+        console.error("Auto nearby exploration failed:", err);
+      }
+      setIsLocating(false);
+    }, (err) => {
+      console.warn("Geolocation permission denied on auto-load:", err);
+      setIsLocating(false);
+    });
+  };
+
   const handleLogin = (e) => {
     e.preventDefault();
     if (!inputUsername.trim()) { setLoginError("請輸入您的 Threads ID"); return; }
@@ -285,7 +331,9 @@ export default function App() {
   const handleLogout = () => {
     setIsGlobalTransitioning(true);
     setTimeout(() => {
-      setIsLoggedIn(false); setThreadsUsername(""); setInputUsername(""); setRestaurants([]); setIsGlobalTransitioning(false);
+      setIsLoggedIn(false); setThreadsUsername(""); setInputUsername(""); setRestaurants([]); 
+      setNearbyRecommendations([]); setDismissedRecommendationIds([]);
+      setIsGlobalTransitioning(false);
     }, 1200);
   };
 
@@ -309,7 +357,7 @@ export default function App() {
     }, 400); 
   };
 
-  // 🌟 新增：分享給朋友 (Web Share API)
+  // 🌟 分享美食 (Web Share API)
   const handleShare = async (restaurant) => {
     const shareText = `這家感覺不錯！📍 ${restaurant.name}\n🏠 ${restaurant.address}\n✨ ${restaurant.note}\n\n— 來自 Fabrica Foodie`;
     const shareData = {
@@ -330,73 +378,38 @@ export default function App() {
     }
   };
 
-  // 🌟 新增：取得 GPS 座標並讓 AI 尋找附近美食
-  const handleExploreNearby = () => {
-    if (!navigator.geolocation) {
-      setToastMessage("您的裝置不支援定位功能");
-      setTimeout(() => setToastMessage(""), 3000);
-      return;
-    }
-
-    setIsLocating(true);
-    navigator.geolocation.getCurrentPosition(async (position) => {
-      const { latitude, longitude } = position.coords;
-      
-      try {
-        const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
-        // 🌟 升級為最新且最穩定的 gemini-2.0-flash，完美適配 AQ. 金鑰
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-        const payload = {
-          contents: [{ parts: [{ text: `我現在的 GPS 座標是：緯度 ${latitude}，經度 ${longitude}。請幫我搜尋這附近評價最好的 3 間特色餐廳或咖啡廳。` }] }],
-          systemInstruction: { parts: [{ text: "你是一個高端美食顧問 Fabrica。請根據座標，搜尋附近 3 間真實高評價餐廳。嚴格輸出一個 JSON 陣列，格式如下：[{\"name\": \"店名\", \"address\": \"真實地址\", \"category\": \"餐飲分類 (如 咖啡廳、義式)\", \"note\": \"推薦原因 (30字)\"}]。不要輸出任何 markdown 標記。" }] }
-        };
-
-        const response = await fetch(geminiUrl, { 
-          method: "POST", 
-          headers: { 
-            "Content-Type": "application/json",
-            "x-goog-api-key": apiKey 
-          }, 
-          body: JSON.stringify(payload) 
-        });
-        const data = await response.json();
-        
-        const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
-        const parsed = JSON.parse(rawText.replace(/```json|```/g, "").trim());
-        
-        setNearbyRecommendations(parsed);
-        setShowRecommendModal(true);
-      } catch (err) {
-        console.error("Explore nearby error:", err);
-        setToastMessage("AI 尋找失敗，請稍後再試");
-        setTimeout(() => setToastMessage(""), 3000);
-      }
-      setIsLocating(false);
-    }, (err) => {
-      console.error("Geolocation error:", err);
-      setToastMessage("無法取得定位權限，請開啟手機 GPS 設定");
-      setTimeout(() => setToastMessage(""), 3000);
-      setIsLocating(false);
-    });
-  };
-
-  // 🌟 新增：將 AI 推薦一鍵存入地圖
+  // 🌟 一鍵儲存 AI 推薦卡片到雲端
   const saveRecommendation = async (rec) => {
+    // 立即從畫面移出這張自動推薦小卡
+    setDismissedRecommendationIds(prev => [...prev, rec.id]);
+
     if (firebaseUser?.uid === "local-temp-guest") {
-      const mockDoc = { id: Math.random().toString(), name: rec.name, address: rec.address, category: rec.category, note: rec.note, recommendedBy: "Fabrica AI", savedAt: { seconds: Math.floor(Date.now() / 1000) }, threadsUrl: "" };
+      const mockDoc = { 
+        id: Math.random().toString(), name: rec.name, address: rec.address, 
+        category: rec.category, note: rec.note, recommendedBy: "Fabrica AI", 
+        savedAt: { seconds: Math.floor(Date.now() / 1000) }, threadsUrl: "" 
+      };
       setRestaurants(prev => [mockDoc, ...prev]);
     } else {
       try {
         const cleanUsername = threadsUsername.replace("@", "").trim().toLowerCase();
         const userRestaurantsRef = collection(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants');
-        await addDoc(userRestaurantsRef, { name: rec.name, address: rec.address, category: rec.category, note: rec.note, recommendedBy: "Fabrica AI", savedAt: serverTimestamp(), threadsUrl: "" });
-      } catch (err) { console.error("Error adding document:", err); }
+        await addDoc(userRestaurantsRef, { 
+          name: rec.name, address: rec.address, category: rec.category, 
+          note: rec.note, recommendedBy: "Fabrica AI", savedAt: serverTimestamp(), threadsUrl: "" 
+        });
+      } catch (err) { console.error("Error saving auto-recommendation:", err); }
     }
-    setToastMessage(`已將 ${rec.name} 加入地圖！`);
+    setToastMessage(`🎉 已儲存 ${rec.name} 至您的口袋名單！`);
     setTimeout(() => setToastMessage(""), 3000);
-    setShowRecommendModal(false);
   };
 
+  // 🌟 忽略自動推薦小卡（附帶優雅動畫效果）
+  const dismissRecommendation = (id) => {
+    setDismissedRecommendationIds(prev => [...prev, id]);
+  };
+
+  // 手動新增餐廳
   const handleAddRestaurant = async (e) => {
     e.preventDefault();
     if (!newRestName.trim()) return;
@@ -407,10 +420,9 @@ export default function App() {
     if (!finalNote.trim()) {
       try {
         const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
-        // 🌟 升級為最新且最穩定的 gemini-2.0-flash
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
         const payload = {
-          contents: [{ parts: [{ text: `請分析台灣的這間餐廳：${newRestName} ${newRestAddress}。請綜合網路評價、近期優惠、活動與特色給出建議。` }] }],
+          contents: [{ parts: [{ text: `請分析台灣的這間餐廳：${newRestName} ${newRestAddress}。請綜合網路評價特色給出建議。` }] }],
           systemInstruction: { parts: [{ text: "你是一個高端美食顧問 Fabrica。請用 50-80 字精煉總結這家餐廳的真實網路評價、特色招牌菜色，若近期有知名優惠或活動也請提及。語氣要專業、具質感，不需加上 Markdown 標籤，直接給出純文字結果。" }] }
         };
 
@@ -463,15 +475,6 @@ export default function App() {
     setTimeout(() => { setIsGlobalTransitioning(false); closeAddModal(); }, 1500);
   };
 
-  const getFreeMapEmbedUrl = (name, address) => {
-    const hasValidAddress = address && address !== "僅提供店名定位" && address.trim() !== "";
-    return `https://maps.google.com/maps?q=${encodeURIComponent(hasValidAddress ? `${name} ${address}` : name)}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
-  };
-  const getFreeMapAppUrl = (name, address) => {
-    const hasValidAddress = address && address !== "僅提供店名定位" && address.trim() !== "";
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(hasValidAddress ? `${name} ${address}` : name)}`;
-  };
-
   const categories = ["全部", ...new Set(restaurants.map(r => r.category ? r.category.split(" • ")[0] : "未分類"))];
   const filteredRestaurants = restaurants.filter(restaurant => {
     const name = restaurant.name || ""; 
@@ -489,6 +492,9 @@ export default function App() {
     const matchesCategory = selectedCategory === "全部" || category.startsWith(selectedCategory);
     return matchesSearch && matchesCategory;
   });
+
+  // 計算尚未被忽略的自動推薦卡片
+  const activeRecommendations = nearbyRecommendations.filter(rec => !dismissedRecommendationIds.includes(rec.id));
 
   return (
     <div className="relative min-h-screen bg-[#F4F4F6] text-[#1D1D1F] tracking-tight font-sans antialiased overflow-x-hidden">
@@ -566,31 +572,72 @@ export default function App() {
               </div>
             </header>
 
-            <main className="max-w-md mx-auto px-4 mt-8 space-y-8">
+            <main className="max-w-md mx-auto px-4 mt-8 space-y-6">
+              
               <section className="space-y-4">
                 <div className="relative flex items-center w-full">
                   <svg className="w-5 h-5 text-[#86868B] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none select-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                   <input type="text" placeholder="搜尋餐廳、@推薦人或評論..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-white text-sm rounded-2xl py-3.5 pl-11 pr-4 border border-[#E5E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] focus:outline-none focus:border-[#86868B] placeholder-[#86868B] transition-all" />
                 </div>
-                
-                {/* 🌟 新增：GPS 探索附近按鈕 */}
-                <button 
-                  onClick={handleExploreNearby}
-                  disabled={isLocating}
-                  className="w-full bg-[#1D1D1F] hover:bg-[#3A3A3C] text-white active:scale-[0.99] transition-all py-3.5 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 shadow-md disabled:opacity-70 disabled:pointer-events-none"
-                >
-                  {isLocating ? (
-                    <>
-                      <svg className="animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                      定位並探索附近隱藏美食...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3" strokeWidth="2.5"/></svg>
-                      ✨ AI 探索附近好店
-                    </>
-                  )}
-                </button>
+
+                {/* 🌟 智慧自動推薦區域（以 Apple 精緻 Widget 小卡呈現） */}
+                {isLocating && (
+                  <div className="flex items-center gap-2 justify-center py-2 text-xs text-[#86868B] font-semibold bg-white/45 backdrop-blur-md rounded-2xl border border-white/50 animate-pulse">
+                    <svg className="animate-spin h-3.5 w-3.5 text-black" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    正在為您秘密搜尋周邊好評店...
+                  </div>
+                )}
+
+                {activeRecommendations.length > 0 && (
+                  <div className="space-y-3.5 animate-in fade-in slide-in-from-top-6 duration-500">
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-[10px] font-extrabold tracking-wider text-[#0071E3] uppercase">✨ 您附近的隱藏版推薦</span>
+                      <span className="text-[9px] font-bold text-[#86868B] uppercase">自動 GPS 探測</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3">
+                      {activeRecommendations.map((rec) => (
+                        <div 
+                          key={rec.id}
+                          className="bg-white/85 backdrop-blur-xl border border-white/60 p-4 rounded-[24px] shadow-[0_8px_25px_rgba(0,0,0,0.02)] flex items-start gap-3.5 relative transition-all duration-300 hover:shadow-md"
+                        >
+                          <div className="w-10 h-10 bg-black text-white rounded-full flex items-center justify-center shrink-0 text-sm font-extrabold shadow-sm">
+                            📍
+                          </div>
+                          <div className="space-y-1.5 flex-1 pr-6">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[9px] font-bold bg-black/5 text-black px-2 py-0.5 rounded-md">{rec.category}</span>
+                            </div>
+                            <h4 className="font-extrabold text-sm text-black leading-tight">{rec.name}</h4>
+                            <p className="text-[10px] text-[#86868B] font-medium leading-relaxed">{rec.note}</p>
+                            
+                            <div className="flex gap-2 pt-1">
+                              <button 
+                                onClick={() => saveRecommendation(rec)}
+                                className="bg-black hover:bg-black/90 text-white text-[10px] font-extrabold px-3 py-1.5 rounded-lg transition-colors active:scale-95 shadow-sm"
+                              >
+                                ＋ 存入地圖
+                              </button>
+                              <button 
+                                onClick={() => dismissRecommendation(rec.id)}
+                                className="bg-[#E5E5EA] hover:bg-[#D2D2D7] text-[#1D1D1F] text-[10px] font-bold px-3 py-1.5 rounded-lg transition-colors active:scale-95"
+                              >
+                                忽略
+                              </button>
+                            </div>
+                          </div>
+
+                          <button 
+                            onClick={() => dismissRecommendation(rec.id)}
+                            className="absolute top-3 right-3 text-[#C7C7CC] hover:text-[#1D1D1F] text-xs font-semibold p-1"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {categories.length > 1 && (
                   <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
@@ -606,7 +653,7 @@ export default function App() {
               <section className="space-y-8">
                 {isLoading && firebaseUser?.uid !== "local-temp-guest" ? (
                   <div className="text-center py-20 space-y-3">
-                    <svg className="animate-spin h-5 w-5 text-black mx-auto" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <svg className="animate-spin h-5 w-5 text-black mx-auto" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                     <p className="text-xs text-[#86868B] font-semibold">正在讀取雲端美食資料庫...</p>
                   </div>
                 ) : filteredRestaurants.length === 0 ? (
@@ -640,7 +687,7 @@ export default function App() {
                               href={restaurant.recommendedBy === "Fabrica AI" ? "#" : `https://www.threads.net/@${restaurant.recommendedBy}`} 
                               target="_blank" 
                               rel="noreferrer"
-                              className={`text-[10px] font-bold tracking-wide px-2.5 py-1 rounded-md flex items-center gap-1 transition-colors ${restaurant.recommendedBy === "Fabrica AI" ? "text-white bg-black hover:bg-black/80" : "text-[#1D1D1F] bg-[#E5E5EA] hover:bg-[#D2D2D7]"}`}
+                              className={`text-[10px] font-bold tracking-wide px-2.5 py-1 rounded-md flex items-center gap-1 transition-colors ${restaurant.recommendedBy === "Fabrica AI" ? "text-white bg-black hover:bg-black/80 pointer-events-none" : "text-[#1D1D1F] bg-[#E5E5EA] hover:bg-[#D2D2D7]"}`}
                               title={restaurant.recommendedBy === "Fabrica AI" ? "AI 推薦" : "前往 Threads 查看推薦人"}
                             >
                               <svg className={`w-3 h-3 ${restaurant.recommendedBy === "Fabrica AI" ? "text-white" : "text-[#86868B]"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
@@ -685,7 +732,6 @@ export default function App() {
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
                           在地圖中開啟
                         </a>
-                        {/* 🌟 新增：分享給朋友按鈕 */}
                         <button onClick={() => handleShare(restaurant)} className="w-12 py-3 flex items-center justify-center text-[#86868B] bg-[#F5F5F7] hover:bg-[#E8E8ED] hover:text-black active:scale-95 transition-all rounded-xl" title="分享給朋友">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8m-4-6l-4-4m0 0L8 6m4-4v13" /></svg>
                         </button>
@@ -720,13 +766,13 @@ export default function App() {
             <div className="space-y-3 text-sm">
               <div className="space-y-1.5">
                 <label className="font-bold text-[#1D1D1F] text-xs px-1">餐廳名稱 *</label>
-                <input type="text" required disabled={isGeneratingAI} value={newRestName} onChange={(e) => setNewRestName(e.target.value)} placeholder="例如：熟成宇治" className="w-full bg-white/70 rounded-2xl p-3 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)] disabled:opacity-60" />
+                <input type="text" required value={newRestName} onChange={(e) => setNewRestName(e.target.value)} placeholder="例如：熟成宇治" className="w-full bg-white/70 rounded-2xl p-3 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)]" />
               </div>
               
               <div className="flex gap-3">
                 <div className="space-y-1.5 w-1/2">
                   <label className="font-bold text-[#1D1D1F] text-xs px-1">餐飲分類</label>
-                  <select disabled={isGeneratingAI} value={newRestCategory} onChange={(e) => setNewRestCategory(e.target.value)} className="w-full bg-white/70 rounded-2xl p-3 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-semibold text-[#1D1D1F] appearance-none transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)] disabled:opacity-60">
+                  <select value={newRestCategory} onChange={(e) => setNewRestCategory(e.target.value)} className="w-full bg-white/70 rounded-2xl p-3 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-semibold text-[#1D1D1F] appearance-none transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
                     <option value="日式甜點 • 咖啡廳">甜點咖啡</option>
                     <option value="義式料理 • 自然酒">義式餐酒</option>
                     <option value="台灣傳統 • 小吃">台灣小吃</option>
@@ -738,19 +784,19 @@ export default function App() {
                   <label className="font-bold text-[#1D1D1F] text-xs px-1">推薦人 (選填)</label>
                   <div className="relative">
                     <span className="absolute left-3 top-3 text-[#86868B] text-sm font-bold">@</span>
-                    <input type="text" disabled={isGeneratingAI} value={newRestRecommender} onChange={(e) => setNewRestRecommender(e.target.value.replace("@", ""))} placeholder="username" className="w-full bg-white/70 rounded-2xl p-3 pl-7 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)] disabled:opacity-60" />
+                    <input type="text" value={newRestRecommender} onChange={(e) => setNewRestRecommender(e.target.value.replace("@", ""))} placeholder="username" className="w-full bg-white/70 rounded-2xl p-3 pl-7 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)]" />
                   </div>
                 </div>
               </div>
 
               <div className="space-y-1.5">
                 <label className="font-bold text-[#1D1D1F] text-xs px-1">地址（選填）</label>
-                <input type="text" disabled={isGeneratingAI} value={newRestAddress} onChange={(e) => setNewRestAddress(e.target.value)} placeholder="例如：台北市大安區永康街4巷8號" className="w-full bg-white/70 rounded-2xl p-3 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)] disabled:opacity-60" />
+                <input type="text" value={newRestAddress} onChange={(e) => setNewRestAddress(e.target.value)} placeholder="例如：台北市大安區永康街4巷8號" className="w-full bg-white/70 rounded-2xl p-3 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)]" />
               </div>
               
               <div className="space-y-1.5">
                 <label className="font-bold text-[#1D1D1F] text-xs px-1 flex justify-between items-end">美食短評 <span className="text-[#86868B] font-normal tracking-wide text-[10px]">💡 留白將自動呼叫 AI 分析</span></label>
-                <textarea value={newRestNote} onChange={(e) => setNewRestNote(e.target.value)} placeholder="若留白，AI 將為您爬取網路評價、優惠與推薦..." className="w-full bg-white/70 rounded-2xl p-3 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none h-16 resize-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)] disabled:opacity-60" />
+                <textarea value={newRestNote} onChange={(e) => setNewRestNote(e.target.value)} placeholder="若留白，AI 將為您爬取網路評價、優惠與推薦..." className="w-full bg-white/70 rounded-2xl p-3 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none h-16 resize-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)]" />
               </div>
             </div>
 
@@ -765,42 +811,7 @@ export default function App() {
         </div>
       )}
 
-      {/* ==================== 🚀 新增：GPS AI 推薦視窗 ==================== */}
-      {showRecommendModal && (
-        <div className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300">
-          <div className="bg-[#F4F4F6] w-full max-w-sm rounded-[36px] overflow-hidden shadow-[0_24px_48px_rgba(0,0,0,0.15)] border border-white/50 text-left animate-in zoom-in-95 slide-in-from-bottom-8 duration-400">
-            <div className="bg-white px-6 py-5 flex justify-between items-center border-b border-[#E5E5EA]">
-              <div>
-                <h3 className="text-lg font-extrabold text-black tracking-tight flex items-center gap-1.5">
-                  <svg className="w-5 h-5 text-[#0071E3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3" strokeWidth="2.5"/></svg>
-                  附近好評推薦
-                </h3>
-                <p className="text-[10px] font-bold text-[#86868B] uppercase tracking-wider mt-0.5">Fabrica AI • Location Based</p>
-              </div>
-              <button onClick={() => setShowRecommendModal(false)} className="w-8 h-8 bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#86868B] hover:text-black font-semibold rounded-full flex items-center justify-center text-sm transition-colors">✕</button>
-            </div>
-            
-            <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto no-scrollbar">
-              {nearbyRecommendations.map((rec, idx) => (
-                <div key={idx} className="bg-white p-5 rounded-[24px] shadow-sm border border-[#E5E5EA]/50 space-y-3">
-                  <div className="flex justify-between items-start">
-                    <span className="text-[10px] font-bold tracking-wider text-[#0071E3] bg-[#0071E3]/10 px-2 py-1 rounded-md">{rec.category}</span>
-                  </div>
-                  <h4 className="font-bold text-black text-base leading-tight">{rec.name}</h4>
-                  <p className="text-[11px] text-[#86868B] flex items-center gap-1"><svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>{rec.address}</p>
-                  <p className="text-xs text-[#3A3A3C] bg-[#F5F5F7] p-3 rounded-xl font-medium leading-relaxed">{rec.note}</p>
-                  <button onClick={() => saveRecommendation(rec)} className="w-full bg-[#F5F5F7] hover:bg-[#E8E8ED] text-black active:scale-95 transition-all py-2.5 rounded-xl text-xs font-bold flex justify-center items-center gap-1.5">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4"/></svg>
-                    一鍵存入地圖
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 🌟 新增：Toast 提示框 */}
+      {/* 🌟 Toast 提示框 */}
       {toastMessage && (
         <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[110] animate-in slide-in-from-top-4 fade-in duration-300">
           <div className="bg-[#1D1D1F]/90 backdrop-blur-md text-white px-5 py-3 rounded-full shadow-2xl text-sm font-semibold tracking-wide flex items-center gap-2">
