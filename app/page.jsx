@@ -52,7 +52,7 @@ const getSmartTag = (name, currentCategory = "") => {
   if (n.includes("鍋") || n.includes("麻辣") || n.includes("涮涮") || n.includes("石二鍋") || n.includes("海底撈") || n.includes("火鍋")) return "火鍋專賣";
   if (n.includes("茶") || n.includes("嵐") || n.includes("五桐") || n.includes("渴") || n.includes("奶") || n.includes("飲料") || n.includes("紅茶") || n.includes("綠茶") || n.includes("手搖")) return "手搖茶攤";
   if (n.includes("咖啡") || n.toLowerCase().includes("cafe") || n.includes("甜點") || n.includes("烘焙") || n.includes("麵包") || n.includes("蛋糕")) return "咖啡甜點";
-  if (n.includes("拉麵") || n.includes("日式") || n.includes("壽司") || n.includes("丼") || n.includes("居酒屋") || n.includes("食堂")) return "日式料理";
+  if (n.includes("拉麵") || n.includes("日式") || n.includes("壽司") || n.includes("丼") || n.includes("居校屋") || n.includes("居酒屋") || n.includes("食堂")) return "日式料理";
   if (n.includes("便當") || n.includes("飯") || n.includes("麵") || n.includes("小吃") || n.includes("排骨") || n.includes("傳統")) return "台式小吃 • 便當";
   if (n.includes("燒肉") || n.includes("烤") || n.includes("串燒") || n.includes("乾杯") || n.includes("屋馬")) return "燒肉串燒";
   
@@ -64,15 +64,18 @@ const getSmartTag = (name, currentCategory = "") => {
 // 🎨 UI 視覺增強組件
 // ==========================================
 
-// 1. 垂直雙向滾動跑馬燈組件 (登入頁專用黑色跑馬燈)
-const VerticalMarquee = ({ direction = "up", text = "WELCOME TO FOODIE BETA TEST" }) => {
+// 1. 垂直雙向滾動跑馬燈組件 (登入頁專用巨型黑色跑馬燈 - 優化絲滑度與字體大小)
+const VerticalMarquee = ({ direction = "up", text = "WELCOME TO FOODIE" }) => {
   const animationClass = direction === "up" ? "animate-marquee-up" : "animate-marquee-down";
+  // 重複文字以確保在高速滾動下不會出現空白斷層
+  const marqueeItems = Array(15).fill(text);
   return (
-    <div className="relative w-10 h-screen overflow-hidden flex justify-center items-center select-none">
+    <div className="relative w-16 h-screen overflow-hidden flex justify-center items-center select-none bg-black/[0.02]">
       <div className="absolute w-[400vh] flex items-center justify-center rotate-90">
-         <div className={`flex gap-12 whitespace-nowrap text-[#1D1D1F] font-black text-2xl tracking-[0.25em] ${animationClass}`}>
-           <span>{text}</span><span>{text}</span><span>{text}</span><span>{text}</span>
-           <span>{text}</span><span>{text}</span><span>{text}</span><span>{text}</span>
+         <div className={`flex gap-16 whitespace-nowrap text-[#1D1D1F] font-black text-4xl md:text-5xl tracking-[0.3em] will-change-transform ${animationClass}`}>
+           {marqueeItems.map((item, index) => (
+             <span key={index}>{item}</span>
+           ))}
          </div>
       </div>
     </div>
@@ -364,13 +367,18 @@ export default function App() {
     return () => unsubscribe();
   }, [firebaseUser, isLoggedIn, threadsUsername]);
 
-  // 🌟 整合 TDX API 取代開源地圖 (官方觀光數據)
+  // 🌟 整合 TDX API 取代開源地圖 (官方觀光數據與 OAuth 認證安全架構)
   const getTdxToken = async () => {
     const url = "https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token";
     const params = new URLSearchParams();
     params.append("grant_type", "client_credentials");
-    params.append("client_id", "611271006-14b9d5db-c1f6-4096");
-    params.append("client_secret", "c307a306-9cc7-4ac0-be82-0caa99391b5d");
+    
+    // 支援 Vercel 環境變數優先載入，並相容舊版金鑰
+    const clientId = process.env.NEXT_PUBLIC_TDX_CLIENT_ID || "611271006-14b9d5db-c1f6-4096";
+    const clientSecret = process.env.NEXT_PUBLIC_TDX_CLIENT_SECRET || "c307a306-9cc7-4ac0-be82-0caa99391b5d";
+
+    params.append("client_id", clientId);
+    params.append("client_secret", clientSecret);
 
     try {
       const res = await fetch(url, {
@@ -404,7 +412,8 @@ export default function App() {
     setIsLocating(true);
     try {
       const token = await getTdxToken();
-      const tdxUrl = `https://tdx.transportdata.tw/api/basic/v2/Tourism/Restaurant?$spatialFilter=nearby(${lat},${lng},3000)&$format=JSON&$top=8`;
+      // 🌟 修正：TDX 空間篩選標準 OData 規範 (必須傳入 PositionLat, PositionLon 欄位進行交叉比對)
+      const tdxUrl = `https://tdx.transportdata.tw/api/basic/v2/Tourism/Restaurant?$spatialFilter=nearby(PositionLat,PositionLon,${lat},${lng},3000)&$format=JSON&$top=8`;
       const headers = token ? { "Authorization": `Bearer ${token}` } : {};
 
       const response = await fetch(tdxUrl, { headers });
@@ -1055,7 +1064,7 @@ export default function App() {
         @keyframes bounce-in { 0% { opacity: 0; transform: scale(0.9) translateY(10px); } 60% { opacity: 1; transform: scale(1.02) translateY(-2px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
         .animate-bounce-in { animation: bounce-in 0.6s cubic-bezier(0.2,0.8,0.2,1) forwards; }
         
-        /* 垂直跑馬燈核心動畫效果 */
+        /* 垂直跑馬燈流暢物理動畫效果 */
         @keyframes marquee-up {
           0% { transform: translateX(0%); }
           100% { transform: translateX(-50%); }
@@ -1065,10 +1074,10 @@ export default function App() {
           100% { transform: translateX(0%); }
         }
         .animate-marquee-up {
-          animation: marquee-up 25s linear infinite;
+          animation: marquee-up 12s linear infinite;
         }
         .animate-marquee-down {
-          animation: marquee-down 25s linear infinite;
+          animation: marquee-down 12s linear infinite;
         }
       `}</style>
     </div>
