@@ -575,7 +575,7 @@ export default function App() {
         ) : (
           /* ---------------- iOS 主檔案庫面板 ---------------- */
           <div className="pb-20 bg-[#F4F4F6] min-h-screen animate-fade-in">
-            <header className="sticky top-0 z-40 bg-white/60 backdrop-blur-xl border-b border-[#E5E5EA] px-6 py-4">
+            <header className="sticky top-0 z-40 bg-[#F4F4F6]/80 backdrop-blur-xl border-b border-[#E5E5EA] px-6 py-4">
               <div className="max-w-md mx-auto flex justify-between items-center">
                 <div className="flex flex-col">
                   <div className="flex items-center gap-1.5">
@@ -588,17 +588,17 @@ export default function App() {
                   </div>
                   <h1 className="text-lg font-bold tracking-tight text-black mt-0.5">{threadsUsername}</h1>
                 </div>
-                <button onClick={handleLogout} className="text-xs font-semibold text-[#86868B] hover:text-black hover:bg-[#E8E8ED] bg-[#F5F5F7] px-3.5 py-1.5 rounded-full transition-all duration-200">
+                <button onClick={handleLogout} className="text-xs font-semibold text-[#86868B] hover:text-black hover:bg-[#E8E8ED] bg-white border border-[#E5E5EA] px-3.5 py-1.5 rounded-full transition-all duration-200 shadow-sm">
                   登出
                 </button>
               </div>
             </header>
 
-            <main className="max-w-md mx-auto px-4 mt-8 space-y-6">
+            <main className="max-w-md mx-auto px-4 mt-6 space-y-6">
               
               <button 
                 onClick={() => setShowAddModal(true)}
-                className="w-full bg-white hover:bg-[#F2F2F7] active:scale-[0.99] transition-all py-3.5 rounded-2xl border border-dashed border-[#C7C7CC] text-sm font-bold text-[#0071E3] flex items-center justify-center gap-2 shadow-sm"
+                className="w-full bg-white hover:bg-[#F9F9FB] active:scale-[0.98] transition-all py-3.5 rounded-2xl border border-dashed border-[#C7C7CC] text-sm font-bold text-[#0071E3] flex items-center justify-center gap-2 shadow-sm"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4"/>
@@ -608,276 +608,220 @@ export default function App() {
 
               <section className="space-y-4">
                 <div className="relative flex items-center w-full">
-                  <svg className="w-5 h-5 text-[#86868B] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none select-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                  <input type="text" placeholder="搜尋餐廳、@推薦人或評論..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-white text-sm rounded-2xl py-3.5 pl-11 pr-4 border border-[#E5E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] focus:outline-none focus:border-[#86868B] placeholder-[#86868B] transition-all" />
+                  <svg className="w-4 h-4 text-[#86868B] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none select-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
+                  </svg>
+                  <input 
+                    type="text" 
+                    placeholder="搜尋餐廳、地址或推薦人..." 
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-white text-sm font-medium rounded-2xl py-3 pl-10 pr-4 border border-[#D2D2D7] focus:border-black focus:ring-1 focus:ring-black outline-none transition-all duration-200 shadow-sm placeholder-[#86868B]"
+                  />
                 </div>
 
-                {}
-                {/* 🌟 Foodie 周圍店家區域 */}
-                {isLocating && (
-                  <div className="flex items-center gap-2 justify-center py-2 text-xs text-[#86868B] font-semibold bg-white/45 backdrop-blur-md rounded-2xl border border-white/50 animate-pulse">
-                    <svg className="animate-spin h-3.5 w-3.5 text-black" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                    正在尋找 Foodie 周圍店家...
-                  </div>
-                )}
-
-                {activeRecommendations.length > 0 && (
-                  <div className="space-y-4 animate-in fade-in slide-in-from-top-6 duration-500">
-                    <div className="flex items-center justify-between px-1">
-                      <span className="text-[11px] font-extrabold tracking-wider text-[#0071E3] uppercase flex items-center gap-1.5">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3" strokeWidth="2.5"/></svg>
-                        Foodie 周圍店家
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-4">
-                      {activeRecommendations.map((rec) => {
-                        const isAnimating = animatingRecId === rec.id;
-                        
-                        return (
-                        <div 
-                          key={rec.id}
-                          // 🌟 核心：透過 Apple 式 Spring 曲線做過渡，點擊時轉變為實體卡片樣式
-                          className={`relative rounded-[28px] overflow-hidden transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] border 
-                            ${isAnimating 
-                              ? 'bg-white shadow-[0_20px_60px_rgba(0,0,0,0.12)] border-[#E5E5EA] scale-[1.03] z-50' 
-                              : 'bg-white/40 backdrop-blur-xl shadow-sm border-white/60 hover:bg-white/50 scale-100 z-10'}`}
-                        >
-                          <div className="p-6 pb-4 relative group/card">
-                            <div className="flex flex-wrap items-center gap-2 pr-10">
-                              <span className={`text-[10px] font-bold tracking-wider uppercase px-2.5 py-1 rounded-md transition-colors duration-500 ${isAnimating ? 'text-[#86868B] bg-[#F5F5F7]' : 'text-black/60 bg-white/50 backdrop-blur-sm'}`}>
-                                {rec.category}
-                              </span>
-                              <span className="text-[10px] font-bold tracking-wide px-2.5 py-1 rounded-md flex items-center gap-1 text-white bg-black/80">
-                                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                                附近發掘
-                              </span>
-                            </div>
-
-                            <button onClick={() => dismissRecommendation(rec.id)} className="absolute top-5 right-5 w-8 h-8 flex items-center justify-center rounded-full bg-white/60 text-[#86868B] hover:bg-white hover:text-black transition-all duration-300 shadow-sm" title="忽略">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
-                            
-                            <h2 className="text-xl font-bold text-black mt-3 tracking-tight">
-                              {rec.name}
-                            </h2>
-                            
-                            <p className="text-xs text-[#86868B] mt-2 flex items-center gap-1.5 font-medium">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3" strokeWidth="2.5"/></svg>
-                              {rec.address}
-                            </p>
-                          </div>
-
-                          <div className={`mx-6 mb-5 p-4.5 rounded-2xl border transition-colors duration-500 ${isAnimating ? 'bg-[#F5F5F7] border-[#E5E5EA]/40' : 'bg-white/40 border-white/50 backdrop-blur-sm'}`}>
-                            <p className="text-xs text-[#3A3A3C] leading-relaxed font-medium">{rec.note}</p>
-                          </div>
-
-                          <div className={`w-full h-44 relative overflow-hidden border-t transition-colors duration-500 ${isAnimating ? 'bg-[#E5E5EA] border-[#F2F2F7]' : 'bg-black/5 border-white/30'}`}>
-                            <iframe 
-                              title={`Map for ${rec.name}`} 
-                              src={getFreeMapEmbedUrl(rec.name, rec.address)} 
-                              // 動畫播放時恢復原本地圖顏色，平時套用透明灰階呈現未收集質感
-                              className={`w-full h-full border-0 transition-all duration-700 ${isAnimating ? 'grayscale-0 opacity-100' : 'grayscale opacity-60 mix-blend-multiply'}`} 
-                              allowFullScreen="" 
-                              loading="lazy">
-                            </iframe>
-                          </div>
-
-                          <div className={`p-4 border-t flex gap-3 transition-colors duration-500 ${isAnimating ? 'bg-white border-[#F2F2F7]' : 'bg-white/30 border-white/40'}`}>
-                            <button 
-                              onClick={() => saveRecommendationWithAnimation(rec)}
-                              disabled={isAnimating}
-                              className={`flex-1 py-3.5 text-center text-sm font-bold transition-all rounded-xl flex items-center justify-center gap-2 shadow-sm
-                                ${isAnimating ? 'bg-[#34C759] text-white scale-95' : 'bg-black text-white hover:bg-black/85 active:scale-95'}`}
-                            >
-                              {isAnimating ? (
-                                <>
-                                  <svg className="w-5 h-5 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7"/></svg>
-                                  實體化中...
-                                </>
-                              ) : (
-                                <>＋ 加入口袋名單</>
-                              )}
-                            </button>
-                          </div>
-                        </div>
-                      )})}
-                    </div>
-                  </div>
-                )}
-
-                {}
-                {categories.length > 1 && (
-                  <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 pt-2">
-                    {categories.map((cat) => (
-                      <button key={cat} onClick={() => setSelectedCategory(cat)} className={`px-4.5 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-200 ${selectedCategory === cat ? 'bg-black text-white shadow-sm' : 'bg-white text-[#1D1D1F] border border-[#E5E5EA] hover:bg-[#F5F5F7]'}`}>
-                        {cat}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                {/* 分類過濾器 */}
+                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4">
+                  {categories.map(cat => (
+                    <button 
+                      key={cat} 
+                      onClick={() => setSelectedCategory(cat)} 
+                      className={`flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-bold transition-all ${selectedCategory === cat ? 'bg-black text-white shadow-md' : 'bg-white text-[#86868B] border border-[#E5E5EA] hover:border-black hover:text-black'}`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
               </section>
 
-              <section className="space-y-8">
-                {isLoading && firebaseUser?.uid !== "local-temp-guest" ? (
-                  <div className="text-center py-20 space-y-3">
-                    <svg className="animate-spin h-5 w-5 text-black mx-auto" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                    <p className="text-xs text-[#86868B] font-semibold">正在讀取雲端美食資料庫...</p>
+              {/* 附近推薦區域 */}
+              {activeRecommendations.length > 0 && (
+                <section className="space-y-3">
+                  <h2 className="text-[13px] font-bold text-[#86868B] uppercase tracking-wider flex items-center gap-1.5">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    附近為您探索的隱藏版
+                  </h2>
+                  <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide -mx-4 px-4">
+                    {activeRecommendations.map(rec => (
+                      <div 
+                        key={rec.id} 
+                        className={`flex-shrink-0 w-64 bg-white p-4 rounded-[24px] shadow-sm border border-[#E5E5EA] transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${animatingRecId === rec.id ? 'scale-[0.8] opacity-0' : 'scale-100 opacity-100'}`}
+                      >
+                        <div className="flex flex-col h-full justify-between gap-3">
+                          <div>
+                            <span className="text-[10px] font-bold text-[#FF9500] bg-[#FF9500]/10 px-2 py-0.5 rounded-md inline-block mb-2">{rec.category}</span>
+                            <h3 className="font-bold text-black text-base line-clamp-1">{rec.name}</h3>
+                            <p className="text-xs text-[#86868B] mt-1 line-clamp-2 leading-relaxed">{rec.address}</p>
+                          </div>
+                          <div className="flex gap-2 mt-2">
+                            <button onClick={() => dismissRecommendation(rec.id)} className="flex-1 py-2 text-xs font-bold text-[#86868B] bg-[#F5F5F7] rounded-xl hover:bg-[#E8E8ED] transition-colors">
+                              略過
+                            </button>
+                            <button onClick={() => saveRecommendationWithAnimation(rec)} className="flex-1 py-2 text-xs font-bold text-white bg-black rounded-xl hover:bg-gray-800 transition-colors shadow-sm">
+                              實體化
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ) : filteredRestaurants.length === 0 ? (
-                  <div className="text-center py-16 bg-white rounded-[28px] border border-[#E5E5EA] p-8 space-y-4 shadow-sm animate-in fade-in duration-300">
-                    <div className="w-12 h-12 bg-[#F5F5F7] rounded-full flex items-center justify-center mx-auto text-[#86868B]">
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm font-semibold text-black">您的專屬美食地圖尚未收集足跡</p>
-                      <p className="text-xs text-[#86868B] max-w-[240px] mx-auto leading-relaxed">請點擊上方按鈕手動新增，或讓 @fabrica 機器人自動為您收集 Threads 串文！</p>
-                    </div>
+                </section>
+              )}
+
+              {/* 餐廳列表 */}
+              <section className="space-y-4">
+                {isLoading ? (
+                  <div className="text-center py-10">
+                    <div className="w-6 h-6 border-2 border-black border-t-transparent rounded-full animate-spin mx-auto opacity-50"></div>
                   </div>
-                ) : (
-                  filteredRestaurants.map((restaurant, i) => (
+                ) : filteredRestaurants.length > 0 ? (
+                  filteredRestaurants.map(restaurant => (
                     <div 
-                      key={restaurant.id}
-                      className={`bg-white rounded-[28px] shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-[#E5E5EA]/80 overflow-hidden hover:shadow-[0_12px_40px_rgb(0,0,0,0.05)] hover:border-[#D2D2D7]/80 transform hover:-translate-y-0.5 animate-in fade-in slide-in-from-bottom-8 fill-mode-both transition-all duration-400 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${deletingIds.includes(restaurant.id) ? 'scale-90 opacity-0 pointer-events-none' : 'scale-100 opacity-100'}`}
-                      style={{ animationDelay: `${i * 50}ms` }}
+                      key={restaurant.id} 
+                      className={`bg-white p-5 rounded-[24px] shadow-sm border border-[#E5E5EA] transition-all duration-400 ease-out ${deletingIds.includes(restaurant.id) ? 'scale-95 opacity-0' : 'scale-100 opacity-100'}`}
                     >
-                      <div className="p-6 pb-4 relative group/card">
-                        <div className="flex flex-wrap items-center gap-2 pr-10">
-                          <span className="text-[10px] font-bold tracking-wider text-[#86868B] bg-[#F5F5F7] px-2.5 py-1 rounded-md uppercase">
-                            {restaurant.category || "美食 • 精選"}
-                          </span>
+                      <div className="flex justify-between items-start gap-4">
+                        <div className="flex-1 space-y-2">
+                          <div>
+                            <span className="text-[10px] font-bold text-[#0071E3] bg-[#0071E3]/10 px-2 py-0.5 rounded-md inline-block mb-1.5">{restaurant.category || '未分類'}</span>
+                            <h3 className="text-lg font-bold text-black leading-tight">{restaurant.name}</h3>
+                          </div>
+                          
+                          <a 
+                            href={getFreeMapAppUrl(restaurant.name, restaurant.address)} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex items-start gap-1.5 text-xs text-[#86868B] hover:text-[#0071E3] transition-colors group w-fit"
+                          >
+                            <svg className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3" strokeWidth="2"/></svg>
+                            <span className="line-clamp-2 underline decoration-transparent group-hover:decoration-[#0071E3]/30 underline-offset-2">{restaurant.address}</span>
+                          </a>
+
+                          {restaurant.note && (
+                            <div className="bg-[#F5F5F7] p-3 rounded-xl mt-3">
+                              <p className="text-[13px] text-[#333336] leading-relaxed break-words whitespace-pre-wrap">{restaurant.note}</p>
+                            </div>
+                          )}
                           
                           {restaurant.recommendedBy && (
-                            <a 
-                              href={restaurant.recommendedBy === "Fabrica AI" || restaurant.recommendedBy === "系統探索" ? "#" : `https://www.threads.net/@${restaurant.recommendedBy}`} 
-                              target="_blank" 
-                              rel="noreferrer"
-                              className={`text-[10px] font-bold tracking-wide px-2.5 py-1 rounded-md flex items-center gap-1 transition-colors ${restaurant.recommendedBy === "Fabrica AI" || restaurant.recommendedBy === "系統探索" ? "text-white bg-black hover:bg-black/80 pointer-events-none" : "text-[#1D1D1F] bg-[#E5E5EA] hover:bg-[#D2D2D7]"}`}
-                              title={restaurant.recommendedBy === "Fabrica AI" || restaurant.recommendedBy === "系統探索" ? "系統自動推薦" : "前往 Threads 查看推薦人"}
-                            >
-                              <svg className={`w-3 h-3 ${restaurant.recommendedBy === "Fabrica AI" || restaurant.recommendedBy === "系統探索" ? "text-white" : "text-[#86868B]"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-                              {restaurant.recommendedBy === "Fabrica AI" || restaurant.recommendedBy === "系統探索" ? restaurant.recommendedBy : `@${restaurant.recommendedBy}`}
-                            </a>
+                            <div className="flex items-center gap-1.5 text-[11px] font-medium text-[#86868B] pt-1">
+                              <div className="w-4 h-4 rounded-full bg-gradient-to-br from-purple-500 to-orange-400 flex items-center justify-center text-white font-bold text-[8px]">
+                                {restaurant.recommendedBy.charAt(0).toUpperCase()}
+                              </div>
+                              由 @{restaurant.recommendedBy} 推薦
+                            </div>
                           )}
                         </div>
-
-                        <button onClick={() => handleDeleteRestaurant(restaurant.id)} className="absolute top-5 right-5 w-8 h-8 flex items-center justify-center rounded-full bg-[#F5F5F7] text-[#86868B] hover:bg-[#FF3B30] hover:text-white transition-all duration-300 opacity-0 group-hover/card:opacity-100" title="刪除這筆紀錄">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      </div>
+                      
+                      <div className="flex gap-2 mt-4 pt-4 border-t border-[#F2F2F7]">
+                        <button onClick={() => handleDeleteRestaurant(restaurant.id)} className="flex items-center justify-center gap-1.5 flex-1 py-2 text-xs font-bold text-[#FF3B30] hover:bg-[#FF3B30]/10 rounded-xl transition-colors">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                          刪除
                         </button>
-                        
-                        <h2 className="text-xl font-bold text-black mt-3 flex items-center justify-between tracking-tight pr-6">
-                          {restaurant.name}
-                          {restaurant.threadsUrl && (
-                            <a href={restaurant.threadsUrl} target="_blank" rel="noreferrer" className="text-[#86868B] hover:text-black transition-colors">
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-                            </a>
-                          )}
-                        </h2>
-                        
-                        <p className="text-xs text-[#86868B] mt-2 flex items-center gap-1.5 font-medium">
-                          <svg className="w-4 h-4 text-[#86868B]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3" strokeWidth="2.5"/></svg>
-                          {restaurant.address || "僅提供店名定位"}
-                        </p>
-                      </div>
-
-                      <div className="mx-6 mb-5 p-4.5 bg-[#F5F5F7] rounded-2xl border border-[#E5E5EA]/40">
-                        <div className="flex items-center gap-1.5 text-[9px] font-bold text-[#86868B] uppercase tracking-wider mb-1.5">
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9.663 17h4.673M12 3v1m6.364 .364l-.707 .707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
-                          Fabrica AI Insight
-                        </div>
-                        <p className="text-xs text-[#3A3A3C] leading-relaxed font-medium">{restaurant.note}</p>
-                      </div>
-
-                      <div className="w-full h-44 bg-[#E5E5EA] relative overflow-hidden border-t border-[#F2F2F7]">
-                        <iframe title={`Map for ${restaurant.name}`} src={getFreeMapEmbedUrl(restaurant.name, restaurant.address)} className="w-full h-full border-0 grayscale hover:grayscale-0 transition-all duration-500" allowFullScreen="" loading="lazy"></iframe>
-                      </div>
-
-                      <div className="p-4 bg-white border-t border-[#F2F2F7] flex gap-3">
-                        <a href={getFreeMapAppUrl(restaurant.name, restaurant.address)} target="_blank" rel="noreferrer" className="flex-1 py-3 text-center text-xs font-semibold text-black bg-[#F5F5F7] hover:bg-[#E8E8ED] active:scale-95 transition-all rounded-xl flex items-center justify-center gap-1.5">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
-                          在地圖中開啟
-                        </a>
-                        <button onClick={() => handleShare(restaurant)} className="w-12 py-3 flex items-center justify-center text-[#86868B] bg-[#F5F5F7] hover:bg-[#E8E8ED] hover:text-black active:scale-95 transition-all rounded-xl" title="分享給朋友">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8m-4-6l-4-4m0 0L8 6m4-4v13" /></svg>
+                        <button onClick={() => handleShare(restaurant)} className="flex items-center justify-center gap-1.5 flex-1 py-2 text-xs font-bold text-[#1D1D1F] bg-[#F5F5F7] hover:bg-[#E8E8ED] rounded-xl transition-colors">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>
+                          分享
                         </button>
                       </div>
                     </div>
                   ))
+                ) : (
+                  <div className="text-center py-16 px-4">
+                    <div className="w-16 h-16 bg-white rounded-full mx-auto flex items-center justify-center shadow-sm border border-[#E5E5EA] mb-4">
+                      <svg className="w-8 h-8 text-[#C7C7CC]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                    </div>
+                    <h3 className="text-[#1D1D1F] font-bold mb-1">找不到相關餐廳</h3>
+                    <p className="text-sm text-[#86868B]">嘗試不同的搜尋關鍵字或分類</p>
+                  </div>
                 )}
               </section>
             </main>
-
-            <footer className="text-center mt-20 mb-8 text-[11px] text-[#86868B] space-y-1"><p className="font-semibold text-[#1D1D1F]">© Fabrica</p></footer>
           </div>
         )}
       </div>
 
-      {/* ==================== 🚀 彈出視窗 ==================== */}
+      {/* 新增餐廳 Modal */}
       {showAddModal && (
-        <div className={`fixed inset-0 z-50 bg-black/20 backdrop-blur-md flex items-center justify-center p-4 transition-opacity duration-400 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isClosingModal ? 'opacity-0' : 'opacity-100'}`}>
-          <form onSubmit={handleAddRestaurant} className={`bg-white/85 backdrop-blur-2xl w-full max-w-sm rounded-[36px] p-7 space-y-5 shadow-[0_24px_48px_rgba(0,0,0,0.08)] border border-white text-left transition-all duration-400 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isClosingModal ? 'scale-95 translate-y-8 opacity-0' : 'scale-100 translate-y-0 opacity-100'}`}>
-            <div className="flex justify-between items-center pb-2 border-b border-[#1D1D1F]/5">
-              <h3 className="text-lg font-bold text-black tracking-tight">新增口袋美食</h3>
-              <button type="button" onClick={closeAddModal} disabled={isGeneratingAI} className="w-8 h-8 bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#86868B] hover:text-black font-semibold rounded-full flex items-center justify-center text-sm transition-colors disabled:opacity-50">✕</button>
+        <div className={`fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 sm:px-4 pb-0 sm:pb-10 transition-all duration-400 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isClosingModal ? 'opacity-0' : 'opacity-100'}`}>
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeAddModal} />
+          <div className={`relative w-full max-w-md bg-white rounded-t-[32px] sm:rounded-[32px] p-6 sm:p-8 shadow-2xl transition-transform duration-400 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isClosingModal ? 'translate-y-full sm:translate-y-10 sm:scale-95' : 'translate-y-0 sm:scale-100'} max-h-[90vh] overflow-y-auto`}>
+            
+            <div className="w-12 h-1.5 bg-[#E5E5EA] rounded-full mx-auto mb-6 sm:hidden" />
+            
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-black tracking-tight">新增口袋名單</h2>
+              <button onClick={closeAddModal} className="w-8 h-8 flex items-center justify-center bg-[#F5F5F7] hover:bg-[#E8E8ED] rounded-full text-[#86868B] transition-colors">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
             </div>
 
-            <div className="space-y-3 text-sm">
+            <form onSubmit={handleAddRestaurant} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="font-bold text-[#1D1D1F] text-xs px-1">餐廳名稱 *</label>
-                <input type="text" required value={newRestName} onChange={(e) => setNewRestName(e.target.value)} placeholder="例如：熟成宇治" className="w-full bg-white/70 rounded-2xl p-3 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)]" />
-              </div>
-              
-              <div className="flex gap-3">
-                <div className="space-y-1.5 w-1/2">
-                  <label className="font-bold text-[#1D1D1F] text-xs px-1">餐飲分類</label>
-                  <select value={newRestCategory} onChange={(e) => setNewRestCategory(e.target.value)} className="w-full bg-white/70 rounded-2xl p-3 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-semibold text-[#1D1D1F] appearance-none transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
-                    <option value="日式甜點 • 咖啡廳">甜點咖啡</option>
-                    <option value="義式料理 • 自然酒">義式餐酒</option>
-                    <option value="台灣傳統 • 小吃">台灣小吃</option>
-                    <option value="美味肉食 • 鍋物">肉食鍋物</option>
-                    <option value="異國料理 • 餐酒">異國料理</option>
-                  </select>
-                </div>
-                <div className="space-y-1.5 w-1/2">
-                  <label className="font-bold text-[#1D1D1F] text-xs px-1">推薦人 (選填)</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-3 text-[#86868B] text-sm font-bold">@</span>
-                    <input type="text" value={newRestRecommender} onChange={(e) => setNewRestRecommender(e.target.value.replace("@", ""))} placeholder="username" className="w-full bg-white/70 rounded-2xl p-3 pl-7 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)]" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="font-bold text-[#1D1D1F] text-xs px-1">地址（選填）</label>
-                <input type="text" value={newRestAddress} onChange={(e) => setNewRestAddress(e.target.value)} placeholder="例如：台北市大安區永康街4巷8號" className="w-full bg-white/70 rounded-2xl p-3 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)]" />
+                <label className="text-xs font-bold text-[#86868B] ml-1 uppercase tracking-wider">店名 *</label>
+                <input required type="text" placeholder="例如：Fabrica 咖啡廳" value={newRestName} onChange={(e) => setNewRestName(e.target.value)} className="w-full bg-[#F5F5F7] text-sm font-medium rounded-xl py-3.5 px-4 border border-transparent focus:bg-white focus:border-black focus:ring-1 focus:ring-black outline-none transition-all" />
               </div>
               
               <div className="space-y-1.5">
-                <label className="font-bold text-[#1D1D1F] text-xs px-1 flex justify-between items-end">美食短評 <span className="text-[#86868B] font-normal tracking-wide text-[10px]">💡 留白將自動呼叫 AI 分析</span></label>
-                <textarea value={newRestNote} onChange={(e) => setNewRestNote(e.target.value)} placeholder="若留白，AI 將為您爬取網路評價、優惠與推薦..." className="w-full bg-white/70 rounded-2xl p-3 border border-[#E5E5EA] focus:ring-1 focus:ring-black outline-none h-16 resize-none font-medium placeholder-[#86868B]/60 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)]" />
+                <label className="text-xs font-bold text-[#86868B] ml-1 uppercase tracking-wider">分類</label>
+                <input type="text" placeholder="例如：日式甜點 • 咖啡廳" value={newRestCategory} onChange={(e) => setNewRestCategory(e.target.value)} className="w-full bg-[#F5F5F7] text-sm font-medium rounded-xl py-3.5 px-4 border border-transparent focus:bg-white focus:border-black focus:ring-1 focus:ring-black outline-none transition-all" />
               </div>
-            </div>
 
-            <button type="submit" className="group relative cursor-pointer w-full h-[52px] border border-[#D2D2D7] bg-white rounded-2xl overflow-hidden text-[#1D1D1F] font-semibold transition-all duration-300 shadow-sm active:scale-[0.98] outline-none mt-2">
-              <div className="absolute inset-0 flex items-center justify-center translate-x-0 group-hover:translate-x-16 group-hover:opacity-0 transition-all duration-300 z-20 pointer-events-none select-none">儲存至個人地圖</div>
-              <div className="absolute inset-0 flex gap-2 items-center justify-center text-white z-20 translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none select-none">
-                <span className="font-semibold text-sm">確認新增</span><svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[#86868B] ml-1 uppercase tracking-wider">地址或區域</label>
+                <input type="text" placeholder="例如：台北市中山區" value={newRestAddress} onChange={(e) => setNewRestAddress(e.target.value)} className="w-full bg-[#F5F5F7] text-sm font-medium rounded-xl py-3.5 px-4 border border-transparent focus:bg-white focus:border-black focus:ring-1 focus:ring-black outline-none transition-all" />
               </div>
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-[#1D1D1F] scale-0 group-hover:scale-[35] transition-transform duration-500 ease-out z-10"></div>
-            </button>
-          </form>
-        </div>
-      )}
+              
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[#86868B] ml-1 uppercase tracking-wider">推薦人 (Threads 帳號)</label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-[#86868B]">@</span>
+                  <input type="text" placeholder="推薦人帳號" value={newRestRecommender} onChange={(e) => setNewRestRecommender(e.target.value)} className="w-full bg-[#F5F5F7] text-sm font-medium rounded-xl py-3.5 pl-9 pr-4 border border-transparent focus:bg-white focus:border-black focus:ring-1 focus:ring-black outline-none transition-all" />
+                </div>
+              </div>
 
-      {/* 🌟 Toast 提示框 */}
-      {toastMessage && (
-        <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[110] animate-in slide-in-from-top-4 fade-in duration-300">
-          <div className="bg-[#1D1D1F]/90 backdrop-blur-md text-white px-5 py-3 rounded-full shadow-2xl text-sm font-semibold tracking-wide flex items-center gap-2">
-            <svg className="w-4 h-4 text-[#34C759]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg>
-            {toastMessage}
+              <div className="space-y-1.5 pt-2">
+                <div className="flex justify-between items-center ml-1">
+                  <label className="text-xs font-bold text-[#86868B] uppercase tracking-wider">筆記與短評</label>
+                  <span className="text-[10px] font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-500 flex items-center gap-1">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    空白時由 AI 自動產生
+                  </span>
+                </div>
+                <textarea 
+                  placeholder="寫下你想記住的餐點或特色，或是留白讓 Fabrica AI 幫你總結網路評價..." 
+                  value={newRestNote} onChange={(e) => setNewRestNote(e.target.value)} 
+                  className="w-full bg-[#F5F5F7] text-sm font-medium rounded-xl py-3.5 px-4 border border-transparent focus:bg-white focus:border-black focus:ring-1 focus:ring-black outline-none transition-all min-h-[100px] resize-none" 
+                />
+              </div>
+
+              <button type="submit" className="w-full bg-black text-white font-bold py-4 rounded-xl mt-4 active:scale-[0.98] transition-all shadow-md">
+                儲存至地圖
+              </button>
+            </form>
           </div>
         </div>
       )}
+
+      {/* 全域 Toast 通知 */}
+      {toastMessage && (
+        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[110] animate-fade-in-up">
+          <div className="bg-black/90 backdrop-blur-md text-white px-5 py-3 rounded-full shadow-2xl flex items-center gap-2 border border-white/10">
+            <svg className="w-4 h-4 text-[#34C759]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg>
+            <span className="text-sm font-bold tracking-wide">{toastMessage}</span>
+          </div>
+        </div>
+      )}
+
+      {/* 全域樣式補充 */}
+      <style>{`
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+        .animate-fade-in { animation: fade-in 0.8s cubic-bezier(0.2,0.8,0.2,1) forwards; }
+        @keyframes fade-in-up { from { opacity: 0; transform: translate(-50%, 20px); } to { opacity: 1; transform: translate(-50%, 0); } }
+        .animate-fade-in-up { animation: fade-in-up 0.4s cubic-bezier(0.2,0.8,0.2,1) forwards; }
+      `}</style>
     </div>
   );
 }
