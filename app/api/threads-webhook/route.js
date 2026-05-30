@@ -2,9 +2,9 @@ import { NextResponse } from 'next/server';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
-// --- 安全升級：優先從環境變數讀取金鑰，避免將金鑰硬編碼暴露在 GitHub ---
+// --- 安全升級：完全依賴環境變數，不留任何明碼以防 GitHub 報錯 ---
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyC4YdF_pAKyMFuQVDCau_g3fP9zsMTcOcE",
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "",
   authDomain: "fabrica-foodie.firebaseapp.com",
   projectId: "fabrica-foodie",
   storageBucket: "fabrica-foodie.firebasestorage.app",
@@ -67,9 +67,10 @@ export async function POST(request) {
 
     const textToAnalyze = foodPostText || triggerText;
 
-    const geminiApiKey = process.env.GEMINI_API_KEY;
+    // 🌟 對齊 Vercel 變數名稱
+    const geminiApiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
     if (!geminiApiKey) {
-      console.error("❌ 系統錯誤：未配置 GEMINI_API_KEY 環境變數！");
+      console.error("❌ 系統錯誤：未配置 NEXT_PUBLIC_GEMINI_API_KEY 環境變數！");
       return NextResponse.json({ error: "內部 API 設定未完成" }, { status: 500 });
     }
 
@@ -97,7 +98,8 @@ export async function POST(request) {
     };
 
     try {
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${geminiApiKey}`;
+      // 🌟 使用最穩定的 gemini-1.5-flash 模型，並移除網址參數的 ?key=
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`;
       
       const payload = {
         contents: [{ parts: [{ text: `Threads貼文內容：${textToAnalyze}` }] }],
@@ -107,18 +109,25 @@ export async function POST(request) {
 
       const geminiResponse = await fetch(geminiUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-goog-api-key": geminiApiKey // 🌟 解決新版 AQ. 金鑰格式 Bug 的完美解法
+        },
         body: JSON.stringify(payload)
       });
 
       const geminiData = await geminiResponse.json();
-      const rawAiText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
       
-      const cleanJsonStr = rawAiText.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(cleanJsonStr);
-      
-      if (parsed.name) {
-        aiResult = parsed;
+      if (geminiData.error) {
+         console.error("🤖 Gemini API 錯誤:", geminiData.error);
+      } else {
+         const rawAiText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+         const cleanJsonStr = rawAiText.replace(/```json|```/g, "").trim();
+         const parsed = JSON.parse(cleanJsonStr);
+         
+         if (parsed.name) {
+           aiResult = parsed;
+         }
       }
     } catch (aiErr) {
       console.error("🤖 Gemini AI 分析錯誤 (採用預設降級處理):", aiErr);
@@ -132,6 +141,7 @@ export async function POST(request) {
       address: aiResult.address || "僅提供店名定位",
       category: aiResult.category || "美食 • 精選",
       note: aiResult.aiNote || "系統已自動儲存至口袋名單。",
+      recommendedBy: threadsSender, // 🌟 寫入社群推薦人 (脆友帳號)
       savedAt: serverTimestamp(),
       threadsUrl: parentPostId ? `https://threads.net/post/${parentPostId}` : ""
     };
