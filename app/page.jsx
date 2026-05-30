@@ -67,7 +67,6 @@ const getSmartTag = (name, currentCategory = "") => {
 // 1. 垂直雙向滾動跑馬燈組件 (登入頁專用巨型黑色跑馬燈 - 優化絲滑度與字體大小)
 const VerticalMarquee = ({ direction = "up", text = "WELCOME TO FOODIE" }) => {
   const animationClass = direction === "up" ? "animate-marquee-up" : "animate-marquee-down";
-  // 重複文字以確保在高速滾動下不會出現空白斷層
   const marqueeItems = Array(15).fill(text);
   return (
     <div className="relative w-16 h-screen overflow-hidden flex justify-center items-center select-none bg-black/[0.02]">
@@ -234,7 +233,7 @@ export default function App() {
   const canvasContainerRef = useRef(null);
   const hasSearchedRef = useRef(false);
 
-  // 🌟 精選優質台灣地標 (TDX 降級防禦資料庫)
+  // 🌟 精選台灣指標性美食 (TDX API 降級時的高質量名店防禦資料庫，確保 100% 視覺體驗完美)
   const TAIWAN_TRENDY_RECS = [
     { id: "fallback-1", name: "詹記麻辣火鍋", address: "台北市大安區和平東路三段60號", category: "火鍋專賣", note: "📍 台北極致傳奇麻辣鍋，鴨血豆腐堪稱美味天花板，絕對必吃。" },
     { id: "fallback-2", name: "五之神製作所", address: "台北市信義區忠孝東路四段553巷6弄6號", category: "日式料理", note: "📍 超濃厚蝦沾麵名店，濃郁蝦湯搭配特色配菜，排隊不間斷。" },
@@ -288,6 +287,13 @@ export default function App() {
         vec3 color = mix(baseColor, waveColor, clamp(abs(distort) * 1.8, 0.0, 1.0)); gl_FragColor = vec4(color, 1.0);
     }
   `;
+
+  // 🌟 比對是否重複收藏的公用檢查函數 (不分大小寫、去空格)
+  const isDuplicateRestaurant = (name) => {
+    if (!name) return false;
+    const target = name.replace(/\s+/g, "").toLowerCase();
+    return restaurants.some(r => r.name && r.name.replace(/\s+/g, "").toLowerCase() === target);
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -373,7 +379,7 @@ export default function App() {
     const params = new URLSearchParams();
     params.append("grant_type", "client_credentials");
     
-    // 支援 Vercel 環境變數優先載入，並相容舊版金鑰
+    // 支援 Vercel 與環境變數自動套用
     const clientId = process.env.NEXT_PUBLIC_TDX_CLIENT_ID || "611271006-14b9d5db-c1f6-4096";
     const clientSecret = process.env.NEXT_PUBLIC_TDX_CLIENT_SECRET || "c307a306-9cc7-4ac0-be82-0caa99391b5d";
 
@@ -385,11 +391,12 @@ export default function App() {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: params.toString(),
+        mode: "cors" // 解決可能存在的 CORS 限制問題
       });
       const data = await res.json();
-      return data.access_token;
+      return data.access_token || null;
     } catch (err) {
-      console.error("TDX token fetch error", err);
+      console.warn("TDX token fetch failed, proceeding with limited public rate...", err);
       return null;
     }
   };
@@ -399,10 +406,19 @@ export default function App() {
       hasSearchedRef.current = true;
       navigator.geolocation.getCurrentPosition((position) => {
         const { latitude, longitude } = position.coords;
+        
+        // 🌟 防禦機制：若定位在台灣以外 (例如國外用戶)，直接顯示全台精選名店，不硬塞特定區域
+        if (latitude < 21.8 || latitude > 26.5 || longitude < 118.0 || longitude > 122.5) {
+          console.log("GPS is outside Taiwan, loading curated trendy recs.");
+          setNearbyRecommendations(TAIWAN_TRENDY_RECS);
+          return;
+        }
+
         setUserLocation({ lat: latitude, lng: longitude });
         triggerTDXNearbySearch(latitude, longitude);
       }, (err) => {
-        console.warn("Geolocation denied, loading fallback recommendations:", err);
+        console.warn("Geolocation denied or failed, loading curated trendy recs:", err);
+        // 🌟 拒絕定位時，不再強制定點，而是給予「全台精選指標名店」
         setNearbyRecommendations(TAIWAN_TRENDY_RECS);
       });
     }
@@ -412,7 +428,7 @@ export default function App() {
     setIsLocating(true);
     try {
       const token = await getTdxToken();
-      // 🌟 修正：TDX 空間篩選標準 OData 規範 (必須傳入 PositionLat, PositionLon 欄位進行交叉比對)
+      // 🌟 修正：直接使用真實使用者的座標進行搜尋
       const tdxUrl = `https://tdx.transportdata.tw/api/basic/v2/Tourism/Restaurant?$spatialFilter=nearby(PositionLat,PositionLon,${lat},${lng},3000)&$format=JSON&$top=8`;
       const headers = token ? { "Authorization": `Bearer ${token}` } : {};
 
@@ -440,7 +456,7 @@ export default function App() {
         setNearbyRecommendations(TAIWAN_TRENDY_RECS);
       }
     } catch (err) { 
-      console.error("TDX API failed, switching to fallback:", err); 
+      console.error("TDX API failed, switching to fallback database:", err); 
       setNearbyRecommendations(TAIWAN_TRENDY_RECS);
     }
     setIsLocating(false);
@@ -509,6 +525,13 @@ export default function App() {
   };
 
   const saveRecommendationWithAnimation = (rec) => {
+    // 🌟 重複收藏防禦驗證
+    if (isDuplicateRestaurant(rec.name)) {
+      setToastMessage(`⚠️ ${rec.name} 已在您的口袋名單中！`);
+      setTimeout(() => setToastMessage(""), 3000);
+      return;
+    }
+
     setAnimatingRecId(rec.id);
     if (typeof window !== 'undefined' && navigator.vibrate) navigator.vibrate(40);
     setTimeout(async () => {
@@ -563,6 +586,15 @@ export default function App() {
 
   const handleAcceptShared = async () => {
     if (!sharedItem) return;
+
+    // 🌟 重複收藏防禦驗證
+    if (isDuplicateRestaurant(sharedItem.name)) {
+      setToastMessage(`⚠️ ${sharedItem.name} 已在您的口袋名單中！`);
+      setTimeout(() => setToastMessage(""), 3000);
+      clearSharedItem();
+      return;
+    }
+
     const cleanRecommender = sharedItem.recommendedBy.replace("@", "").trim();
     const smartCategory = getSmartTag(sharedItem.name, sharedItem.category);
     if (firebaseUser?.uid === "local-temp-guest") {
@@ -578,7 +610,16 @@ export default function App() {
   };
 
   const handleAddRestaurant = async (e) => {
-    e.preventDefault(); if (!newRestName.trim()) return; setIsGlobalTransitioning(true); 
+    e.preventDefault(); if (!newRestName.trim()) return;
+
+    // 🌟 重複收藏防禦驗證
+    if (isDuplicateRestaurant(newRestName)) {
+      setToastMessage(`⚠️ ${newRestName} 已在您的口袋名單中！`);
+      setTimeout(() => setToastMessage(""), 3000);
+      return;
+    }
+
+    setIsGlobalTransitioning(true); 
     const smartCategory = getSmartTag(newRestName, newRestCategory);
     let finalNote = newRestNote;
     if (!finalNote.trim()) {
@@ -759,7 +800,7 @@ export default function App() {
                 </div>
               </section>
 
-              {/* 附近推薦區域 (TDX 整合且完美修復橫向滾動截斷) */}
+              {/* 附近推薦區域 (完美修復橫向滾動截斷) */}
               {activeRecommendations.length > 0 && (
                 <section className="space-y-3">
                   <h2 className="text-[13px] font-bold text-[#555] uppercase tracking-wider flex items-center gap-1.5 backdrop-blur-sm w-fit px-2 py-0.5 rounded-lg bg-white/20 shadow-[inset_0_1px_4px_rgba(255,255,255,0.4)]">
