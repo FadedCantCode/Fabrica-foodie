@@ -35,7 +35,7 @@ const db = getFirestore(app);
 const appId = 'fabrica-foodie-app'; 
 
 // ==========================================
-// 🗺️ 輔助函數與智慧標籤
+// 🗺️ 輔助函數、AI 與智慧標籤
 // ==========================================
 const getFreeMapAppUrl = (name, address) => {
   const hasValidAddress = address && address !== "僅提供店名定位" && address.trim() !== "";
@@ -53,6 +53,25 @@ const getSmartTag = (name, currentCategory = "") => {
   
   if (currentCategory && currentCategory !== "美食餐廳" && currentCategory !== "在地美食") return currentCategory.replace(" • ", " • ").trim();
   return "精選美食";
+};
+
+// 🌟 共用 AI 評論生成引擎
+const generateAIReview = async (name, address) => {
+  try {
+    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
+    if (!apiKey) return null;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    const payload = { 
+      contents: [{ parts: [{ text: `請分析台灣的這間餐廳：${name} ${address}。請綜合網路評價特色給出建議。` }] }], 
+      systemInstruction: { parts: [{ text: "你是一個高端美食顧問 Fabrica。請用 50-80 字精煉總結這家餐廳的真實網路評價、特色招牌菜色。請務必確保語意完整、順利結尾，絕不可話講一半。語氣要專業、具質感，不需加上 Markdown 標籤，直接給出純文字結果。" }] } 
+    };
+    const res = await fetch(geminiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const data = await res.json();
+    if (data.error) return null;
+    return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
+  } catch (err) {
+    return null;
+  }
 };
 
 // ==========================================
@@ -101,7 +120,7 @@ const GooeyLoader = () => (
   </div>
 );
 
-// 🌈 WebGL 高品質無色系 Shader 背景
+// 🌈 WebGL 高品質無色系 Shader 背景 (登入後渲染)
 const ColorfulBackground = ({ show }) => {
   const containerRef = useRef(null);
   useEffect(() => {
@@ -188,13 +207,9 @@ export default function App() {
   const canvasContainerRef = useRef(null);
   const hasSearchedRef = useRef(false);
 
-  // 🌟 物理拖曳排序狀態管理 (Physics Pointer Drag System)
-  const [dragState, setDragState] = useState({
-    isDragging: false,
-    draggedId: null,
-    startX: 0, startY: 0, currentX: 0, currentY: 0,
-    hoveredIndex: -1
-  });
+  // 🌟 原生 GPU 加速物理拖曳 Refs (取代 React State 避免卡頓)
+  const dragRef = useRef({ id: null, startX: 0, startY: 0, el: null, hoveredIndex: -1 });
+  const [draggingId, setDraggingId] = useState(null); // 僅用於控制 z-index 與透明度
 
   // 🌟 全台神級備用資料庫
   const TAIWAN_TRENDY_RECS = [
@@ -308,7 +323,6 @@ export default function App() {
 
     try {
       // 1. 擴大 Overpass 搜尋圈至 5000公尺，並指定 node 與 way 保證命中率
-      // 改用 POST 方法，避免 URL 過長引發 Vercel CORS 阻擋
       const query = `
         [out:json][timeout:10];
         (
@@ -336,30 +350,32 @@ export default function App() {
             name: name,
             address: tags['addr:street'] ? `${tags['addr:city'] || ''}${tags['addr:street']}${tags['addr:housenumber'] || ''}` : "點擊查看地圖定位",
             category: getSmartTag(name, rawCategory),
-            note: "📍 透過開源地圖雷達探測到的周邊店家。"
+            note: "📍 透過智慧地理雷達探測到的精選店家。"
           };
         }).filter(Boolean);
       }
     } catch (err) { 
-      console.warn("Overpass API blocked or failed, gracefully falling back to Nominatim...", err);
+      console.warn("Overpass API failed, falling back to Nominatim...", err);
     }
 
-    // 2. Nominatim 備援防禦 (獨立 Try-Catch 確保上一階段被 CORS 阻擋時依然能執行)
+    // 2. Nominatim 備援防禦 (修復命名與精確度問題)
     if (results.length === 0) {
       try {
-        console.log("Trying Nominatim fallback...");
         const lonDelta = 0.05; const latDelta = 0.05;
-        const nomUrl = `https://nominatim.openstreetmap.org/search?q=餐廳&format=json&addressdetails=1&limit=8&viewbox=${lng - lonDelta},${lat + latDelta},${lng + lonDelta},${lat - latDelta}&bounded=1`;
+        // 搜尋更精準的 "美食 小吃" 來取代泛泛的 "餐廳"
+        const nomUrl = `https://nominatim.openstreetmap.org/search?q=美食+小吃&format=json&addressdetails=1&limit=8&viewbox=${lng - lonDelta},${lat + latDelta},${lng + lonDelta},${lat - latDelta}&bounded=1`;
         const nomRes = await fetch(nomUrl, { headers: { 'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8' } });
         const nomData = await nomRes.json();
         if (nomData && nomData.length > 0) {
           results = nomData.map(place => {
             const name = place.name || place.display_name.split(',')[0];
+            // 過濾掉名字只叫「餐廳」或「美食」的無效地標
+            if (name === "餐廳" || name === "美食") return null;
             return {
               id: place.place_id.toString(), name: name, address: place.display_name,
-              category: getSmartTag(name, "美食餐廳"), note: "📍 透過 Nominatim 備援系統尋獲的店家。"
+              category: getSmartTag(name, "美食餐廳"), note: "📍 透過智慧地理雷達探測到的精選店家。"
             };
-          });
+          }).filter(Boolean);
         }
       } catch (err) {
         console.error("Nominatim fallback also failed:", err);
@@ -435,26 +451,34 @@ export default function App() {
     }, 400); 
   };
 
-  const saveRecommendationWithAnimation = (rec) => {
+  // 🌟 自動實體化並生成 AI 評價
+  const saveRecommendationWithAnimation = async (rec) => {
     if (isDuplicateRestaurant(rec.name)) {
       setToastMessage(`⚠️ ${rec.name} 已在您的口袋名單中！`); setTimeout(() => setToastMessage(""), 3000); return;
     }
+    
     setAnimatingRecId(rec.id);
     if (typeof window !== 'undefined' && navigator.vibrate) navigator.vibrate(40);
+    setToastMessage(`✨ 正在請 AI 撰寫專屬短評...`);
+
+    // 背景請求 AI，如果失敗就降級使用原本地圖探測 Note
+    const aiNote = await generateAIReview(rec.name, rec.address);
+    const finalNote = aiNote || rec.note;
+
     setTimeout(async () => {
       setDismissedRecommendationIds(prev => [...prev, rec.id]);
       const smartCategory = getSmartTag(rec.name, rec.category);
       if (firebaseUser?.uid === "local-temp-guest") {
-        const mockDoc = { id: Math.random().toString(), name: rec.name, address: rec.address, category: smartCategory, note: rec.note, recommendedBy: "系統探索", savedAt: { seconds: Math.floor(Date.now() / 1000) } };
+        const mockDoc = { id: Math.random().toString(), name: rec.name, address: rec.address, category: smartCategory, note: finalNote, recommendedBy: "系統探索", savedAt: { seconds: Math.floor(Date.now() / 1000) } };
         setRestaurants(prev => [mockDoc, ...prev]);
       } else {
         try {
           const cleanUsername = threadsUsername.replace("@", "").trim().toLowerCase();
-          await addDoc(collection(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants'), { name: rec.name, address: rec.address, category: smartCategory, note: rec.note, recommendedBy: "系統探索", savedAt: serverTimestamp() });
+          await addDoc(collection(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants'), { name: rec.name, address: rec.address, category: smartCategory, note: finalNote, recommendedBy: "系統探索", savedAt: serverTimestamp() });
         } catch (err) { console.error("Error saving auto-recommendation:", err); }
       }
       setToastMessage(`🎉 已將 ${rec.name} 實體化至您的地圖！`); setTimeout(() => setToastMessage(""), 3000); setAnimatingRecId(null);
-    }, 700);
+    }, 400); // 動畫延遲時間縮短，讓 AI 等待感覺更連貫
   };
 
   const dismissRecommendation = (id) => setDismissedRecommendationIds(prev => [...prev, id]);
@@ -490,20 +514,27 @@ export default function App() {
     }
   };
 
+  // 🌟 收下好友推薦並生成 AI 評價
   const handleAcceptShared = async () => {
     if (!sharedItem) return;
     if (isDuplicateRestaurant(sharedItem.name)) {
       setToastMessage(`⚠️ ${sharedItem.name} 已在您的口袋名單中！`); setTimeout(() => setToastMessage(""), 3000); clearSharedItem(); return;
     }
+    
+    setToastMessage(`✨ 正在請 AI 撰寫專屬短評...`);
     const cleanRecommender = sharedItem.recommendedBy.replace("@", "").trim();
     const smartCategory = getSmartTag(sharedItem.name, sharedItem.category);
+    
+    const aiNote = await generateAIReview(sharedItem.name, sharedItem.address);
+    const finalNote = aiNote || sharedItem.note;
+
     if (firebaseUser?.uid === "local-temp-guest") {
-      const mockDoc = { id: Math.random().toString(), name: sharedItem.name, address: sharedItem.address, category: smartCategory, note: sharedItem.note, recommendedBy: cleanRecommender, savedAt: { seconds: Math.floor(Date.now() / 1000) } };
+      const mockDoc = { id: Math.random().toString(), name: sharedItem.name, address: sharedItem.address, category: smartCategory, note: finalNote, recommendedBy: cleanRecommender, savedAt: { seconds: Math.floor(Date.now() / 1000) } };
       setRestaurants(prev => [mockDoc, ...prev]);
     } else {
       try {
         const cleanUsername = threadsUsername.replace("@", "").trim().toLowerCase();
-        await addDoc(collection(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants'), { name: sharedItem.name, address: sharedItem.address, category: smartCategory, note: sharedItem.note, recommendedBy: cleanRecommender, savedAt: serverTimestamp() });
+        await addDoc(collection(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants'), { name: sharedItem.name, address: sharedItem.address, category: smartCategory, note: finalNote, recommendedBy: cleanRecommender, savedAt: serverTimestamp() });
       } catch (err) { console.error("Error adding shared document:", err); }
     }
     setToastMessage(`🎉 成功將 ${sharedItem.name} 收藏至您的地圖！`); setTimeout(() => setToastMessage(""), 3000); clearSharedItem();
@@ -519,15 +550,8 @@ export default function App() {
     const smartCategory = getSmartTag(newRestName, newRestCategory);
     let finalNote = newRestNote;
     if (!finalNote.trim()) {
-      try {
-        const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-        const payload = { contents: [{ parts: [{ text: `請分析台灣的這間餐廳：${newRestName} ${newRestAddress}。請綜合網路評價特色給出建議。` }] }], systemInstruction: { parts: [{ text: "你是一個高端美食顧問 Fabrica。請用 50-80 字精煉總結這家餐廳的真實網路評價、特色招牌菜色。請務必確保語意完整、順利結尾，絕不可話講一半。語氣要專業、具質感，不需加上 Markdown 標籤，直接給出純文字結果。" }] } };
-        const geminiResponse = await fetch(geminiUrl, { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey }, body: JSON.stringify(payload) });
-        const geminiData = await geminiResponse.json();
-        if (geminiData.error) { finalNote = `【AI 連線失敗】錯誤代碼：${geminiData.error.code}。詳細原因：${geminiData.error.message}`; } 
-        else { finalNote = geminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "暫無 AI 分析結果，系統已將其加入您的口袋名單。"; }
-      } catch (err) { finalNote = "連線 AI 引擎時發生網路錯誤，已為您預設儲存。"; }
+      const aiNote = await generateAIReview(newRestName, newRestAddress);
+      finalNote = aiNote || "暫無 AI 分析結果，系統已將其加入您的口袋名單。";
     }
     const cleanRecommender = newRestRecommender.replace("@", "").trim();
     if (firebaseUser?.uid === "local-temp-guest") {
@@ -558,49 +582,58 @@ export default function App() {
     setDisplayRestaurants(filteredRestaurants);
   }, [restaurants, searchQuery, selectedCategory]);
 
-  const activeRecommendations = nearbyRecommendations.filter(rec => !dismissedRecommendationIds.includes(rec.id));
-
   // ==========================================
-  // 🚀 原生 60FPS 物理手感拖曳排序系統 (Pointer Events)
+  // 🚀 原生 60FPS 物理手感拖曳排序系統 (Ref-Based GPU Acceleration)
   // ==========================================
   const handlePointerDown = (e, restaurant, index) => {
-    // 防止點選到按鈕時也觸發拖曳
+    // 防止點選到按鈕/連結時也觸發拖曳
     if (e.target.closest("button") || e.target.closest("a")) return;
     
-    e.target.setPointerCapture(e.pointerId);
-    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(40); // 拿起的 Haptic Feedback
+    e.currentTarget.setPointerCapture(e.pointerId);
+    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(40); // 拿起的觸覺回饋
     
-    setDragState({
-      isDragging: true,
-      draggedId: restaurant.id,
+    dragRef.current = {
+      id: restaurant.id,
       startX: e.clientX,
       startY: e.clientY,
-      currentX: 0,
-      currentY: 0,
+      el: e.currentTarget,
       hoveredIndex: index
-    });
+    };
+    
+    // 取消漸變，準備零延遲跟隨滑鼠
+    e.currentTarget.style.transition = 'none';
+    setDraggingId(restaurant.id);
   };
 
   const handlePointerMove = (e) => {
-    if (!dragState.isDragging) return;
-    e.preventDefault(); // 阻止滾動
-    const dx = e.clientX - dragState.startX;
-    const dy = e.clientY - dragState.startY;
+    if (dragRef.current.id === null || !dragRef.current.el) return;
+    e.preventDefault(); 
+    
+    const dx = e.clientX - dragRef.current.startX;
+    const dy = e.clientY - dragRef.current.startY;
 
+    // GPU 加速 DOM 直接操作：完美跟隨並帶有物理傾斜
+    dragRef.current.el.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(1.05) rotate(${dx * 0.05}deg)`;
+    dragRef.current.el.style.zIndex = "100";
+    dragRef.current.el.style.boxShadow = "0 30px 60px rgba(0,0,0,0.3)";
+
+    // 計算碰撞 (暫時隱藏自身以防止射線探測打中自己)
+    dragRef.current.el.style.pointerEvents = 'none';
     const elements = document.elementsFromPoint(e.clientX, e.clientY);
-    const dropTarget = elements.find(el => el.hasAttribute('data-sort-index') && el.getAttribute('data-restaurant-id') !== dragState.draggedId);
+    dragRef.current.el.style.pointerEvents = 'auto';
 
-    let newHoveredIndex = dragState.hoveredIndex;
+    const dropTarget = elements.find(el => el.hasAttribute('data-sort-index') && el.getAttribute('data-restaurant-id') !== dragRef.current.id);
+
     if (dropTarget) {
       const targetIdx = parseInt(dropTarget.getAttribute('data-sort-index'), 10);
-      if (!isNaN(targetIdx) && targetIdx !== newHoveredIndex) {
-        if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(15); // 交換位置的 Haptic
-        newHoveredIndex = targetIdx;
+      if (!isNaN(targetIdx) && targetIdx !== dragRef.current.hoveredIndex) {
+        if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(15); // 交換位置的輕微觸覺
+        dragRef.current.hoveredIndex = targetIdx;
         
-        // 瞬間重新排序陣列達成流暢推擠
+        // 陣列重新排序觸發其他元素的流暢推擠
         setDisplayRestaurants(prev => {
           const arr = [...prev];
-          const oldIdx = arr.findIndex(r => r.id === dragState.draggedId);
+          const oldIdx = arr.findIndex(r => r.id === dragRef.current.id);
           if (oldIdx !== -1) {
              const item = arr.splice(oldIdx, 1)[0];
              arr.splice(targetIdx, 0, item);
@@ -609,26 +642,30 @@ export default function App() {
         });
       }
     }
-
-    setDragState(prev => ({
-      ...prev,
-      currentX: dx,
-      currentY: dy,
-      hoveredIndex: newHoveredIndex
-    }));
   };
 
   const handlePointerUp = (e, restaurant) => {
-    if (!dragState.isDragging) return;
-    e.target.releasePointerCapture(e.pointerId);
-    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(20); // 放下的 Haptic Feedback
+    if (dragRef.current.id === null) return;
+    e.currentTarget.releasePointerCapture(e.pointerId);
+    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(20); // 放下的觸覺回饋
 
-    // 判斷是否為單純的點擊 (位移小於 5px)
-    if (Math.abs(dragState.currentX) < 5 && Math.abs(dragState.currentY) < 5) {
+    // 判斷是否為點擊 (位移小於 5px)
+    const dx = e.clientX - dragRef.current.startX;
+    const dy = e.clientY - dragRef.current.startY;
+    if (Math.abs(dx) < 5 && Math.abs(dy) < 5) {
       setSelectedRestaurant(restaurant);
     }
 
-    setDragState({ isDragging: false, draggedId: null, startX: 0, startY: 0, currentX: 0, currentY: 0, hoveredIndex: -1 });
+    // 恢復平滑過渡並清空 Transform，讓卡片彈回對齊位置
+    if (dragRef.current.el) {
+      dragRef.current.el.style.transition = 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s ease';
+      dragRef.current.el.style.transform = 'translate3d(0,0,0) scale(1) rotate(0deg)';
+      dragRef.current.el.style.zIndex = "1";
+      dragRef.current.el.style.boxShadow = "none";
+    }
+
+    dragRef.current = { id: null, startX: 0, startY: 0, el: null, hoveredIndex: -1 };
+    setDraggingId(null);
   };
 
   return (
@@ -742,8 +779,8 @@ export default function App() {
                     {activeRecommendations.map(rec => (
                       <LiquidGlassCard key={rec.id} className={`group flex-shrink-0 w-64 p-2 transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${animatingRecId === rec.id ? 'scale-[0.8] opacity-0' : 'scale-100 opacity-100 hover:shadow-lg'}`}>
                         <figure className='w-full h-40 relative overflow-hidden rounded-[18px] bg-black/5'>
-                          <img src={getFoodImage(rec)} alt={rec.name} className='w-full h-full object-cover transition-transform duration-700 group-hover:scale-110' />
-                          <div className='absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent'></div>
+                          <img draggable={false} src={getFoodImage(rec)} alt={rec.name} className='w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 pointer-events-none' />
+                          <div className='absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent pointer-events-none'></div>
                           <span className="absolute top-3 left-3 text-[10px] font-bold text-white bg-black/40 backdrop-blur-md px-2 py-1 rounded-md shadow-sm border border-white/20">{rec.category}</span>
                           <h3 className='absolute bottom-3 left-3 right-3 font-bold text-white text-base line-clamp-1 drop-shadow-md'>{rec.name}</h3>
                         </figure>
@@ -763,7 +800,6 @@ export default function App() {
                 </section>
               )}
 
-              {/* 🌟 餐廳列表 (支援全新物理原生 Pointer Events 拖曳排序) */}
               <section className="space-y-4 pb-10 relative">
                 {isLoading ? (
                   <div className="text-center py-10">
@@ -772,12 +808,7 @@ export default function App() {
                 ) : displayRestaurants.length > 0 ? (
                   displayRestaurants.map((restaurant, index) => {
                     const smartCategory = getSmartTag(restaurant.name, restaurant.category);
-                    const isDraggingThis = dragState.draggedId === restaurant.id;
-                    
-                    // 動態物理運算 Transform (根據位移製造傾斜角度)
-                    const transformStyle = isDraggingThis 
-                        ? `translate3d(${dragState.currentX}px, ${dragState.currentY}px, 0) scale(1.05) rotate(${dragState.currentX * 0.05}deg)` 
-                        : 'translate3d(0,0,0) scale(1) rotate(0deg)';
+                    const isDraggingThis = draggingId === restaurant.id;
 
                     return (
                       <div
@@ -790,27 +821,22 @@ export default function App() {
                         onPointerCancel={(e) => handlePointerUp(e, restaurant)}
                         className={`group cursor-grab active:cursor-grabbing w-full ${deletingIds.includes(restaurant.id) ? 'scale-95 opacity-0' : 'scale-100 opacity-100'}`}
                         style={{
-                            transform: transformStyle,
-                            zIndex: isDraggingThis ? 100 : 1,
-                            position: isDraggingThis ? 'relative' : 'static',
-                            // 拖曳時消除 transition 確保跟手，放下時加上彈跳回復
-                            transition: isDraggingThis ? 'none' : 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s ease',
-                            boxShadow: isDraggingThis ? '0 30px 60px rgba(0,0,0,0.3)' : 'none'
+                          transition: 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s ease'
                         }}
                       >
                         <LiquidGlassCard className={`p-2 transition-shadow duration-300 ${!isDraggingThis && 'hover:shadow-lg hover:-translate-y-1'}`}>
-                          {/* 拖曳提示小把手 (Drag Grip) */}
+                          {/* 拖曳把手 */}
                           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex gap-1 px-3 py-1.5 bg-black/40 backdrop-blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
                             <div className="w-1 h-1 bg-white/80 rounded-full"></div><div className="w-1 h-1 bg-white/80 rounded-full"></div><div className="w-1 h-1 bg-white/80 rounded-full"></div>
                           </div>
 
                           <figure className='w-full h-56 relative overflow-hidden rounded-[18px] bg-black/5 pointer-events-none'>
-                            <img src={getFoodImage(restaurant)} alt={restaurant.name} className='w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 pointer-events-none' />
+                            <img draggable={false} src={getFoodImage(restaurant)} alt={restaurant.name} className='w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 pointer-events-none' />
                             <div className='absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 opacity-80 group-hover:opacity-100 transition-opacity duration-300'></div>
                             <span className="absolute top-3 left-3 text-[10px] font-bold text-white bg-black/30 backdrop-blur-md px-2.5 py-1 rounded-md border border-white/20 shadow-sm z-10">{smartCategory}</span>
                             
                             {restaurant.recommendedBy && (
-                              <a href={`https://www.threads.net/@${restaurant.recommendedBy.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="absolute top-3 right-3 z-20 bg-white/90 backdrop-blur-md px-2.5 py-1 rounded-full flex items-center gap-1.5 text-[10px] font-bold text-[#1D1D1F] shadow-md hover:scale-110 active:scale-90 transition-transform pointer-events-auto">
+                              <a href={`https://www.threads.net/@${restaurant.recommendedBy.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="absolute top-3 right-3 z-20 bg-white/90 backdrop-blur-md px-2.5 py-1 rounded-full flex items-center gap-1.5 text-[10px] font-bold text-[#1D1D1F] shadow-md hover:scale-110 transition-transform pointer-events-auto">
                                 <div className="w-3.5 h-3.5 rounded-full bg-gradient-to-br from-purple-500 to-orange-400 flex items-center justify-center text-white text-[8px]">{restaurant.recommendedBy.replace('@', '').charAt(0).toUpperCase()}</div>@{restaurant.recommendedBy.replace('@', '')}
                               </a>
                             )}
@@ -823,7 +849,7 @@ export default function App() {
                             </div>
                           </figure>
 
-                          <article className='px-3 pt-3 pb-2 relative'>
+                          <article className='px-3 pt-3 pb-2 relative pointer-events-auto'>
                             {restaurant.note && <p className='text-[13px] text-[#444] font-medium leading-relaxed line-clamp-2'>{restaurant.note}</p>}
                             <div className='flex justify-between items-center pt-3 mt-2 border-t border-black/10'>
                               <button onClick={(e) => { e.stopPropagation(); handleDeleteRestaurant(restaurant.id); }} className="relative z-20 flex items-center gap-1.5 text-xs font-bold text-[#FF3B30] hover:bg-white/60 px-3 py-1.5 rounded-lg transition-all active:scale-90 shadow-[0_1px_3px_rgba(0,0,0,0.02)] pointer-events-auto">
@@ -862,7 +888,6 @@ export default function App() {
       {/* 🌟 彈出式視窗 (Modals) */}
       {/* ========================================== */}
 
-      {/* 新增餐廳 Modal */}
       {showAddModal && (
         <div className={`fixed inset-0 z-[120] flex items-end sm:items-center justify-center px-0 sm:px-4 pb-0 sm:pb-10 transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isClosingModal ? 'opacity-0' : 'opacity-100'}`}>
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeAddModal} />
@@ -921,7 +946,6 @@ export default function App() {
         </div>
       )}
 
-      {/* 🌟 餐廳詳細資訊 Modal (加入 Blur Vignette 特效) */}
       {selectedRestaurant && !isGlobalTransitioning && (
         <div className="fixed inset-0 z-[130] flex items-center justify-center px-4 bg-black/50 backdrop-blur-md animate-fade-in" onClick={() => setSelectedRestaurant(null)}>
           <div className="bg-white/95 backdrop-blur-3xl w-full max-w-sm rounded-[32px] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.3)] relative animate-bounce-in max-h-[85vh] flex flex-col border border-white/50" onClick={(e) => e.stopPropagation()}>
@@ -955,7 +979,6 @@ export default function App() {
         </div>
       )}
 
-      {/* 🌟 朋友推薦的 SHARED 彈出小卡 */}
       {isLoggedIn && sharedItem && !isGlobalTransitioning && (
         <div className="fixed inset-0 z-[140] flex items-center justify-center px-4 bg-black/60 backdrop-blur-md animate-fade-in">
           <div className="bg-white/95 backdrop-blur-3xl w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl relative scale-100 animate-bounce-in border border-white/50">
@@ -977,7 +1000,7 @@ export default function App() {
 
       {/* 全域 Toast 通知 */}
       {toastMessage && (
-        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[150] animate-fade-in-up">
+        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[150] animate-fade-in-up pointer-events-none">
           <div className="bg-black/80 backdrop-blur-xl text-white px-5 py-3.5 rounded-full shadow-2xl flex items-center gap-2.5 border border-white/20">
             <div className="w-5 h-5 bg-[#34C759] rounded-full flex items-center justify-center shadow-[0_0_10px_rgba(52,199,89,0.5)]"><svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg></div>
             <span className="text-sm font-bold tracking-wide">{toastMessage}</span>
