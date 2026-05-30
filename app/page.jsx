@@ -157,11 +157,18 @@ export default function App() {
   const [selectedCategory, setSelectedCategory] = useState("全部");
   const [isLoading, setIsLoading] = useState(false);
   
+  // 彈出視窗、全域轉場與刪除狀態
   const [showAddModal, setShowAddModal] = useState(false);
   const [isClosingModal, setIsClosingModal] = useState(false); 
   const [isGlobalTransitioning, setIsGlobalTransitioning] = useState(false); 
   const [isGeneratingAI, setIsGeneratingAI] = useState(false); 
   const [deletingIds, setDeletingIds] = useState([]); 
+
+  // 🌟 新增：GPS 推薦與分享功能狀態
+  const [isLocating, setIsLocating] = useState(false);
+  const [nearbyRecommendations, setNearbyRecommendations] = useState([]);
+  const [showRecommendModal, setShowRecommendModal] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
 
   const [newRestName, setNewRestName] = useState("");
   const [newRestAddress, setNewRestAddress] = useState("");
@@ -302,6 +309,87 @@ export default function App() {
     }, 400); 
   };
 
+  // 🌟 新增：分享給朋友 (Web Share API)
+  const handleShare = async (restaurant) => {
+    const shareText = `這家感覺不錯！📍 ${restaurant.name}\n🏠 ${restaurant.address}\n✨ ${restaurant.note}\n\n— 來自 Fabrica Foodie`;
+    const shareData = {
+      title: 'Fabrica Foodie 推薦',
+      text: shareText,
+      url: restaurant.threadsUrl || window.location.href
+    };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(`${shareText}\n${shareData.url}`);
+        setToastMessage("已複製到剪貼簿！");
+        setTimeout(() => setToastMessage(""), 3000);
+      }
+    } catch (err) {
+      console.error('Share failed:', err);
+    }
+  };
+
+  // 🌟 新增：取得 GPS 座標並讓 AI 尋找附近美食
+  const handleExploreNearby = () => {
+    if (!navigator.geolocation) {
+      setToastMessage("您的裝置不支援定位功能");
+      setTimeout(() => setToastMessage(""), 3000);
+      return;
+    }
+
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(async (position) => {
+      const { latitude, longitude } = position.coords;
+      
+      try {
+        const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        const payload = {
+          contents: [{ parts: [{ text: `我現在的 GPS 座標是：緯度 ${latitude}，經度 ${longitude}。請幫我搜尋這附近評價最好的 3 間特色餐廳或咖啡廳。` }] }],
+          systemInstruction: { parts: [{ text: "你是一個高端美食顧問 Fabrica。請根據座標，搜尋附近 3 間真實高評價餐廳。嚴格輸出一個 JSON 陣列，格式如下：[{\"name\": \"店名\", \"address\": \"真實地址\", \"category\": \"餐飲分類 (如 咖啡廳、義式)\", \"note\": \"推薦原因 (30字)\"}]。不要輸出任何 markdown 標記。" }] },
+          tools: [{ google_search: {} }]
+        };
+
+        const response = await fetch(geminiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        const data = await response.json();
+        
+        const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
+        const parsed = JSON.parse(rawText.replace(/```json|```/g, "").trim());
+        
+        setNearbyRecommendations(parsed);
+        setShowRecommendModal(true);
+      } catch (err) {
+        console.error("Explore nearby error:", err);
+        setToastMessage("AI 尋找失敗，請稍後再試");
+        setTimeout(() => setToastMessage(""), 3000);
+      }
+      setIsLocating(false);
+    }, (err) => {
+      console.error("Geolocation error:", err);
+      setToastMessage("無法取得定位權限，請開啟手機 GPS 設定");
+      setTimeout(() => setToastMessage(""), 3000);
+      setIsLocating(false);
+    });
+  };
+
+  // 🌟 新增：將 AI 推薦一鍵存入地圖
+  const saveRecommendation = async (rec) => {
+    if (firebaseUser?.uid === "local-temp-guest") {
+      const mockDoc = { id: Math.random().toString(), name: rec.name, address: rec.address, category: rec.category, note: rec.note, recommendedBy: "Fabrica AI", savedAt: { seconds: Math.floor(Date.now() / 1000) }, threadsUrl: "" };
+      setRestaurants(prev => [mockDoc, ...prev]);
+    } else {
+      try {
+        const cleanUsername = threadsUsername.replace("@", "").trim().toLowerCase();
+        const userRestaurantsRef = collection(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants');
+        await addDoc(userRestaurantsRef, { name: rec.name, address: rec.address, category: rec.category, note: rec.note, recommendedBy: "Fabrica AI", savedAt: serverTimestamp(), threadsUrl: "" });
+      } catch (err) { console.error("Error adding document:", err); }
+    }
+    setToastMessage(`已將 ${rec.name} 加入地圖！`);
+    setTimeout(() => setToastMessage(""), 3000);
+    setShowRecommendModal(false);
+  };
+
   const handleAddRestaurant = async (e) => {
     e.preventDefault();
     if (!newRestName.trim()) return;
@@ -376,13 +464,13 @@ export default function App() {
     const address = restaurant.address || ""; 
     const note = restaurant.note || ""; 
     const category = restaurant.category || "";
-    const recommender = restaurant.recommendedBy || ""; // 🌟 策略三：將推薦人加入搜尋範圍
+    const recommender = restaurant.recommendedBy || ""; 
 
     const q = searchQuery.toLowerCase();
     const matchesSearch = name.toLowerCase().includes(q) || 
                           address.toLowerCase().includes(q) || 
                           note.toLowerCase().includes(q) ||
-                          recommender.toLowerCase().includes(q.replace("@", "")); // 支援直接輸入 @帳號 尋找
+                          recommender.toLowerCase().includes(q.replace("@", "")); 
                           
     const matchesCategory = selectedCategory === "全部" || category.startsWith(selectedCategory);
     return matchesSearch && matchesCategory;
@@ -470,6 +558,26 @@ export default function App() {
                   <svg className="w-5 h-5 text-[#86868B] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none select-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                   <input type="text" placeholder="搜尋餐廳、@推薦人或評論..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-white text-sm rounded-2xl py-3.5 pl-11 pr-4 border border-[#E5E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] focus:outline-none focus:border-[#86868B] placeholder-[#86868B] transition-all" />
                 </div>
+                
+                {/* 🌟 新增：GPS 探索附近按鈕 */}
+                <button 
+                  onClick={handleExploreNearby}
+                  disabled={isLocating}
+                  className="w-full bg-[#1D1D1F] hover:bg-[#3A3A3C] text-white active:scale-[0.99] transition-all py-3.5 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 shadow-md disabled:opacity-70 disabled:pointer-events-none"
+                >
+                  {isLocating ? (
+                    <>
+                      <svg className="animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                      定位並探索附近隱藏美食...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3" strokeWidth="2.5"/></svg>
+                      ✨ AI 探索附近好店
+                    </>
+                  )}
+                </button>
+
                 {categories.length > 1 && (
                   <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
                     {categories.map((cat) => (
@@ -508,7 +616,6 @@ export default function App() {
                       style={{ animationDelay: `${i * 100}ms` }}
                     >
                       <div className="p-6 pb-4 relative group/card">
-                        {/* 🌟 策略三：社群化「美食認證」標籤 (升級可點擊徽章) */}
                         <div className="flex flex-wrap items-center gap-2 pr-10">
                           <span className="text-[10px] font-bold tracking-wider text-[#86868B] bg-[#F5F5F7] px-2.5 py-1 rounded-md uppercase">
                             {restaurant.category || "美食 • 精選"}
@@ -516,14 +623,14 @@ export default function App() {
                           
                           {restaurant.recommendedBy && (
                             <a 
-                              href={`https://www.threads.net/@${restaurant.recommendedBy}`} 
+                              href={restaurant.recommendedBy === "Fabrica AI" ? "#" : `https://www.threads.net/@${restaurant.recommendedBy}`} 
                               target="_blank" 
                               rel="noreferrer"
-                              className="text-[10px] font-bold tracking-wide text-[#1D1D1F] bg-[#E5E5EA] hover:bg-[#D2D2D7] px-2.5 py-1 rounded-md flex items-center gap-1 transition-colors"
-                              title="前往 Threads 查看推薦人"
+                              className={`text-[10px] font-bold tracking-wide px-2.5 py-1 rounded-md flex items-center gap-1 transition-colors ${restaurant.recommendedBy === "Fabrica AI" ? "text-white bg-black hover:bg-black/80" : "text-[#1D1D1F] bg-[#E5E5EA] hover:bg-[#D2D2D7]"}`}
+                              title={restaurant.recommendedBy === "Fabrica AI" ? "AI 推薦" : "前往 Threads 查看推薦人"}
                             >
-                              <svg className="w-3 h-3 text-[#86868B]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-                              @{restaurant.recommendedBy}
+                              <svg className={`w-3 h-3 ${restaurant.recommendedBy === "Fabrica AI" ? "text-white" : "text-[#86868B]"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                              {restaurant.recommendedBy === "Fabrica AI" ? "AI 推薦" : `@${restaurant.recommendedBy}`}
                             </a>
                           )}
                         </div>
@@ -560,10 +667,14 @@ export default function App() {
                       </div>
 
                       <div className="p-4 bg-white border-t border-[#F2F2F7] flex gap-3">
-                        <a href={getFreeMapAppUrl(restaurant.name, restaurant.address)} target="_blank" rel="noreferrer" className="w-full py-3 text-center text-xs font-semibold text-black bg-[#F5F5F7] hover:bg-[#E8E8ED] active:scale-95 transition-all rounded-xl flex items-center justify-center gap-1.5">
+                        <a href={getFreeMapAppUrl(restaurant.name, restaurant.address)} target="_blank" rel="noreferrer" className="flex-1 py-3 text-center text-xs font-semibold text-black bg-[#F5F5F7] hover:bg-[#E8E8ED] active:scale-95 transition-all rounded-xl flex items-center justify-center gap-1.5">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
                           在地圖中開啟
                         </a>
+                        {/* 🌟 新增：分享給朋友按鈕 */}
+                        <button onClick={() => handleShare(restaurant)} className="w-12 py-3 flex items-center justify-center text-[#86868B] bg-[#F5F5F7] hover:bg-[#E8E8ED] hover:text-black active:scale-95 transition-all rounded-xl" title="分享給朋友">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8m-4-6l-4-4m0 0L8 6m4-4v13" /></svg>
+                        </button>
                       </div>
                     </div>
                   ))
@@ -583,7 +694,7 @@ export default function App() {
         )}
       </div>
 
-      {/* ==================== 🚀 AI 賦能的新增美食彈出視窗 ==================== */}
+      {/* ==================== 🚀 彈出視窗 ==================== */}
       {showAddModal && (
         <div className={`fixed inset-0 z-50 bg-black/20 backdrop-blur-md flex items-center justify-center p-4 transition-opacity duration-400 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isClosingModal ? 'opacity-0' : 'opacity-100'}`}>
           <form onSubmit={handleAddRestaurant} className={`bg-white/85 backdrop-blur-2xl w-full max-w-sm rounded-[36px] p-7 space-y-5 shadow-[0_24px_48px_rgba(0,0,0,0.08)] border border-white text-left transition-all duration-400 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isClosingModal ? 'scale-95 translate-y-8 opacity-0' : 'scale-100 translate-y-0 opacity-100'}`}>
@@ -609,7 +720,6 @@ export default function App() {
                     <option value="異國料理 • 餐酒">異國料理</option>
                   </select>
                 </div>
-                {/* 🌟 策略三：新增社群推薦人欄位 */}
                 <div className="space-y-1.5 w-1/2">
                   <label className="font-bold text-[#1D1D1F] text-xs px-1">推薦人 (選填)</label>
                   <div className="relative">
