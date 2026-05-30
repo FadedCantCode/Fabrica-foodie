@@ -66,16 +66,14 @@ const getSmartTag = (name, currentCategory = "") => {
 
 // 1. 垂直雙向滾動跑馬燈組件 (登入頁專用黑色跑馬燈)
 const VerticalMarquee = ({ direction = "up", text = "WELCOME TO FOODIE BETA TEST" }) => {
-  const listItems = Array(12).fill(text);
-  const animationClass = direction === "up" ? "animate-marquee-vertical-up" : "animate-marquee-vertical-down";
+  const animationClass = direction === "up" ? "animate-marquee-up" : "animate-marquee-down";
   return (
-    <div className="relative w-8 h-full overflow-hidden flex flex-col justify-start select-none py-4">
-      <div className={`flex flex-col gap-12 text-black/15 font-black text-lg tracking-widest writing-mode-vertical ${animationClass}`}>
-        {listItems.map((item, idx) => (
-          <span key={idx} className="whitespace-nowrap uppercase transform rotate-90 my-8">
-            {item}
-          </span>
-        ))}
+    <div className="relative w-10 h-screen overflow-hidden flex justify-center items-center select-none">
+      <div className="absolute w-[400vh] flex items-center justify-center rotate-90">
+         <div className={`flex gap-12 whitespace-nowrap text-[#1D1D1F] font-black text-2xl tracking-[0.25em] ${animationClass}`}>
+           <span>{text}</span><span>{text}</span><span>{text}</span><span>{text}</span>
+           <span>{text}</span><span>{text}</span><span>{text}</span><span>{text}</span>
+         </div>
       </div>
     </div>
   );
@@ -367,6 +365,27 @@ export default function App() {
   }, [firebaseUser, isLoggedIn, threadsUsername]);
 
   // 🌟 整合 TDX API 取代開源地圖 (官方觀光數據)
+  const getTdxToken = async () => {
+    const url = "https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token";
+    const params = new URLSearchParams();
+    params.append("grant_type", "client_credentials");
+    params.append("client_id", "611271006-14b9d5db-c1f6-4096");
+    params.append("client_secret", "c307a306-9cc7-4ac0-be82-0caa99391b5d");
+
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: params.toString(),
+      });
+      const data = await res.json();
+      return data.access_token;
+    } catch (err) {
+      console.error("TDX token fetch error", err);
+      return null;
+    }
+  };
+
   useEffect(() => {
     if (isLoggedIn && typeof window !== 'undefined' && navigator.geolocation && !hasSearchedRef.current) {
       hasSearchedRef.current = true;
@@ -384,8 +403,11 @@ export default function App() {
   const triggerTDXNearbySearch = async (lat, lng) => {
     setIsLocating(true);
     try {
+      const token = await getTdxToken();
       const tdxUrl = `https://tdx.transportdata.tw/api/basic/v2/Tourism/Restaurant?$spatialFilter=nearby(${lat},${lng},3000)&$format=JSON&$top=8`;
-      const response = await fetch(tdxUrl);
+      const headers = token ? { "Authorization": `Bearer ${token}` } : {};
+
+      const response = await fetch(tdxUrl, { headers });
       const data = await response.json();
 
       if (data && data.length > 0) {
@@ -1034,23 +1056,19 @@ export default function App() {
         .animate-bounce-in { animation: bounce-in 0.6s cubic-bezier(0.2,0.8,0.2,1) forwards; }
         
         /* 垂直跑馬燈核心動畫效果 */
-        @keyframes marquee-vertical-up {
-          0% { transform: translateY(0%); }
-          100% { transform: translateY(-50%); }
+        @keyframes marquee-up {
+          0% { transform: translateX(0%); }
+          100% { transform: translateX(-50%); }
         }
-        @keyframes marquee-vertical-down {
-          0% { transform: translateY(-50%); }
-          100% { transform: translateY(0%); }
+        @keyframes marquee-down {
+          0% { transform: translateX(-50%); }
+          100% { transform: translateX(0%); }
         }
-        .animate-marquee-vertical-up {
-          animation: marquee-vertical-up 35s linear infinite;
+        .animate-marquee-up {
+          animation: marquee-up 25s linear infinite;
         }
-        .animate-marquee-vertical-down {
-          animation: marquee-vertical-down 35s linear infinite;
-        }
-        .writing-mode-vertical {
-          writing-mode: vertical-rl;
-          text-orientation: mixed;
+        .animate-marquee-down {
+          animation: marquee-down 25s linear infinite;
         }
       `}</style>
     </div>
