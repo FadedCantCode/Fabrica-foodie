@@ -582,6 +582,9 @@ export default function App() {
     setDisplayRestaurants(filteredRestaurants);
   }, [restaurants, searchQuery, selectedCategory]);
 
+  // 🌟 補回遺失的變數聲明：過濾掉已經被使用者點擊「略過」或「實體化」的推薦卡片
+  const activeRecommendations = nearbyRecommendations.filter(rec => !dismissedRecommendationIds.includes(rec.id));
+
   // ==========================================
   // 🚀 原生 60FPS 物理手感拖曳排序系統 (Ref-Based GPU Acceleration)
   // ==========================================
