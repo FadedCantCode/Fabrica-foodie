@@ -344,17 +344,19 @@ export default function App() {
       
       try {
         const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
-        // 🚨 修正：移除 -latest 後綴，使用最穩定的 gemini-1.5-flash，並保留 ?key= 參數
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        // 🌟 升級為最新且最穩定的 gemini-2.0-flash，完美適配 AQ. 金鑰
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
         const payload = {
           contents: [{ parts: [{ text: `我現在的 GPS 座標是：緯度 ${latitude}，經度 ${longitude}。請幫我搜尋這附近評價最好的 3 間特色餐廳或咖啡廳。` }] }],
-          systemInstruction: { parts: [{ text: "你是一個高端美食顧問 Fabrica。請根據座標，搜尋附近 3 間真實高評價餐廳。嚴格輸出一個 JSON 陣列，格式如下：[{\"name\": \"店名\", \"address\": \"真實地址\", \"category\": \"餐飲分類 (如 咖啡廳、義式)\", \"note\": \"推薦原因 (30字)\"}]。不要輸出任何 markdown 標記。" }] },
-          tools: [{ google_search: {} }]
+          systemInstruction: { parts: [{ text: "你是一個高端美食顧問 Fabrica。請根據座標，搜尋附近 3 間真實高評價餐廳。嚴格輸出一個 JSON 陣列，格式如下：[{\"name\": \"店名\", \"address\": \"真實地址\", \"category\": \"餐飲分類 (如 咖啡廳、義式)\", \"note\": \"推薦原因 (30字)\"}]。不要輸出任何 markdown 標記。" }] }
         };
 
         const response = await fetch(geminiUrl, { 
           method: "POST", 
-          headers: { "Content-Type": "application/json" }, 
+          headers: { 
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey 
+          }, 
           body: JSON.stringify(payload) 
         });
         const data = await response.json();
@@ -405,24 +407,25 @@ export default function App() {
     if (!finalNote.trim()) {
       try {
         const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
-        // 🚨 修正：移除 -latest 後綴，使用最穩定的 gemini-1.5-flash，並保留 ?key= 參數
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        // 🌟 升級為最新且最穩定的 gemini-2.0-flash
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
         const payload = {
           contents: [{ parts: [{ text: `請分析台灣的這間餐廳：${newRestName} ${newRestAddress}。請綜合網路評價、近期優惠、活動與特色給出建議。` }] }],
-          systemInstruction: { parts: [{ text: "你是一個高端美食顧問 Fabrica。請用 50-80 字精煉總結這家餐廳的真實網路評價、特色招牌菜色，若近期有知名優惠或活動也請提及。語氣要專業、具質感，不需加上 Markdown 標籤，直接給出純文字結果。" }] },
-          tools: [{ google_search: {} }]
+          systemInstruction: { parts: [{ text: "你是一個高端美食顧問 Fabrica。請用 50-80 字精煉總結這家餐廳的真實網路評價、特色招牌菜色，若近期有知名優惠或活動也請提及。語氣要專業、具質感，不需加上 Markdown 標籤，直接給出純文字結果。" }] }
         };
 
         const geminiResponse = await fetch(geminiUrl, { 
           method: "POST", 
-          headers: { "Content-Type": "application/json" }, 
+          headers: { 
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey 
+          }, 
           body: JSON.stringify(payload) 
         });
         const geminiData = await geminiResponse.json();
         
         if (geminiData.error) {
           console.error("Gemini API Error:", geminiData.error);
-          // 🚨 直接將 Google 官方的錯誤詳細原因印出來，不再瞎猜
           finalNote = `【AI 連線失敗】錯誤代碼：${geminiData.error.code}。詳細原因：${geminiData.error.message}`;
         } else {
           const aiText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
