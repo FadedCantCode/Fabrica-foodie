@@ -36,6 +36,19 @@ const db = getFirestore(app);
 const appId = 'fabrica-foodie-app'; 
 
 // ==========================================
+// 🗺️ 地圖 URL 產生輔助函數 (🌟 補回缺失函數，修復白屏錯誤)
+// ==========================================
+const getFreeMapEmbedUrl = (name, address) => {
+  const hasValidAddress = address && address !== "僅提供店名定位" && address.trim() !== "";
+  return `https://maps.google.com/maps?q=${encodeURIComponent(hasValidAddress ? `${name} ${address}` : name)}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
+};
+
+const getFreeMapAppUrl = (name, address) => {
+  const hasValidAddress = address && address !== "僅提供店名定位" && address.trim() !== "";
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(hasValidAddress ? `${name} ${address}` : name)}`;
+};
+
+// ==========================================
 // 🎨 原生 3D Vertex & Fragment Shaders (黑白液態)
 // ==========================================
 const vertexShader = `
@@ -166,8 +179,8 @@ export default function App() {
 
   // GPS 推薦與分享功能狀態
   const [isLocating, setIsLocating] = useState(false);
-  const [nearbyRecommendations, setNearbyRecommendations] = useState([]); // 存儲自動推薦
-  const [dismissedRecommendationIds, setDismissedRecommendationIds] = useState([]); // 記錄被忽略的推薦
+  const [nearbyRecommendations, setNearbyRecommendations] = useState([]); 
+  const [dismissedRecommendationIds, setDismissedRecommendationIds] = useState([]); 
   const [toastMessage, setToastMessage] = useState("");
 
   const [newRestName, setNewRestName] = useState("");
@@ -183,6 +196,9 @@ export default function App() {
   const [mounted, setMounted] = useState(false); 
   const [isSandbox, setIsSandbox] = useState(false); 
   const canvasContainerRef = useRef(null);
+
+  // 🌟 核心防禦：使用 useRef 確保定位與 AI 連線「永不重複」
+  const hasSearchedRef = useRef(false);
 
   useEffect(() => {
     setMounted(true);
@@ -272,24 +288,24 @@ export default function App() {
     return () => unsubscribe();
   }, [firebaseUser, isLoggedIn, threadsUsername]);
 
-  // 🌟 核心：使用者登入成功後，自動靜默發起 GPS 請求並探測周邊美食
+  // 🌟 核心：使用者登入成功後，自動靜默發起 GPS 請求並探測周邊美食 (採用 hasSearchedRef 鎖定防爆 429)
   useEffect(() => {
-    if (isLoggedIn && typeof window !== 'undefined' && navigator.geolocation) {
+    if (isLoggedIn && typeof window !== 'undefined' && navigator.geolocation && !hasSearchedRef.current) {
+      hasSearchedRef.current = true; // 鎖定：防止雙重觸發
       triggerSilentNearbySearch();
     }
   }, [isLoggedIn]);
 
-  // 🌟 靜默 GPS 定位尋找美食邏輯
+  // 🌟 靜默 GPS 定位尋找美食邏輯 (Gemini 2.0 Flash)
   const triggerSilentNearbySearch = () => {
     setIsLocating(true);
     navigator.geolocation.getCurrentPosition(async (position) => {
       const { latitude, longitude } = position.coords;
       try {
         const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
-        // 使用絕對穩定的 2.0-flash 架構 + Header 防護
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
         const payload = {
-          contents: [{ parts: [{ text: `我現在的 GPS 座標是：緯度 ${latitude}，經度 ${longitude}。請幫我推薦這附近最熱門、最受脆友歡迎的 2 間特色排隊美食餐廳。` }] }],
+          contents: [{ parts: [{ text: `我現在的 GPS 座標是：緯度 ${latitude}，經度 ${longitude}。請幫我推薦這附近最熱門、最受歡迎的 2 間特色排隊美食餐廳。` }] }],
           systemInstruction: { parts: [{ text: "你是一個高端美食顧問 Fabrica。請根據經緯度座標，搜尋附近 2 間真實存在高評價店。嚴格且唯一輸出一個 JSON 陣列，格式如下：[{\"id\": 1, \"name\": \"店名\", \"address\": \"真實地址\", \"category\": \"甜點咖啡 或 台灣小吃\", \"note\": \"一小句話推薦此店與特色(25字)\"}]。絕不包含 markdown 格式字串。" }] }
         };
 
@@ -333,6 +349,7 @@ export default function App() {
     setTimeout(() => {
       setIsLoggedIn(false); setThreadsUsername(""); setInputUsername(""); setRestaurants([]); 
       setNearbyRecommendations([]); setDismissedRecommendationIds([]);
+      hasSearchedRef.current = false; // 登出後解鎖，下次登入還能重新搜尋
       setIsGlobalTransitioning(false);
     }, 1200);
   };
@@ -380,7 +397,6 @@ export default function App() {
 
   // 🌟 一鍵儲存 AI 推薦卡片到雲端
   const saveRecommendation = async (rec) => {
-    // 立即從畫面移出這張自動推薦小卡
     setDismissedRecommendationIds(prev => [...prev, rec.id]);
 
     if (firebaseUser?.uid === "local-temp-guest") {
@@ -404,7 +420,6 @@ export default function App() {
     setTimeout(() => setToastMessage(""), 3000);
   };
 
-  // 🌟 忽略自動推薦小卡（附帶優雅動畫效果）
   const dismissRecommendation = (id) => {
     setDismissedRecommendationIds(prev => [...prev, id]);
   };
@@ -493,7 +508,6 @@ export default function App() {
     return matchesSearch && matchesCategory;
   });
 
-  // 計算尚未被忽略的自動推薦卡片
   const activeRecommendations = nearbyRecommendations.filter(rec => !dismissedRecommendationIds.includes(rec.id));
 
   return (
