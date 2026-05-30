@@ -299,7 +299,8 @@ export default function App() {
     navigator.geolocation.getCurrentPosition(async (position) => {
       const { latitude, longitude } = position.coords;
       try {
-        const query = `[out:json][timeout:10];node(around:800, ${latitude}, ${longitude})["amenity"~"restaurant|cafe"]["name"];out 2;`;
+        // 擴大搜尋範圍 (1500m)，增加快餐與冰淇淋標籤，增加回傳數量
+        const query = `[out:json][timeout:15];(node(around:1500, ${latitude}, ${longitude})["amenity"~"restaurant|cafe|fast_food|ice_cream"]["name"];);out 5;`;
         const osmUrl = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
 
         const response = await fetch(osmUrl);
@@ -309,15 +310,18 @@ export default function App() {
           const formattedRecs = data.elements.map((el) => {
             const tags = el.tags || {};
             const isCafe = tags.amenity === 'cafe';
+            const isFastFood = tags.amenity === 'fast_food';
             return {
               id: el.id.toString(),
               name: tags.name || "隱藏版美食",
               address: tags['addr:street'] ? `${tags['addr:city'] || ''}${tags['addr:street']}${tags['addr:housenumber'] || ''}` : "點擊查看地圖定位",
-              category: isCafe ? "咖啡廳 • 甜點" : "在地美食 • 餐廳",
+              category: isCafe ? "咖啡廳 • 甜點" : isFastFood ? "在地美食 • 快餐" : "在地美食 • 餐廳",
               note: "📍 根據您目前的精確定位，為您探索的 Foodie 周圍店家。"
             };
           });
           setNearbyRecommendations(formattedRecs);
+        } else {
+          console.warn("附近未發現已標記的地標，請嘗試手動輸入。");
         }
       } catch (err) {
         console.error("Auto nearby exploration failed:", err);
