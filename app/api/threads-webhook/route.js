@@ -98,8 +98,8 @@ export async function POST(request) {
     };
 
     try {
-      // 🌟 使用最穩定的 gemini-1.5-flash 模型，並移除網址參數的 ?key=
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`;
+      // 🌟 將 ?key= 加回網址，這是 API Gateway 尋找模型的關鍵
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${geminiApiKey}`;
       
       const payload = {
         contents: [{ parts: [{ text: `Threads貼文內容：${textToAnalyze}` }] }],
@@ -109,10 +109,7 @@ export async function POST(request) {
 
       const geminiResponse = await fetch(geminiUrl, {
         method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "x-goog-api-key": geminiApiKey // 🌟 解決新版 AQ. 金鑰格式 Bug 的完美解法
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
 
