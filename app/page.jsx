@@ -174,6 +174,8 @@ export default function App() {
   const [isSearchingPlaces, setIsSearchingPlaces] = useState(false);
   const [selectedRestaurant, setSelectedRestaurant] = useState(null);
 
+  const [animatingRecId, setAnimatingRecId] = useState(null);
+
   const [newRestName, setNewRestName] = useState("");
   const [newRestAddress, setNewRestAddress] = useState("");
   const [newRestCategory, setNewRestCategory] = useState("手搖茶攤");
@@ -302,8 +304,11 @@ export default function App() {
   }, [isLoggedIn]);
 
   const triggerUltimateNearbySearch = async (lat, lng) => {
+    let results = [];
+
     try {
       // 1. 擴大 Overpass 搜尋圈至 5000公尺，並指定 node 與 way 保證命中率
+      // 改用 POST 方法，避免 URL 過長引發 Vercel CORS 阻擋
       const query = `
         [out:json][timeout:10];
         (
@@ -313,11 +318,13 @@ export default function App() {
         );
         out center 12;
       `;
-      const osmUrl = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
-      const response = await fetch(osmUrl);
+      
+      const response = await fetch('https://overpass-api.de/api/interpreter', {
+        method: 'POST',
+        body: query
+      });
       const data = await response.json();
 
-      let results = [];
       if (data && data.elements && data.elements.length > 0) {
         results = data.elements.map((el) => {
           const tags = el.tags || {};
@@ -333,10 +340,14 @@ export default function App() {
           };
         }).filter(Boolean);
       }
+    } catch (err) { 
+      console.warn("Overpass API blocked or failed, gracefully falling back to Nominatim...", err);
+    }
 
-      // 2. Nominatim 備援防禦 (如果 Overpass 真的在偏僻地區抓不到)
-      if (results.length === 0) {
-        console.log("Overpass empty, trying Nominatim fallback...");
+    // 2. Nominatim 備援防禦 (獨立 Try-Catch 確保上一階段被 CORS 阻擋時依然能執行)
+    if (results.length === 0) {
+      try {
+        console.log("Trying Nominatim fallback...");
         const lonDelta = 0.05; const latDelta = 0.05;
         const nomUrl = `https://nominatim.openstreetmap.org/search?q=餐廳&format=json&addressdetails=1&limit=8&viewbox=${lng - lonDelta},${lat + latDelta},${lng + lonDelta},${lat - latDelta}&bounded=1`;
         const nomRes = await fetch(nomUrl, { headers: { 'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8' } });
@@ -350,15 +361,14 @@ export default function App() {
             };
           });
         }
+      } catch (err) {
+        console.error("Nominatim fallback also failed:", err);
       }
+    }
 
-      if (results.length > 0) {
-        setNearbyRecommendations(results);
-      } else {
-        setNearbyRecommendations(TAIWAN_TRENDY_RECS);
-      }
-    } catch (err) { 
-      console.error("Map search failed completely, falling back to curated trendy lists:", err);
+    if (results.length > 0) {
+      setNearbyRecommendations(results);
+    } else {
       setNearbyRecommendations(TAIWAN_TRENDY_RECS);
     }
   };
