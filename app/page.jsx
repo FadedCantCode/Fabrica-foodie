@@ -178,6 +178,9 @@ export default function App() {
   const [nearbyRecommendations, setNearbyRecommendations] = useState([]); 
   const [dismissedRecommendationIds, setDismissedRecommendationIds] = useState([]); 
   const [toastMessage, setToastMessage] = useState("");
+  
+  // 新增：追蹤正在播放「實體化動畫」的卡片 ID
+  const [animatingRecId, setAnimatingRecId] = useState(null);
 
   const [newRestName, setNewRestName] = useState("");
   const [newRestAddress, setNewRestAddress] = useState("");
@@ -192,7 +195,7 @@ export default function App() {
   const [mounted, setMounted] = useState(false); 
   const [isSandbox, setIsSandbox] = useState(false); 
   const canvasContainerRef = useRef(null);
-  const hasSearchedRef = useRef(false); // 確保一生只自動定位一次
+  const hasSearchedRef = useRef(false);
 
   useEffect(() => {
     setMounted(true);
@@ -282,21 +285,20 @@ export default function App() {
     return () => unsubscribe();
   }, [firebaseUser, isLoggedIn, threadsUsername]);
 
-  // 🌟 核心：使用者登入成功後，自動靜默發起 GPS 請求並探測周邊美食
+  // 🌟 自動發起 GPS 請求並探測周邊美食
   useEffect(() => {
     if (isLoggedIn && typeof window !== 'undefined' && navigator.geolocation && !hasSearchedRef.current) {
-      hasSearchedRef.current = true; // 鎖定：防止雙重觸發
+      hasSearchedRef.current = true;
       triggerSilentNearbySearch();
     }
   }, [isLoggedIn]);
 
-  // 🌟 零成本靜默 GPS 探店 (使用開源 OpenStreetMap Overpass API，100% 避免 AI 額度消耗)
+  // 🌟 零成本靜默 GPS 探店 (保持使用 Overpass API，不扣 AI 額度)
   const triggerSilentNearbySearch = () => {
     setIsLocating(true);
     navigator.geolocation.getCurrentPosition(async (position) => {
       const { latitude, longitude } = position.coords;
       try {
-        // 呼叫完全免費的 Overpass API，尋找周圍 800 公尺內的 2 間餐廳或咖啡廳
         const query = `[out:json][timeout:10];node(around:800, ${latitude}, ${longitude})["amenity"~"restaurant|cafe"]["name"];out 2;`;
         const osmUrl = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
 
@@ -312,7 +314,7 @@ export default function App() {
               name: tags.name || "隱藏版美食",
               address: tags['addr:street'] ? `${tags['addr:city'] || ''}${tags['addr:street']}${tags['addr:housenumber'] || ''}` : "點擊查看地圖定位",
               category: isCafe ? "咖啡廳 • 甜點" : "在地美食 • 餐廳",
-              note: "📍 根據您目前的精確定位，自動為您探索的周邊好店。"
+              note: "📍 根據您目前的精確定位，為您探索的 Foodie 周圍店家。"
             };
           });
           setNearbyRecommendations(formattedRecs);
@@ -342,7 +344,7 @@ export default function App() {
     setTimeout(() => {
       setIsLoggedIn(false); setThreadsUsername(""); setInputUsername(""); setRestaurants([]); 
       setNearbyRecommendations([]); setDismissedRecommendationIds([]);
-      hasSearchedRef.current = false; // 登出後解鎖
+      hasSearchedRef.current = false; 
       setIsGlobalTransitioning(false);
     }, 1200);
   };
@@ -367,36 +369,46 @@ export default function App() {
     }, 400); 
   };
 
-  // 🌟 一鍵儲存系統推薦卡片到雲端 (僅聲明一次，解決重複宣告與編譯錯誤)
-  const saveRecommendation = async (rec) => {
-    setDismissedRecommendationIds(prev => [...prev, rec.id]);
-
-    if (firebaseUser?.uid === "local-temp-guest") {
-      const mockDoc = { 
-        id: Math.random().toString(), name: rec.name, address: rec.address, 
-        category: rec.category, note: rec.note, recommendedBy: "系統探索", 
-        savedAt: { seconds: Math.floor(Date.now() / 1000) }, threadsUrl: "" 
-      };
-      setRestaurants(prev => [mockDoc, ...prev]);
-    } else {
-      try {
-        const cleanUsername = threadsUsername.replace("@", "").trim().toLowerCase();
-        const userRestaurantsRef = collection(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants');
-        await addDoc(userRestaurantsRef, { 
-          name: rec.name, address: rec.address, category: rec.category, 
-          note: rec.note, recommendedBy: "系統探索", savedAt: serverTimestamp(), threadsUrl: "" 
-        });
-      } catch (err) { console.error("Error saving auto-recommendation:", err); }
+  // 🌟 加入動畫與邏輯
+  const saveRecommendationWithAnimation = (rec) => {
+    setAnimatingRecId(rec.id);
+    
+    // 如果裝置支援，觸發微微震動回饋 (Apple-like haptic)
+    if (typeof window !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate(40);
     }
-    setToastMessage(`🎉 已儲存 ${rec.name} 至您的口袋名單！`);
-    setTimeout(() => setToastMessage(""), 3000);
+
+    // 等待動畫播放完畢 (700ms 彈性動畫) 再實際寫入資料庫
+    setTimeout(async () => {
+      setDismissedRecommendationIds(prev => [...prev, rec.id]);
+
+      if (firebaseUser?.uid === "local-temp-guest") {
+        const mockDoc = { 
+          id: Math.random().toString(), name: rec.name, address: rec.address, 
+          category: rec.category, note: rec.note, recommendedBy: "系統探索", 
+          savedAt: { seconds: Math.floor(Date.now() / 1000) }, threadsUrl: "" 
+        };
+        setRestaurants(prev => [mockDoc, ...prev]);
+      } else {
+        try {
+          const cleanUsername = threadsUsername.replace("@", "").trim().toLowerCase();
+          const userRestaurantsRef = collection(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants');
+          await addDoc(userRestaurantsRef, { 
+            name: rec.name, address: rec.address, category: rec.category, 
+            note: rec.note, recommendedBy: "系統探索", savedAt: serverTimestamp(), threadsUrl: "" 
+          });
+        } catch (err) { console.error("Error saving auto-recommendation:", err); }
+      }
+      setToastMessage(`🎉 已將 ${rec.name} 實體化至您的地圖！`);
+      setTimeout(() => setToastMessage(""), 3000);
+      setAnimatingRecId(null);
+    }, 700);
   };
 
   const dismissRecommendation = (id) => {
     setDismissedRecommendationIds(prev => [...prev, id]);
   };
 
-  // 分享美食 (Web Share API)
   const handleShare = async (restaurant) => {
     const shareText = `這家感覺不錯！📍 ${restaurant.name}\n🏠 ${restaurant.address}\n✨ ${restaurant.note}\n\n— 來自 Fabrica Foodie`;
     const shareData = {
@@ -417,7 +429,6 @@ export default function App() {
     }
   };
 
-  // 手動新增餐廳 (升級為 2026 最新官方主力型號 gemini-2.5-flash)
   const handleAddRestaurant = async (e) => {
     e.preventDefault();
     if (!newRestName.trim()) return;
@@ -581,7 +592,6 @@ export default function App() {
 
             <main className="max-w-md mx-auto px-4 mt-8 space-y-6">
               
-              {/* 🌟 修正：手動新增按鈕移至最上方，不阻擋視線 */}
               <button 
                 onClick={() => setShowAddModal(true)}
                 className="w-full bg-white hover:bg-[#F2F2F7] active:scale-[0.99] transition-all py-3.5 rounded-2xl border border-dashed border-[#C7C7CC] text-sm font-bold text-[#0071E3] flex items-center justify-center gap-2 shadow-sm"
@@ -598,67 +608,103 @@ export default function App() {
                   <input type="text" placeholder="搜尋餐廳、@推薦人或評論..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-white text-sm rounded-2xl py-3.5 pl-11 pr-4 border border-[#E5E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] focus:outline-none focus:border-[#86868B] placeholder-[#86868B] transition-all" />
                 </div>
 
-                {/* 🌟 智慧自動推薦區域（完全不消耗額度） */}
+                {}
+                {/* 🌟 Foodie 周圍店家區域 */}
                 {isLocating && (
                   <div className="flex items-center gap-2 justify-center py-2 text-xs text-[#86868B] font-semibold bg-white/45 backdrop-blur-md rounded-2xl border border-white/50 animate-pulse">
                     <svg className="animate-spin h-3.5 w-3.5 text-black" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                    正在為您秘密搜尋周邊好評店...
+                    正在尋找 Foodie 周圍店家...
                   </div>
                 )}
 
                 {activeRecommendations.length > 0 && (
-                  <div className="space-y-3.5 animate-in fade-in slide-in-from-top-6 duration-500">
+                  <div className="space-y-4 animate-in fade-in slide-in-from-top-6 duration-500">
                     <div className="flex items-center justify-between px-1">
-                      <span className="text-[10px] font-extrabold tracking-wider text-[#0071E3] uppercase">✨ 您附近的隱藏版推薦</span>
-                      <span className="text-[9px] font-bold text-[#86868B] uppercase">自動 GPS 探測</span>
+                      <span className="text-[11px] font-extrabold tracking-wider text-[#0071E3] uppercase flex items-center gap-1.5">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3" strokeWidth="2.5"/></svg>
+                        Foodie 周圍店家
+                      </span>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-3">
-                      {activeRecommendations.map((rec) => (
+                    <div className="grid grid-cols-1 gap-4">
+                      {activeRecommendations.map((rec) => {
+                        const isAnimating = animatingRecId === rec.id;
+                        
+                        return (
                         <div 
                           key={rec.id}
-                          className="bg-white/85 backdrop-blur-xl border border-white/60 p-4 rounded-[24px] shadow-[0_8px_25px_rgba(0,0,0,0.02)] flex items-start gap-3.5 relative transition-all duration-300 hover:shadow-md"
+                          // 🌟 核心：透過 Apple 式 Spring 曲線做過渡，點擊時轉變為實體卡片樣式
+                          className={`relative rounded-[28px] overflow-hidden transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] border 
+                            ${isAnimating 
+                              ? 'bg-white shadow-[0_20px_60px_rgba(0,0,0,0.12)] border-[#E5E5EA] scale-[1.03] z-50' 
+                              : 'bg-white/40 backdrop-blur-xl shadow-sm border-white/60 hover:bg-white/50 scale-100 z-10'}`}
                         >
-                          <div className="w-10 h-10 bg-black text-white rounded-full flex items-center justify-center shrink-0 text-sm font-extrabold shadow-sm">
-                            📍
-                          </div>
-                          <div className="space-y-1.5 flex-1 pr-6">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[9px] font-bold bg-black/5 text-black px-2 py-0.5 rounded-md">{rec.category}</span>
+                          <div className="p-6 pb-4 relative group/card">
+                            <div className="flex flex-wrap items-center gap-2 pr-10">
+                              <span className={`text-[10px] font-bold tracking-wider uppercase px-2.5 py-1 rounded-md transition-colors duration-500 ${isAnimating ? 'text-[#86868B] bg-[#F5F5F7]' : 'text-black/60 bg-white/50 backdrop-blur-sm'}`}>
+                                {rec.category}
+                              </span>
+                              <span className="text-[10px] font-bold tracking-wide px-2.5 py-1 rounded-md flex items-center gap-1 text-white bg-black/80">
+                                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                                附近發掘
+                              </span>
                             </div>
-                            <h4 className="font-extrabold text-sm text-black leading-tight">{rec.name}</h4>
-                            <p className="text-[10px] text-[#86868B] font-medium leading-relaxed">{rec.note}</p>
+
+                            <button onClick={() => dismissRecommendation(rec.id)} className="absolute top-5 right-5 w-8 h-8 flex items-center justify-center rounded-full bg-white/60 text-[#86868B] hover:bg-white hover:text-black transition-all duration-300 shadow-sm" title="忽略">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
                             
-                            <div className="flex gap-2 pt-1">
-                              <button 
-                                onClick={() => saveRecommendation(rec)}
-                                className="bg-black hover:bg-black/90 text-white text-[10px] font-extrabold px-3 py-1.5 rounded-lg transition-colors active:scale-95 shadow-sm"
-                              >
-                                ＋ 存入地圖
-                              </button>
-                              <button 
-                                onClick={() => dismissRecommendation(rec.id)}
-                                className="bg-[#E5E5EA] hover:bg-[#D2D2D7] text-[#1D1D1F] text-[10px] font-bold px-3 py-1.5 rounded-lg transition-colors active:scale-95"
-                              >
-                                忽略
-                              </button>
-                            </div>
+                            <h2 className="text-xl font-bold text-black mt-3 tracking-tight">
+                              {rec.name}
+                            </h2>
+                            
+                            <p className="text-xs text-[#86868B] mt-2 flex items-center gap-1.5 font-medium">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3" strokeWidth="2.5"/></svg>
+                              {rec.address}
+                            </p>
                           </div>
 
-                          <button 
-                            onClick={() => dismissRecommendation(rec.id)}
-                            className="absolute top-3 right-3 text-[#C7C7CC] hover:text-[#1D1D1F] text-xs font-semibold p-1"
-                          >
-                            ✕
-                          </button>
+                          <div className={`mx-6 mb-5 p-4.5 rounded-2xl border transition-colors duration-500 ${isAnimating ? 'bg-[#F5F5F7] border-[#E5E5EA]/40' : 'bg-white/40 border-white/50 backdrop-blur-sm'}`}>
+                            <p className="text-xs text-[#3A3A3C] leading-relaxed font-medium">{rec.note}</p>
+                          </div>
+
+                          <div className={`w-full h-44 relative overflow-hidden border-t transition-colors duration-500 ${isAnimating ? 'bg-[#E5E5EA] border-[#F2F2F7]' : 'bg-black/5 border-white/30'}`}>
+                            <iframe 
+                              title={`Map for ${rec.name}`} 
+                              src={getFreeMapEmbedUrl(rec.name, rec.address)} 
+                              // 動畫播放時恢復原本地圖顏色，平時套用透明灰階呈現未收集質感
+                              className={`w-full h-full border-0 transition-all duration-700 ${isAnimating ? 'grayscale-0 opacity-100' : 'grayscale opacity-60 mix-blend-multiply'}`} 
+                              allowFullScreen="" 
+                              loading="lazy">
+                            </iframe>
+                          </div>
+
+                          <div className={`p-4 border-t flex gap-3 transition-colors duration-500 ${isAnimating ? 'bg-white border-[#F2F2F7]' : 'bg-white/30 border-white/40'}`}>
+                            <button 
+                              onClick={() => saveRecommendationWithAnimation(rec)}
+                              disabled={isAnimating}
+                              className={`flex-1 py-3.5 text-center text-sm font-bold transition-all rounded-xl flex items-center justify-center gap-2 shadow-sm
+                                ${isAnimating ? 'bg-[#34C759] text-white scale-95' : 'bg-black text-white hover:bg-black/85 active:scale-95'}`}
+                            >
+                              {isAnimating ? (
+                                <>
+                                  <svg className="w-5 h-5 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7"/></svg>
+                                  實體化中...
+                                </>
+                              ) : (
+                                <>＋ 加入口袋名單</>
+                              )}
+                            </button>
+                          </div>
                         </div>
-                      ))}
+                      )})}
                     </div>
                   </div>
                 )}
 
+                {}
                 {categories.length > 1 && (
-                  <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                  <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 pt-2">
                     {categories.map((cat) => (
                       <button key={cat} onClick={() => setSelectedCategory(cat)} className={`px-4.5 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-200 ${selectedCategory === cat ? 'bg-black text-white shadow-sm' : 'bg-white text-[#1D1D1F] border border-[#E5E5EA] hover:bg-[#F5F5F7]'}`}>
                         {cat}
@@ -689,7 +735,7 @@ export default function App() {
                     <div 
                       key={restaurant.id}
                       className={`bg-white rounded-[28px] shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-[#E5E5EA]/80 overflow-hidden hover:shadow-[0_12px_40px_rgb(0,0,0,0.05)] hover:border-[#D2D2D7]/80 transform hover:-translate-y-0.5 animate-in fade-in slide-in-from-bottom-8 fill-mode-both transition-all duration-400 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${deletingIds.includes(restaurant.id) ? 'scale-90 opacity-0 pointer-events-none' : 'scale-100 opacity-100'}`}
-                      style={{ animationDelay: `${i * 100}ms` }}
+                      style={{ animationDelay: `${i * 50}ms` }}
                     >
                       <div className="p-6 pb-4 relative group/card">
                         <div className="flex flex-wrap items-center gap-2 pr-10">
