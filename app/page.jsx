@@ -228,10 +228,10 @@ const ColorfulBackground = ({ show }) => {
           float n2 = snoise(uv * 2.0 - vec2(t * 0.3, t * 0.8));
           vec2 distortedUv = uv + vec2(n1, n2) * 0.2;
           
-          // User requested colors: #73bfc4, #ff810a, #8da0ce
-          vec3 color1 = vec3(0.45, 0.75, 0.77); 
-          vec3 color2 = vec3(1.0, 0.51, 0.04); 
-          vec3 color3 = vec3(0.55, 0.63, 0.81); 
+          // 視覺一致性：黑、白、灰 高質感流體配置
+          vec3 color1 = vec3(0.96, 0.96, 0.97); // 亮灰白 (貼合原本背景底色)
+          vec3 color2 = vec3(0.12, 0.12, 0.12); // 深灰黑 (增添深邃層次)
+          vec3 color3 = vec3(0.75, 0.75, 0.75); // 銀灰色 (完美過渡)
           
           // Mix colors based on position and time
           float mix1 = smoothstep(0.0, 1.0, sin(distortedUv.x * 4.0 + t) * 0.5 + 0.5);
