@@ -74,7 +74,7 @@ export async function POST(request) {
       return NextResponse.json({ error: "內部 API 設定未完成" }, { status: 500 });
     }
 
-    // 🚀 讓 AI 扮演真正的美食顧問，並啟用 Google Search 功能
+    // 🚀 讓 AI 扮演真正的美食顧問
     const systemPrompt = `你是一個高端的專業美食顧問 AI 助理 Fabrica。請閱讀使用者提供的 Threads 貼文內容，分析並提取出「餐廳名稱」、「分類」以及「地址」。
 
     【核心指令】
@@ -98,21 +98,21 @@ export async function POST(request) {
     };
 
     try {
-      // 🌟 使用最穩定的 gemini-1.5-flash 模型
-      // 並且確保網址後方帶有 ?key=，這是 API Gateway 尋找正確模型的關鍵
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`;
+      // 🌟 升級為最新且最穩定的 gemini-2.0-flash 模型
+      // 網址保留 ?key= 參數，這是 Google API 路由分配的必要條件
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`;
       
       const payload = {
         contents: [{ parts: [{ text: `Threads貼文內容：${textToAnalyze}` }] }],
-        systemInstruction: { parts: [{ text: systemPrompt }] },
-        tools: [{ google_search: {} }] // 啟用 Google 聯網搜尋評價與活動
+        systemInstruction: { parts: [{ text: systemPrompt }] }
+        // ⚠️ 移除不穩定的 google_search 工具，完全依賴 Gemini 2.0 強大的原生知識庫
       };
 
       const geminiResponse = await fetch(geminiUrl, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
-          "x-goog-api-key": geminiApiKey // 🌟 再補上一層 Header，解決新版 AQ. 金鑰格式 Bug
+          "x-goog-api-key": geminiApiKey // 🌟 補上 Header，完美解決 AQ. 新版金鑰解析 Bug
         },
         body: JSON.stringify(payload)
       });
