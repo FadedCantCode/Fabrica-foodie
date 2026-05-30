@@ -98,8 +98,9 @@ export async function POST(request) {
     };
 
     try {
-      // 🌟 將 ?key= 加回網址，這是 API Gateway 尋找模型的關鍵
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${geminiApiKey}`;
+      // 🌟 使用最穩定的 gemini-1.5-flash 模型
+      // 並且確保網址後方帶有 ?key=，這是 API Gateway 尋找正確模型的關鍵
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`;
       
       const payload = {
         contents: [{ parts: [{ text: `Threads貼文內容：${textToAnalyze}` }] }],
@@ -109,7 +110,10 @@ export async function POST(request) {
 
       const geminiResponse = await fetch(geminiUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-goog-api-key": geminiApiKey // 🌟 再補上一層 Header，解決新版 AQ. 金鑰格式 Bug
+        },
         body: JSON.stringify(payload)
       });
 
