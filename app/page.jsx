@@ -151,9 +151,130 @@ const GooeyLoader = () => {
             <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7" result="goo" />
             <feBlend in="SourceGraphic" in2="goo" />
           </filter>
-        </defs>
-      </svg>
-    </div>
+      </defs>
+    </svg>
+  </div>
+  );
+};
+
+// ==========================================
+// 🌈 原生 WebGL 彩色流體漸層背景 (自製高品質 Shader)
+// ==========================================
+const ColorfulBackground = ({ show }) => {
+  const containerRef = useRef(null);
+  
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const container = containerRef.current;
+    const scene = new THREE.Scene();
+    const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    container.appendChild(renderer.domElement);
+
+    const uniforms = {
+      u_time: { value: 0 },
+      u_resolution: { value: new THREE.Vector2(container.clientWidth, container.clientHeight) }
+    };
+
+    const geometry = new THREE.PlaneGeometry(2, 2);
+    const material = new THREE.ShaderMaterial({
+      uniforms,
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float u_time;
+        uniform vec2 u_resolution;
+        varying vec2 vUv;
+
+        // Simple Simplex Noise implementation
+        vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+        vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+        vec3 permute(vec3 x) { return mod289(((x*34.0)+1.0)*x); }
+        float snoise(vec2 v) {
+          const vec4 C = vec4(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);
+          vec2 i  = floor(v + dot(v, C.yy) );
+          vec2 x0 = v -   i + dot(i, C.xx);
+          vec2 i1; i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+          vec4 x12 = x0.xyxy + C.xxzz;
+          x12.xy -= i1;
+          i = mod289(i);
+          vec3 p = permute( permute( i.y + vec3(0.0, i1.y, 1.0 )) + i.x + vec3(0.0, i1.x, 1.0 ));
+          vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
+          m = m*m; m = m*m;
+          vec3 x = 2.0 * fract(p * C.www) - 1.0;
+          vec3 h = abs(x) - 0.5;
+          vec3 ox = floor(x + 0.5);
+          vec3 a0 = x - ox;
+          m *= 1.79284291400159 - 0.85373472095314 * ( a0*a0 + h*h );
+          vec3 g;
+          g.x  = a0.x  * x0.x  + h.x  * x0.y;
+          g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+          return 130.0 * dot(m, g);
+        }
+
+        void main() {
+          vec2 uv = gl_FragCoord.xy / u_resolution.xy;
+          float t = u_time * 0.2;
+          
+          // Generate fluid distortion
+          float n1 = snoise(uv * 1.5 + vec2(t, t * 0.5));
+          float n2 = snoise(uv * 2.0 - vec2(t * 0.3, t * 0.8));
+          vec2 distortedUv = uv + vec2(n1, n2) * 0.2;
+          
+          // User requested colors: #73bfc4, #ff810a, #8da0ce
+          vec3 color1 = vec3(0.45, 0.75, 0.77); 
+          vec3 color2 = vec3(1.0, 0.51, 0.04); 
+          vec3 color3 = vec3(0.55, 0.63, 0.81); 
+          
+          // Mix colors based on position and time
+          float mix1 = smoothstep(0.0, 1.0, sin(distortedUv.x * 4.0 + t) * 0.5 + 0.5);
+          float mix2 = smoothstep(0.0, 1.0, cos(distortedUv.y * 3.0 - t) * 0.5 + 0.5);
+          
+          vec3 finalColor = mix(color1, color2, mix1);
+          finalColor = mix(finalColor, color3, mix2);
+          
+          gl_FragColor = vec4(finalColor, 1.0);
+        }
+      `
+    });
+    const mesh = new THREE.Mesh(geometry, material);
+    scene.add(mesh);
+
+    let animationFrameId;
+    const animate = (time) => {
+      uniforms.u_time.value = time * 0.001;
+      renderer.render(scene, camera);
+      animationFrameId = requestAnimationFrame(animate);
+    };
+    animate(0);
+
+    const handleResize = () => {
+      if (!container) return;
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      uniforms.u_resolution.value.set(container.clientWidth, container.clientHeight);
+    };
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      cancelAnimationFrame(animationFrameId);
+      if (container && renderer.domElement) container.removeChild(renderer.domElement);
+      geometry.dispose(); material.dispose(); renderer.dispose();
+    };
+  }, []);
+
+  return (
+    <div 
+      ref={containerRef} 
+      className={`fixed inset-0 z-0 pointer-events-none transition-opacity duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${show ? 'opacity-100' : 'opacity-0'}`} 
+    />
   );
 };
 
@@ -179,19 +300,12 @@ export default function App() {
   const [dismissedRecommendationIds, setDismissedRecommendationIds] = useState([]); 
   const [toastMessage, setToastMessage] = useState("");
   
-  // 新增：追蹤正在播放「實體化動畫」的卡片 ID
   const [animatingRecId, setAnimatingRecId] = useState(null);
-
-  // 新增：分享連結的擷取狀態
   const [sharedItem, setSharedItem] = useState(null);
-
-  // 新增：Google Maps 地理與自動完成相關狀態
   const [userLocation, setUserLocation] = useState(null);
   const [nameSuggestions, setNameSuggestions] = useState([]);
   const [isTypingName, setIsTypingName] = useState(false);
   const [isSearchingPlaces, setIsSearchingPlaces] = useState(false);
-
-  // 新增：目前選中查看詳細資訊的餐廳
   const [selectedRestaurant, setSelectedRestaurant] = useState(null);
 
   const [newRestName, setNewRestName] = useState("");
@@ -215,7 +329,6 @@ export default function App() {
       const hostname = window.location.hostname;
       setIsSandbox(hostname.includes('usercontent.goog') || hostname.includes('localhost'));
       
-      // 解析網址參數，看看是不是朋友分享進來的連結
       const params = new URLSearchParams(window.location.search);
       if (params.get('share_name')) {
         setSharedItem({
@@ -229,7 +342,7 @@ export default function App() {
     }
   }, []);
 
-  // 3D 背景 WebGL
+  // 3D 登入前黑白液態背景 WebGL
   useEffect(() => {
     if (!mounted || isLoggedIn) return;
     const container = canvasContainerRef.current;
@@ -309,7 +422,7 @@ export default function App() {
     return () => unsubscribe();
   }, [firebaseUser, isLoggedIn, threadsUsername]);
 
-  // 🌟 自動發起 GPS 請求並探測周邊美食 (使用強化版完全免費開源方案)
+  // 自動發起 GPS 請求並探測周邊美食 (使用強化版完全免費開源方案)
   useEffect(() => {
     if (isLoggedIn && typeof window !== 'undefined' && navigator.geolocation && !hasSearchedRef.current) {
       hasSearchedRef.current = true;
@@ -323,13 +436,9 @@ export default function App() {
     }
   }, [isLoggedIn]);
 
-  // 🌟 強化版 Overpass API (解決找不到店家的問題)
   const triggerSilentNearbySearch = async (lat, lng) => {
     setIsLocating(true);
-
     try {
-      // 關鍵修正：將 node 改為 nwr (Node, Way, Relation)，捕捉畫成多邊形(Way)的店家
-      // 加入更多台灣常見的 tags：如 beverages(手搖飲), food_court(美食街)
       const query = `
         [out:json][timeout:15];
         (
@@ -339,7 +448,6 @@ export default function App() {
         out center 8;
       `;
       const osmUrl = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
-
       const response = await fetch(osmUrl);
       const data = await response.json();
 
@@ -359,59 +467,42 @@ export default function App() {
             category: category,
             note: "📍 透過開源地圖雷達探測到的周邊店家。"
           };
-        }).filter(rec => rec.name !== "隱藏版美食"); // 過濾掉沒有名字的雜訊
+        }).filter(rec => rec.name !== "隱藏版美食"); 
         
         setNearbyRecommendations(formattedRecs);
       }
-    } catch (err) {
-      console.error("Auto nearby exploration failed:", err);
-    }
+    } catch (err) { console.error("Auto nearby exploration failed:", err); }
     setIsLocating(false);
   };
 
-  // 🌟 監聽輸入框，自動呼叫 Nominatim (OSM 免費搜尋 API) 進行店名補全
   useEffect(() => {
     const fetchPlaces = async () => {
       if (!newRestName.trim() || !isTypingName) {
         setNameSuggestions([]);
         return;
       }
-
       setIsSearchingPlaces(true);
       try {
-        // 使用 Nominatim 免費 API，限制台灣優先
         let url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(newRestName)}&format=json&addressdetails=1&limit=5&countrycodes=tw`;
-        
         if (userLocation) {
-          // 增加 viewbox 權重，讓定位附近的店家更容易出現在選單上方
           const lonDelta = 0.05; const latDelta = 0.05;
           url += `&viewbox=${userLocation.lng - lonDelta},${userLocation.lat + latDelta},${userLocation.lng + lonDelta},${userLocation.lat - latDelta}&bounded=0`;
         }
-        
-        const response = await fetch(url, {
-          headers: { 'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8' }
-        });
+        const response = await fetch(url, { headers: { 'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8' } });
         const data = await response.json();
         setNameSuggestions(data || []);
-      } catch (err) {
-        console.error("Nominatim API error:", err);
-      }
+      } catch (err) { console.error("Nominatim API error:", err); }
       setIsSearchingPlaces(false);
     };
-
-    const timer = setTimeout(fetchPlaces, 800); // 800ms 防抖 (OSM 要求較嚴格，降低發送頻率)
+    const timer = setTimeout(fetchPlaces, 800); 
     return () => clearTimeout(timer);
   }, [newRestName, isTypingName, userLocation]);
 
   const handleSelectSuggestion = (place) => {
-    // Nominatim 有時候只給 full address，我們抓第一段當店名
     const displayNameArray = place.display_name.split(',');
     const name = place.name || displayNameArray[0].trim();
+    setNewRestName(name); setNewRestAddress(place.display_name || "");
     
-    setNewRestName(name);
-    setNewRestAddress(place.display_name || "");
-    
-    // 從 OSM 資料猜測餐廳分類
     let category = "美食餐廳";
     if (place.type === "cafe") category = "咖啡廳";
     else if (place.type === "fast_food") category = "速食餐飲";
@@ -419,14 +510,14 @@ export default function App() {
     else if (place.type === "beverages") category = "飲料店 • 手搖飲";
     else if (place.type === "restaurant") category = "餐廳";
     
-    setNewRestCategory(category);
-    setIsTypingName(false);
-    setNameSuggestions([]);
+    setNewRestCategory(category); setIsTypingName(false); setNameSuggestions([]);
   };
 
   const handleLogin = (e) => {
     e.preventDefault();
     if (!inputUsername.trim()) { setLoginError("請輸入您的 Threads ID"); return; }
+    
+    // 觸發人機交互絲滑轉場：顯示 Loader、開始預載 Shader 背景
     setIsGlobalTransitioning(true);
     setTimeout(() => {
       let formatted = inputUsername.trim(); if (!formatted.startsWith("@")) formatted = "@" + formatted;
@@ -464,19 +555,12 @@ export default function App() {
     }, 400); 
   };
 
-  // 🌟 加入動畫與邏輯
   const saveRecommendationWithAnimation = (rec) => {
     setAnimatingRecId(rec.id);
-    
-    // 如果裝置支援，觸發微微震動回饋 (Apple-like haptic)
-    if (typeof window !== 'undefined' && navigator.vibrate) {
-      navigator.vibrate(40);
-    }
+    if (typeof window !== 'undefined' && navigator.vibrate) navigator.vibrate(40);
 
-    // 等待動畫播放完畢 (700ms 彈性動畫) 再實際寫入資料庫
     setTimeout(async () => {
       setDismissedRecommendationIds(prev => [...prev, rec.id]);
-
       if (firebaseUser?.uid === "local-temp-guest") {
         const mockDoc = { 
           id: Math.random().toString(), name: rec.name, address: rec.address, 
@@ -500,77 +584,56 @@ export default function App() {
     }, 700);
   };
 
-  const dismissRecommendation = (id) => {
-    setDismissedRecommendationIds(prev => [...prev, id]);
-  };
+  const dismissRecommendation = (id) => setDismissedRecommendationIds(prev => [...prev, id]);
 
-  // 🌟 自動為沒有照片的店家配對高質感預設美食圖 (根據店名產生一致的圖片)
   const getFoodImage = (name) => {
     const images = [
-      "https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=800&auto=format&fit=crop", // 美食總匯
-      "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=800&auto=format&fit=crop", // 餐廳氛圍
-      "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?q=80&w=800&auto=format&fit=crop", // 披薩
-      "https://images.unsplash.com/photo-1414235077428-338988692309?q=80&w=800&auto=format&fit=crop", // 精緻排餐
-      "https://images.unsplash.com/photo-1498654896293-37aacf113fd9?q=80&w=800&auto=format&fit=crop", // 甜點咖啡
-      "https://images.unsplash.com/photo-1525648199074-cee30ba79a4a?q=80&w=800&auto=format&fit=crop"  // 漢堡速食
+      "https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=800&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=800&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?q=80&w=800&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1414235077428-338988692309?q=80&w=800&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1498654896293-37aacf113fd9?q=80&w=800&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1525648199074-cee30ba79a4a?q=80&w=800&auto=format&fit=crop" 
     ];
     if (!name) return images[0];
-    let sum = 0;
-    for (let i = 0; i < name.length; i++) sum += name.charCodeAt(i);
+    let sum = 0; for (let i = 0; i < name.length; i++) sum += name.charCodeAt(i);
     return images[sum % images.length];
   };
 
   const handleShare = async (restaurant) => {
-    // 🌟 產生帶有參數的專屬分享連結
     const url = new URL(window.location.href);
     url.searchParams.set('share_name', restaurant.name || '');
     url.searchParams.set('share_address', restaurant.address || '');
     url.searchParams.set('share_category', restaurant.category || '');
     url.searchParams.set('share_note', restaurant.note || '');
-    // 若原店已有推薦人則保留，否則標記為當前分享的使用者
     url.searchParams.set('share_by', restaurant.recommendedBy || threadsUsername.replace('@', ''));
 
     const shareUrl = url.toString();
     const shareText = `這家感覺不錯！📍 ${restaurant.name}\n🏠 ${restaurant.address}\n✨ ${restaurant.note}\n\n— 來自 Fabrica Foodie`;
-    const shareData = {
-      title: 'Fabrica Foodie 推薦',
-      text: shareText,
-      url: shareUrl
-    };
-
+    
     try {
-      if (navigator.share) {
-        await navigator.share(shareData);
-      } else {
+      if (navigator.share) { await navigator.share({ title: 'Fabrica Foodie 推薦', text: shareText, url: shareUrl }); } 
+      else {
         await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
-        setToastMessage("專屬連結已複製到剪貼簿！");
-        setTimeout(() => setToastMessage(""), 3000);
+        setToastMessage("專屬連結已複製到剪貼簿！"); setTimeout(() => setToastMessage(""), 3000);
       }
-    } catch (err) {
-      console.error('Share failed:', err);
-    }
+    } catch (err) { console.error('Share failed:', err); }
   };
 
-  // 🌟 處理分享小卡的按鈕事件
   const clearSharedItem = () => {
     setSharedItem(null);
     if (typeof window !== 'undefined' && window.history.replaceState) {
-      const url = new URL(window.location.href);
-      url.search = '';
-      window.history.replaceState({}, document.title, url.toString());
+      const url = new URL(window.location.href); url.search = ''; window.history.replaceState({}, document.title, url.toString());
     }
   };
 
   const handleAcceptShared = async () => {
     if (!sharedItem) return;
-    
     const cleanRecommender = sharedItem.recommendedBy.replace("@", "").trim();
     if (firebaseUser?.uid === "local-temp-guest") {
       const mockDoc = {
-        id: Math.random().toString(),
-        name: sharedItem.name, address: sharedItem.address, category: sharedItem.category, 
-        note: sharedItem.note, recommendedBy: cleanRecommender, 
-        savedAt: { seconds: Math.floor(Date.now() / 1000) }, threadsUrl: "" 
+        id: Math.random().toString(), name: sharedItem.name, address: sharedItem.address, category: sharedItem.category, 
+        note: sharedItem.note, recommendedBy: cleanRecommender, savedAt: { seconds: Math.floor(Date.now() / 1000) }, threadsUrl: "" 
       };
       setRestaurants(prev => [mockDoc, ...prev]);
     } else {
@@ -579,65 +642,43 @@ export default function App() {
         const userRestaurantsRef = collection(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants');
         await addDoc(userRestaurantsRef, {
           name: sharedItem.name, address: sharedItem.address, category: sharedItem.category, 
-          note: sharedItem.note, recommendedBy: cleanRecommender, 
-          savedAt: serverTimestamp(), threadsUrl: "" 
+          note: sharedItem.note, recommendedBy: cleanRecommender, savedAt: serverTimestamp(), threadsUrl: "" 
         });
       } catch (err) { console.error("Error adding shared document:", err); }
     }
-
-    setToastMessage(`🎉 成功將 ${sharedItem.name} 收藏至您的地圖！`);
-    setTimeout(() => setToastMessage(""), 3000);
+    setToastMessage(`🎉 成功將 ${sharedItem.name} 收藏至您的地圖！`); setTimeout(() => setToastMessage(""), 3000);
     clearSharedItem();
   };
 
   const handleAddRestaurant = async (e) => {
-    e.preventDefault();
-    if (!newRestName.trim()) return;
-    setIsGlobalTransitioning(true); 
+    e.preventDefault(); if (!newRestName.trim()) return; setIsGlobalTransitioning(true); 
 
     let finalNote = newRestNote;
-
     if (!finalNote.trim()) {
       try {
         const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
         const payload = {
           contents: [{ parts: [{ text: `請分析台灣的這間餐廳：${newRestName} ${newRestAddress}。請綜合網路評價特色給出建議。` }] }],
-          // 修正 AI 話講一半的問題：加上了強制完整結尾的指令
           systemInstruction: { parts: [{ text: "你是一個高端美食顧問 Fabrica。請用 50-80 字精煉總結這家餐廳的真實網路評價、特色招牌菜色。請務必確保語意完整、順利結尾，絕不可話講一半。語氣要專業、具質感，不需加上 Markdown 標籤，直接給出純文字結果。" }] }
         };
 
-        const geminiResponse = await fetch(geminiUrl, { 
-          method: "POST", 
-          headers: { 
-            "Content-Type": "application/json",
-            "x-goog-api-key": apiKey 
-          }, 
-          body: JSON.stringify(payload) 
-        });
+        const geminiResponse = await fetch(geminiUrl, { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey }, body: JSON.stringify(payload) });
         const geminiData = await geminiResponse.json();
         
-        if (geminiData.error) {
-          console.error("Gemini API Error:", geminiData.error);
-          finalNote = `【AI 連線失敗】錯誤代碼：${geminiData.error.code}。詳細原因：${geminiData.error.message}`;
-        } else {
+        if (geminiData.error) { finalNote = `【AI 連線失敗】錯誤代碼：${geminiData.error.code}。詳細原因：${geminiData.error.message}`; } 
+        else {
           const aiText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
           finalNote = aiText ? aiText.trim() : "暫無 AI 分析結果，系統已將其加入您的口袋名單。";
         }
-      } catch (err) {
-        console.error("AI Generation error:", err);
-        finalNote = "連線 AI 引擎時發生網路錯誤，已為您預設儲存。";
-      }
+      } catch (err) { finalNote = "連線 AI 引擎時發生網路錯誤，已為您預設儲存。"; }
     }
 
     const cleanRecommender = newRestRecommender.replace("@", "").trim();
-
     if (firebaseUser?.uid === "local-temp-guest") {
       const mockDoc = {
-        id: Math.random().toString(),
-        name: newRestName, address: newRestAddress || "僅提供店名定位", category: newRestCategory, note: finalNote,
-        recommendedBy: cleanRecommender, 
-        savedAt: { seconds: Math.floor(Date.now() / 1000) }, threadsUrl: "" 
+        id: Math.random().toString(), name: newRestName, address: newRestAddress || "僅提供店名定位", category: newRestCategory, note: finalNote,
+        recommendedBy: cleanRecommender, savedAt: { seconds: Math.floor(Date.now() / 1000) }, threadsUrl: "" 
       };
       setRestaurants(prev => [mockDoc, ...prev]);
     } else {
@@ -646,30 +687,21 @@ export default function App() {
         const userRestaurantsRef = collection(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants');
         await addDoc(userRestaurantsRef, {
           name: newRestName, address: newRestAddress || "僅提供店名定位", category: newRestCategory, note: finalNote,
-          recommendedBy: cleanRecommender, 
-          savedAt: serverTimestamp(), threadsUrl: "" 
+          recommendedBy: cleanRecommender, savedAt: serverTimestamp(), threadsUrl: "" 
         });
       } catch (err) { console.error("Error adding document:", err); }
     }
-
     setNewRestName(""); setNewRestAddress(""); setNewRestNote(""); setNewRestRecommender("");
     setTimeout(() => { setIsGlobalTransitioning(false); closeAddModal(); }, 1500);
   };
 
   const categories = ["全部", ...new Set(restaurants.map(r => r.category ? r.category.split(" • ")[0] : "未分類"))];
   const filteredRestaurants = restaurants.filter(restaurant => {
-    const name = restaurant.name || ""; 
-    const address = restaurant.address || ""; 
-    const note = restaurant.note || ""; 
-    const category = restaurant.category || "";
+    const name = restaurant.name || ""; const address = restaurant.address || ""; 
+    const note = restaurant.note || ""; const category = restaurant.category || "";
     const recommender = restaurant.recommendedBy || ""; 
-
     const q = searchQuery.toLowerCase();
-    const matchesSearch = name.toLowerCase().includes(q) || 
-                          address.toLowerCase().includes(q) || 
-                          note.toLowerCase().includes(q) ||
-                          recommender.toLowerCase().includes(q.replace("@", "")); 
-                          
+    const matchesSearch = name.toLowerCase().includes(q) || address.toLowerCase().includes(q) || note.toLowerCase().includes(q) || recommender.toLowerCase().includes(q.replace("@", "")); 
     const matchesCategory = selectedCategory === "全部" || category.startsWith(selectedCategory);
     return matchesSearch && matchesCategory;
   });
@@ -677,25 +709,30 @@ export default function App() {
   const activeRecommendations = nearbyRecommendations.filter(rec => !dismissedRecommendationIds.includes(rec.id));
 
   return (
-    <div className="relative min-h-screen bg-[#F4F4F6] text-[#1D1D1F] tracking-tight font-sans antialiased overflow-x-hidden">
+    <div className="relative min-h-screen text-[#1D1D1F] tracking-tight font-sans antialiased overflow-x-hidden bg-[#F4F4F6]">
       
+      {/* 🌟 原生 WebGL 彩色流體漸層背景：只要進入轉場狀態或登入成功即開始渲染 */}
+      <ColorfulBackground show={isLoggedIn || isGlobalTransitioning} />
+
       {/* 🌟 頂級果凍 Loader 全局轉場覆蓋層 */}
-      <div className={`fixed inset-0 z-[100] flex flex-col items-center justify-center bg-white/70 backdrop-blur-xl transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isGlobalTransitioning ? 'opacity-100 visible' : 'opacity-0 invisible'}`}>
+      <div className={`fixed inset-0 z-[100] flex flex-col items-center justify-center bg-white/40 backdrop-blur-3xl transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isGlobalTransitioning ? 'opacity-100 visible' : 'opacity-0 invisible'}`}>
         <GooeyLoader />
       </div>
 
-      {!isLoggedIn && (
-        <div ref={canvasContainerRef} className="fixed inset-0 z-0 bg-[#F4F4F6] w-screen h-screen pointer-events-auto transition-opacity duration-1000" />
-      )}
+      {/* 登入前的黑白原生著色器背景 */}
+      <div 
+        ref={canvasContainerRef} 
+        className={`fixed inset-0 z-0 w-screen h-screen pointer-events-auto transition-opacity duration-1000 ease-in-out ${isLoggedIn || isGlobalTransitioning ? 'opacity-0 invisible' : 'opacity-100 visible'}`} 
+      />
 
       {/* ==================== 頁面容器 ==================== */}
-      <div className={`relative z-10 transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isGlobalTransitioning ? 'scale-[0.98] opacity-50 blur-sm pointer-events-none' : 'scale-100 opacity-100 blur-0'}`}>
+      <div className={`relative z-10 w-full h-full`}>
         
         {!isLoggedIn ? (
-          <div className="min-h-screen flex flex-col justify-between px-6 py-10 max-w-sm mx-auto pointer-events-none">
+          <div className={`min-h-screen flex flex-col justify-between px-6 py-10 max-w-sm mx-auto transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isGlobalTransitioning ? 'opacity-0 scale-[0.98] blur-md translate-y-4' : 'opacity-100 scale-100 blur-0 translate-y-0'}`}>
             <div className="flex-1 flex flex-col justify-center space-y-10 py-8 pointer-events-auto">
               <div className="text-center space-y-5">
-                <div className="w-16 h-16 bg-black rounded-[20px] mx-auto flex items-center justify-center shadow-[0_10px_25px_rgba(0,0,0,0.15)] transform hover:scale-[1.03] transition-all duration-300">
+                <div className="w-16 h-16 bg-black rounded-[20px] mx-auto flex items-center justify-center shadow-[0_10px_25px_rgba(0,0,0,0.15)] transform hover:scale-110 active:scale-95 transition-all duration-300">
                   <svg className="w-8 h-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3" strokeWidth="1.5"/></svg>
                 </div>
                 <div className="space-y-2">
@@ -706,19 +743,19 @@ export default function App() {
                 </div>
               </div>
 
-              <form onSubmit={handleLogin} className="space-y-5 bg-white/45 backdrop-blur-xl border border-white/60 p-6 rounded-[32px] shadow-[0_20px_40px_rgba(0,0,0,0.03)]">
+              <form onSubmit={handleLogin} className="space-y-5 bg-white/45 backdrop-blur-xl border border-white/60 p-6 rounded-[32px] shadow-[0_20px_40px_rgba(0,0,0,0.03)] hover:shadow-lg transition-shadow">
                 <div className="space-y-3">
-                  <div className="relative flex items-center w-full">
-                    <span className="absolute left-5 top-1/2 -translate-y-1/2 text-base font-semibold text-[#86868B] select-none pointer-events-none">@</span>
+                  <div className="relative flex items-center w-full group">
+                    <span className="absolute left-5 top-1/2 -translate-y-1/2 text-base font-semibold text-[#86868B] select-none pointer-events-none group-focus-within:text-black transition-colors">@</span>
                     <input 
                       type="text" placeholder="輸入您的 Threads 帳號" value={inputUsername} onChange={(e) => setInputUsername(e.target.value.replace("@", ""))}
-                      className="w-full bg-white/80 text-base font-medium rounded-2xl py-4.5 pl-12 pr-5 border border-[#D2D2D7] focus:border-black focus:ring-1 focus:ring-black outline-none transition-all duration-200 placeholder-[#86868B]/70 shadow-[0_2px_8px_rgba(0,0,0,0.01)]"
+                      className="w-full bg-white/80 text-base font-medium rounded-2xl py-4.5 pl-12 pr-5 border border-[#D2D2D7] focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all duration-300 placeholder-[#86868B]/70 shadow-[0_2px_8px_rgba(0,0,0,0.01)]"
                     />
                   </div>
                   {loginError && <p className="text-xs text-[#FF3B30] font-medium pl-3.5 flex items-center gap-1.5 animate-in fade-in duration-200"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>{loginError}</p>}
                 </div>
 
-                <button type="submit" className="group relative cursor-pointer w-full h-[56px] border border-[#D2D2D7] bg-white rounded-2xl overflow-hidden text-[#1D1D1F] font-semibold transition-all duration-300 shadow-sm active:scale-[0.98] outline-none">
+                <button type="submit" className="group relative cursor-pointer w-full h-[56px] border border-[#D2D2D7] bg-white rounded-2xl overflow-hidden text-[#1D1D1F] font-semibold transition-all duration-300 shadow-sm hover:shadow-md active:scale-[0.98] outline-none">
                   <div className="absolute inset-0 flex items-center justify-center translate-x-0 group-hover:translate-x-16 group-hover:opacity-0 transition-all duration-300 z-20 pointer-events-none select-none">進入美食檔案</div>
                   <div className="absolute inset-0 flex gap-2 items-center justify-center text-white z-20 translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none select-none">
                     <span className="font-semibold text-sm">進入美食檔案</span><svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
@@ -731,42 +768,42 @@ export default function App() {
           </div>
 
         ) : (
-          /* ---------------- iOS 主檔案庫面板 ---------------- */
-          <div className="pb-20 bg-[#F4F4F6] min-h-screen animate-fade-in">
-            <header className="sticky top-0 z-40 bg-[#F4F4F6]/80 backdrop-blur-xl border-b border-[#E5E5EA] px-6 py-4">
+          /* ---------------- iOS 主檔案庫面板 (加入全局毛玻璃以透出流體色彩) ---------------- */
+          <div className={`pb-20 min-h-screen transition-all duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isGlobalTransitioning ? 'opacity-0 translate-y-12 scale-[0.97] blur-md' : 'opacity-100 translate-y-0 scale-100 blur-0'}`}>
+            <header className="sticky top-0 z-40 bg-white/40 backdrop-blur-2xl border-b border-white/30 px-6 py-4 shadow-[0_4px_30px_rgba(0,0,0,0.05)]">
               <div className="max-w-md mx-auto flex justify-between items-center">
                 <div className="flex flex-col">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-bold tracking-wider text-[#86868B] uppercase">FABRICA MAPS</span>
+                    <span className="text-[10px] font-bold tracking-wider text-[#555555] uppercase">FABRICA MAPS</span>
                     {firebaseUser?.uid === "local-temp-guest" ? (
                       <span className="inline-flex items-center text-[9px] font-semibold text-[#FF9500] bg-[#FF9500]/10 px-2 py-0.5 rounded-md"><span className="w-1 h-1 bg-[#FF9500] rounded-full mr-1 animate-pulse" /> 本地暫存</span>
                     ) : (
-                      <span className="inline-flex items-center text-[9px] font-semibold text-[#34C759] bg-[#34C759]/10 px-2 py-0.5 rounded-md"><span className="w-1 h-1 bg-[#34C759] rounded-full mr-1" /> 雲端已連線</span>
+                      <span className="inline-flex items-center text-[9px] font-semibold text-[#34C759] bg-[#34C759]/20 px-2 py-0.5 rounded-md backdrop-blur-sm"><span className="w-1 h-1 bg-[#34C759] rounded-full mr-1" /> 雲端連線</span>
                     )}
                   </div>
                   <h1 className="text-lg font-bold tracking-tight text-black mt-0.5">{threadsUsername}</h1>
                 </div>
-                <button onClick={handleLogout} className="text-xs font-semibold text-[#86868B] hover:text-black hover:bg-[#E8E8ED] bg-white border border-[#E5E5EA] px-3.5 py-1.5 rounded-full transition-all duration-200 shadow-sm">
+                <button onClick={handleLogout} className="text-xs font-semibold text-[#555555] hover:text-black hover:bg-white/60 bg-white/40 backdrop-blur-md border border-white/50 px-3.5 py-1.5 rounded-full transition-all duration-300 shadow-sm active:scale-95">
                   登出
                 </button>
               </div>
             </header>
 
-            <main className="max-w-md mx-auto px-4 mt-6 space-y-6">
+            <main className="max-w-md mx-auto px-4 mt-6 space-y-6 relative z-10">
               
               <button 
                 onClick={() => setShowAddModal(true)}
-                className="w-full bg-white hover:bg-[#F9F9FB] active:scale-[0.98] transition-all py-3.5 rounded-2xl border border-dashed border-[#C7C7CC] text-sm font-bold text-[#0071E3] flex items-center justify-center gap-2 shadow-sm"
+                className="w-full bg-white/60 backdrop-blur-xl hover:bg-white/80 active:scale-95 transition-all duration-300 py-3.5 rounded-2xl border border-white/50 text-sm font-bold text-[#1D1D1F] flex items-center justify-center gap-2 shadow-sm"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4"/>
                 </svg>
-                手動新增美食口袋名單
+                手動新增口袋名單
               </button>
 
               <section className="space-y-4">
-                <div className="relative flex items-center w-full">
-                  <svg className="w-4 h-4 text-[#86868B] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none select-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="relative flex items-center w-full group">
+                  <svg className="w-4 h-4 text-[#86868B] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none select-none group-focus-within:text-black transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
                   </svg>
                   <input 
@@ -774,17 +811,17 @@ export default function App() {
                     placeholder="搜尋餐廳、地址或推薦人..." 
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full bg-white text-sm font-medium rounded-2xl py-3 pl-10 pr-4 border border-[#D2D2D7] focus:border-black focus:ring-1 focus:ring-black outline-none transition-all duration-200 shadow-sm placeholder-[#86868B]"
+                    className="w-full bg-white/60 backdrop-blur-xl text-sm font-medium rounded-2xl py-3 pl-10 pr-4 border border-white/50 focus:bg-white/90 focus:ring-2 focus:ring-black/10 outline-none transition-all duration-300 shadow-sm placeholder-[#86868B]"
                   />
                 </div>
 
-                {/* 分類過濾器 */}
+                {/* 分類過濾器 (加入毛玻璃與平滑縮放) */}
                 <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4">
                   {categories.map(cat => (
                     <button 
                       key={cat} 
                       onClick={() => setSelectedCategory(cat)} 
-                      className={`flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-bold transition-all ${selectedCategory === cat ? 'bg-black text-white shadow-md' : 'bg-white text-[#86868B] border border-[#E5E5EA] hover:border-black hover:text-black'}`}
+                      className={`flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-300 active:scale-95 ${selectedCategory === cat ? 'bg-black/80 backdrop-blur-md text-white shadow-md' : 'bg-white/50 backdrop-blur-md text-[#555] border border-white/40 hover:bg-white/80 hover:text-black'}`}
                     >
                       {cat}
                     </button>
@@ -795,7 +832,7 @@ export default function App() {
               {/* 附近推薦區域 */}
               {activeRecommendations.length > 0 && (
                 <section className="space-y-3">
-                  <h2 className="text-[13px] font-bold text-[#86868B] uppercase tracking-wider flex items-center gap-1.5">
+                  <h2 className="text-[13px] font-bold text-[#555] uppercase tracking-wider flex items-center gap-1.5 backdrop-blur-sm w-fit px-2 py-0.5 rounded-lg bg-white/20">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                     附近為您探索的隱藏版
                   </h2>
@@ -803,16 +840,14 @@ export default function App() {
                     {activeRecommendations.map(rec => (
                       <div 
                         key={rec.id} 
-                        className={`group flex-shrink-0 w-64 bg-white p-2 rounded-[24px] shadow-sm border border-[#E5E5EA] transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${animatingRecId === rec.id ? 'scale-[0.8] opacity-0' : 'scale-100 opacity-100'}`}
+                        className={`group flex-shrink-0 w-64 bg-white/70 backdrop-blur-2xl p-2 rounded-[24px] shadow-sm border border-white/40 transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${animatingRecId === rec.id ? 'scale-[0.8] opacity-0' : 'scale-100 opacity-100 hover:shadow-lg'}`}
                       >
-                        {/* 完美填滿框的圖片 */}
-                        <figure className='w-full h-40 relative overflow-hidden rounded-[18px] bg-[#F5F5F7]'>
+                        <figure className='w-full h-40 relative overflow-hidden rounded-[18px] bg-black/5'>
                           <img 
                             src={getFoodImage(rec.name)} 
                             alt={rec.name} 
                             className='w-full h-full object-cover transition-transform duration-700 group-hover:scale-110' 
                           />
-                          {/* 圖片上方的漸層保護色與懸浮標籤 */}
                           <div className='absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent'></div>
                           <span className="absolute top-3 left-3 text-[10px] font-bold text-white bg-black/40 backdrop-blur-md px-2 py-1 rounded-md shadow-sm border border-white/20">
                             {rec.category}
@@ -821,13 +856,13 @@ export default function App() {
                         </figure>
                         
                         <article className='p-3 pt-2 space-y-1 relative'>
-                          <p className="text-[11px] text-[#86868B] line-clamp-1 mt-0.5">{rec.address}</p>
+                          <p className="text-[11px] text-[#555] line-clamp-1 mt-0.5 font-medium">{rec.address}</p>
                           
                           <div className='flex gap-2 pt-2 transition-all duration-300'>
-                            <button onClick={() => dismissRecommendation(rec.id)} className="flex-1 py-2 text-[11px] font-bold text-[#86868B] hover:bg-[#F5F5F7] bg-[#F9F9FB] rounded-xl transition-colors">
+                            <button onClick={() => dismissRecommendation(rec.id)} className="flex-1 py-2 text-[11px] font-bold text-[#555] hover:bg-white/80 bg-white/40 rounded-xl transition-all active:scale-95 shadow-sm border border-white/40">
                               略過
                             </button>
-                            <button onClick={() => saveRecommendationWithAnimation(rec)} className="flex-1 py-2 text-[11px] font-bold text-[#0071E3] hover:bg-[#0071E3]/10 bg-[#0071E3]/5 rounded-xl transition-colors flex items-center justify-center gap-1">
+                            <button onClick={() => saveRecommendationWithAnimation(rec)} className="flex-1 py-2 text-[11px] font-bold text-[#0071E3] hover:bg-[#0071E3]/10 bg-white/60 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-1 shadow-sm border border-white/40">
                               實體化
                               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7"/></svg>
                             </button>
@@ -849,32 +884,28 @@ export default function App() {
                   filteredRestaurants.map(restaurant => (
                     <div 
                       key={restaurant.id} 
-                      className={`group bg-white p-2 rounded-[24px] shadow-sm border border-[#E5E5EA] transition-all duration-400 ease-out overflow-hidden cursor-pointer hover:shadow-md ${deletingIds.includes(restaurant.id) ? 'scale-95 opacity-0' : 'scale-100 opacity-100'}`}
+                      className={`group bg-white/70 backdrop-blur-3xl p-2 rounded-[24px] shadow-sm border border-white/50 transition-all duration-400 ease-out overflow-hidden cursor-pointer hover:shadow-lg hover:bg-white/80 ${deletingIds.includes(restaurant.id) ? 'scale-95 opacity-0 translate-y-4' : 'scale-100 opacity-100 translate-y-0'}`}
                       onClick={() => setSelectedRestaurant(restaurant)}
                     >
-                      {/* 完美填滿框的圖片展示區塊 */}
-                      <figure className='w-full h-56 relative overflow-hidden rounded-[18px] bg-[#F5F5F7]'>
+                      <figure className='w-full h-56 relative overflow-hidden rounded-[18px] bg-black/5'>
                         <img 
                           src={getFoodImage(restaurant.name)} 
                           alt={restaurant.name} 
                           className='w-full h-full object-cover transition-transform duration-700 group-hover:scale-105'
                         />
-                        {/* 暗色漸層確保文字清晰 */}
                         <div className='absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 opacity-80 group-hover:opacity-100 transition-opacity duration-300'></div>
                         
-                        {/* 左上角懸浮：分類標籤 */}
-                        <span className="absolute top-3 left-3 text-[10px] font-bold text-white bg-black/30 backdrop-blur-md px-2.5 py-1 rounded-md border border-white/20 shadow-sm z-10">
+                        <span className="absolute top-3 left-3 text-[10px] font-bold text-white bg-black/30 backdrop-blur-md px-2.5 py-1 rounded-md border border-white/20 shadow-sm z-10 transition-transform group-hover:scale-105">
                           {restaurant.category || '未分類'}
                         </span>
 
-                        {/* 右上角懸浮：推薦人標籤 */}
                         {restaurant.recommendedBy && (
                           <a 
                             href={`https://www.threads.net/@${restaurant.recommendedBy.replace('@', '')}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()} // 避免觸發卡片點擊
-                            className="absolute top-3 right-3 z-20 bg-white/90 backdrop-blur-md px-2.5 py-1 rounded-full flex items-center gap-1.5 text-[10px] font-bold text-[#1D1D1F] shadow-md hover:scale-105 transition-transform"
+                            onClick={(e) => e.stopPropagation()} 
+                            className="absolute top-3 right-3 z-20 bg-white/90 backdrop-blur-md px-2.5 py-1 rounded-full flex items-center gap-1.5 text-[10px] font-bold text-[#1D1D1F] shadow-md hover:scale-110 active:scale-95 transition-transform"
                           >
                             <div className="w-3.5 h-3.5 rounded-full bg-gradient-to-br from-purple-500 to-orange-400 flex items-center justify-center text-white text-[8px]">
                               {restaurant.recommendedBy.replace('@', '').charAt(0).toUpperCase()}
@@ -883,27 +914,24 @@ export default function App() {
                           </a>
                         )}
 
-                        {/* 底部懸浮：店名與地址預覽 */}
-                        <div className="absolute bottom-3 left-4 right-4 z-10">
+                        <div className="absolute bottom-3 left-4 right-4 z-10 transition-transform duration-300 group-hover:-translate-y-1">
                            <h3 className='text-xl font-bold text-white leading-tight line-clamp-1 drop-shadow-md'>{restaurant.name}</h3>
-                           <div className="flex items-center gap-1 mt-1 text-white/80 text-xs">
+                           <div className="flex items-center gap-1 mt-1 text-white/90 text-xs">
                              <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3" strokeWidth="2"/></svg>
-                             <span className="line-clamp-1 drop-shadow-sm">{restaurant.address}</span>
+                             <span className="line-clamp-1 drop-shadow-sm font-medium">{restaurant.address}</span>
                            </div>
                         </div>
                       </figure>
 
                       <article className='px-3 pt-3 pb-2 relative'>
-                        {/* 這裡保留短評預覽 (最多兩行)，點擊卡片可看全部 */}
                         {restaurant.note && (
-                          <p className='text-[13px] text-[#86868B] leading-relaxed line-clamp-2'>{restaurant.note}</p>
+                          <p className='text-[13px] text-[#444] font-medium leading-relaxed line-clamp-2'>{restaurant.note}</p>
                         )}
 
-                        {/* 操作按鈕：注意這裡加入 e.stopPropagation() 避免觸發卡片彈出 */}
-                        <div className='flex justify-between items-center pt-3 mt-2 border-t border-[#F2F2F7]'>
+                        <div className='flex justify-between items-center pt-3 mt-2 border-t border-white/40'>
                           <button 
                             onClick={(e) => { e.stopPropagation(); handleDeleteRestaurant(restaurant.id); }} 
-                            className="flex items-center gap-1.5 text-xs font-bold text-[#FF3B30] hover:bg-[#FF3B30]/10 px-3 py-1.5 rounded-lg transition-colors"
+                            className="flex items-center gap-1.5 text-xs font-bold text-[#FF3B30] hover:bg-white/60 px-3 py-1.5 rounded-lg transition-all active:scale-95"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                             刪除
@@ -911,7 +939,7 @@ export default function App() {
                           
                           <button 
                             onClick={(e) => { e.stopPropagation(); handleShare(restaurant); }} 
-                            className="flex items-center gap-1 text-xs font-bold text-[#0071E3] hover:bg-[#0071E3]/10 px-3 py-1.5 rounded-lg transition-colors ml-auto"
+                            className="flex items-center gap-1 text-xs font-bold text-[#1D1D1F] hover:bg-white/60 px-3 py-1.5 rounded-lg transition-all active:scale-95 ml-auto"
                           >
                             分享名單
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7"/></svg>
@@ -921,12 +949,12 @@ export default function App() {
                     </div>
                   ))
                 ) : (
-                  <div className="text-center py-16 px-4">
-                    <div className="w-16 h-16 bg-white rounded-full mx-auto flex items-center justify-center shadow-sm border border-[#E5E5EA] mb-4">
-                      <svg className="w-8 h-8 text-[#C7C7CC]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                  <div className="text-center py-16 px-4 bg-white/40 backdrop-blur-xl rounded-[32px] border border-white/40 shadow-sm">
+                    <div className="w-16 h-16 bg-white/60 backdrop-blur-md rounded-full mx-auto flex items-center justify-center shadow-sm border border-white/50 mb-4 hover:scale-110 transition-transform">
+                      <svg className="w-8 h-8 text-[#888]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
                     </div>
                     <h3 className="text-[#1D1D1F] font-bold mb-1">找不到相關餐廳</h3>
-                    <p className="text-sm text-[#86868B]">嘗試不同的搜尋關鍵字或分類</p>
+                    <p className="text-sm text-[#555] font-medium">嘗試不同的搜尋關鍵字或分類</p>
                   </div>
                 )}
               </section>
@@ -937,15 +965,15 @@ export default function App() {
 
       {/* 新增餐廳 Modal */}
       {showAddModal && (
-        <div className={`fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 sm:px-4 pb-0 sm:pb-10 transition-all duration-400 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isClosingModal ? 'opacity-0' : 'opacity-100'}`}>
+        <div className={`fixed inset-0 z-[120] flex items-end sm:items-center justify-center px-0 sm:px-4 pb-0 sm:pb-10 transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isClosingModal ? 'opacity-0' : 'opacity-100'}`}>
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeAddModal} />
-          <div className={`relative w-full max-w-md bg-white rounded-t-[32px] sm:rounded-[32px] p-6 sm:p-8 shadow-2xl transition-transform duration-400 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isClosingModal ? 'translate-y-full sm:translate-y-10 sm:scale-95' : 'translate-y-0 sm:scale-100'} max-h-[90vh] overflow-y-auto`}>
+          <div className={`relative w-full max-w-md bg-white/90 backdrop-blur-2xl rounded-t-[32px] sm:rounded-[32px] p-6 sm:p-8 shadow-2xl border border-white/50 transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isClosingModal ? 'translate-y-full sm:translate-y-10 sm:scale-95 blur-sm' : 'translate-y-0 sm:scale-100 blur-0'} max-h-[90vh] overflow-y-auto`}>
             
-            <div className="w-12 h-1.5 bg-[#E5E5EA] rounded-full mx-auto mb-6 sm:hidden" />
+            <div className="w-12 h-1.5 bg-[#D2D2D7] rounded-full mx-auto mb-6 sm:hidden" />
             
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold text-black tracking-tight">新增口袋名單</h2>
-              <button onClick={closeAddModal} className="w-8 h-8 flex items-center justify-center bg-[#F5F5F7] hover:bg-[#E8E8ED] rounded-full text-[#86868B] transition-colors">
+              <button onClick={closeAddModal} className="w-8 h-8 flex items-center justify-center bg-black/5 hover:bg-black/10 rounded-full text-[#555] transition-all active:scale-90">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
               </button>
             </div>
@@ -959,23 +987,22 @@ export default function App() {
                   placeholder="例如：Fabrica 咖啡廳" 
                   value={newRestName} 
                   onChange={(e) => { setNewRestName(e.target.value); setIsTypingName(true); }} 
-                  className="w-full bg-[#F5F5F7] text-sm font-medium rounded-xl py-3.5 px-4 border border-transparent focus:bg-white focus:border-black focus:ring-1 focus:ring-black outline-none transition-all" 
+                  className="w-full bg-black/5 text-sm font-bold rounded-xl py-3.5 px-4 border border-transparent focus:bg-white focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all shadow-inner" 
                 />
                 
-                {/* 地點建議下拉選單 (OSM 免費版) */}
                 {isTypingName && (nameSuggestions.length > 0 || isSearchingPlaces) && (
-                  <div className="absolute top-[76px] left-0 right-0 bg-white rounded-xl shadow-xl border border-[#E5E5EA] overflow-hidden z-50 max-h-48 overflow-y-auto">
+                  <div className="absolute top-[76px] left-0 right-0 bg-white/95 backdrop-blur-xl rounded-xl shadow-2xl border border-black/10 overflow-hidden z-50 max-h-48 overflow-y-auto animate-fade-in-up">
                     {isSearchingPlaces ? (
-                       <div className="p-3 text-xs text-center text-[#86868B]">搜尋地圖座標中...</div>
+                       <div className="p-3 text-xs text-center text-[#86868B] animate-pulse">搜尋地圖座標中...</div>
                     ) : (
                        nameSuggestions.map(place => (
                          <div 
                            key={place.place_id} 
                            onClick={() => handleSelectSuggestion(place)}
-                           className="p-3 hover:bg-[#F5F5F7] cursor-pointer border-b border-[#F2F2F7] last:border-0"
+                           className="p-3 hover:bg-black/5 cursor-pointer border-b border-black/5 last:border-0 transition-colors"
                          >
                            <div className="font-bold text-sm text-[#1D1D1F] text-left">{place.name || place.display_name.split(',')[0]}</div>
-                           <div className="text-[11px] text-[#86868B] mt-0.5 line-clamp-1 text-left">{place.display_name}</div>
+                           <div className="text-[11px] text-[#86868B] mt-0.5 line-clamp-1 text-left font-medium">{place.display_name}</div>
                          </div>
                        ))
                     )}
@@ -985,38 +1012,38 @@ export default function App() {
               
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-[#86868B] ml-1 uppercase tracking-wider">分類</label>
-                <input type="text" placeholder="例如：日式甜點 • 咖啡廳" value={newRestCategory} onChange={(e) => setNewRestCategory(e.target.value)} className="w-full bg-[#F5F5F7] text-sm font-medium rounded-xl py-3.5 px-4 border border-transparent focus:bg-white focus:border-black focus:ring-1 focus:ring-black outline-none transition-all" />
+                <input type="text" placeholder="例如：日式甜點 • 咖啡廳" value={newRestCategory} onChange={(e) => setNewRestCategory(e.target.value)} className="w-full bg-black/5 text-sm font-bold rounded-xl py-3.5 px-4 border border-transparent focus:bg-white focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all shadow-inner" />
               </div>
 
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-[#86868B] ml-1 uppercase tracking-wider">地址或區域</label>
-                <input type="text" placeholder="例如：台北市中山區" value={newRestAddress} onChange={(e) => setNewRestAddress(e.target.value)} className="w-full bg-[#F5F5F7] text-sm font-medium rounded-xl py-3.5 px-4 border border-transparent focus:bg-white focus:border-black focus:ring-1 focus:ring-black outline-none transition-all" />
+                <input type="text" placeholder="例如：台北市中山區" value={newRestAddress} onChange={(e) => setNewRestAddress(e.target.value)} className="w-full bg-black/5 text-sm font-bold rounded-xl py-3.5 px-4 border border-transparent focus:bg-white focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all shadow-inner" />
               </div>
               
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-[#86868B] ml-1 uppercase tracking-wider">推薦人 (Threads 帳號)</label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-[#86868B]">@</span>
-                  <input type="text" placeholder="推薦人帳號" value={newRestRecommender} onChange={(e) => setNewRestRecommender(e.target.value)} className="w-full bg-[#F5F5F7] text-sm font-medium rounded-xl py-3.5 pl-9 pr-4 border border-transparent focus:bg-white focus:border-black focus:ring-1 focus:ring-black outline-none transition-all" />
+                <div className="relative group">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-[#86868B] group-focus-within:text-black transition-colors">@</span>
+                  <input type="text" placeholder="推薦人帳號" value={newRestRecommender} onChange={(e) => setNewRestRecommender(e.target.value)} className="w-full bg-black/5 text-sm font-bold rounded-xl py-3.5 pl-9 pr-4 border border-transparent focus:bg-white focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all shadow-inner" />
                 </div>
               </div>
 
               <div className="space-y-1.5 pt-2">
                 <div className="flex justify-between items-center ml-1">
                   <label className="text-xs font-bold text-[#86868B] uppercase tracking-wider">筆記與短評</label>
-                  <span className="text-[10px] font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-500 flex items-center gap-1">
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                  <span className="text-[10px] font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#0071E3] to-[#A334FA] flex items-center gap-1">
+                    <svg className="w-3 h-3 text-[#0071E3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                     空白時由 AI 自動產生
                   </span>
                 </div>
                 <textarea 
                   placeholder="寫下你想記住的餐點或特色，或是留白讓 Fabrica AI 幫你總結網路評價..." 
                   value={newRestNote} onChange={(e) => setNewRestNote(e.target.value)} 
-                  className="w-full bg-[#F5F5F7] text-sm font-medium rounded-xl py-3.5 px-4 border border-transparent focus:bg-white focus:border-black focus:ring-1 focus:ring-black outline-none transition-all min-h-[100px] resize-none" 
+                  className="w-full bg-black/5 text-sm font-bold rounded-xl py-3.5 px-4 border border-transparent focus:bg-white focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all min-h-[100px] resize-none shadow-inner" 
                 />
               </div>
 
-              <button type="submit" className="w-full bg-black text-white font-bold py-4 rounded-xl mt-4 active:scale-[0.98] transition-all shadow-md">
+              <button type="submit" className="w-full bg-black/90 text-white font-bold py-4 rounded-xl mt-4 hover:bg-black active:scale-95 transition-all shadow-xl">
                 儲存至地圖
               </button>
             </form>
@@ -1024,112 +1051,108 @@ export default function App() {
         </div>
       )}
 
-      {/* 🌟 餐廳詳細資訊的彈出 Modal (點擊卡片顯示全部資訊與 Google 地圖按鈕) */}
+      {/* 🌟 餐廳詳細資訊的彈出 Modal */}
       {selectedRestaurant && !isGlobalTransitioning && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center px-4 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setSelectedRestaurant(null)}>
+        <div className="fixed inset-0 z-[130] flex items-center justify-center px-4 bg-black/50 backdrop-blur-md animate-fade-in" onClick={() => setSelectedRestaurant(null)}>
           <div 
-            className="bg-white w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl relative animate-bounce-in max-h-[85vh] flex flex-col"
-            onClick={(e) => e.stopPropagation()} // 防止點擊 Modal 內容時關閉
+            className="bg-white/95 backdrop-blur-3xl w-full max-w-sm rounded-[32px] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.3)] relative animate-bounce-in max-h-[85vh] flex flex-col border border-white/50"
+            onClick={(e) => e.stopPropagation()} 
           >
-            {/* 關閉按鈕 */}
-            <button onClick={() => setSelectedRestaurant(null)} className="absolute top-4 right-4 z-30 w-8 h-8 bg-black/40 backdrop-blur-md text-white rounded-full flex items-center justify-center hover:bg-black/60 transition-colors">
+            <button onClick={() => setSelectedRestaurant(null)} className="absolute top-4 right-4 z-30 w-8 h-8 bg-black/40 backdrop-blur-md text-white rounded-full flex items-center justify-center hover:bg-black/60 transition-all active:scale-90">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
 
-            {/* 頂部圖片 */}
-            <div className="h-48 w-full relative flex-shrink-0">
+            <div className="h-56 w-full relative flex-shrink-0 bg-black/5">
               <img src={getFoodImage(selectedRestaurant.name)} className="w-full h-full object-cover" alt="food" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20"></div>
-              <div className="absolute bottom-4 left-5 right-5">
-                <span className="text-[10px] font-bold text-white bg-white/20 backdrop-blur-md px-2 py-0.5 rounded-md inline-block mb-1.5 border border-white/20">
+              <div className="absolute bottom-5 left-5 right-5">
+                <span className="text-[10px] font-bold text-white bg-white/20 backdrop-blur-md px-2.5 py-1 rounded-md inline-block mb-2 border border-white/20 shadow-sm">
                   {selectedRestaurant.category}
                 </span>
-                <h2 className="text-2xl font-bold text-white leading-tight drop-shadow-md">{selectedRestaurant.name}</h2>
+                <h2 className="text-2xl font-bold text-white leading-tight drop-shadow-lg">{selectedRestaurant.name}</h2>
               </div>
             </div>
 
-            {/* 內容滾動區 */}
-            <div className="p-5 overflow-y-auto flex-1">
-              <div className="flex items-start gap-1.5 text-xs text-[#86868B] mb-5">
+            <div className="p-6 overflow-y-auto flex-1">
+              <div className="flex items-start gap-2 text-xs font-medium text-[#555] mb-6 bg-black/5 p-3 rounded-xl border border-black/5">
                 <svg className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#0071E3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3" strokeWidth="2"/></svg>
                 <span className="leading-relaxed">{selectedRestaurant.address}</span>
               </div>
               
-              <div className="bg-[#F5F5F7] p-4 rounded-2xl border border-[#E5E5EA]">
-                <h4 className="text-[11px] font-bold text-[#86868B] uppercase tracking-wider mb-2">筆記與 AI 短評</h4>
-                <p className="text-[14px] text-[#333336] leading-loose break-words whitespace-pre-wrap">
+              <div>
+                <h4 className="text-[11px] font-bold text-[#888] uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                  <svg className="w-3.5 h-3.5 text-[#0071E3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                  筆記與 AI 短評
+                </h4>
+                <p className="text-[14px] text-[#222] font-medium leading-loose break-words whitespace-pre-wrap pl-1">
                   {selectedRestaurant.note || "尚無筆記。"}
                 </p>
               </div>
             </div>
 
-            {/* 底部操作：原生地圖按鈕 */}
-            <div className="p-5 bg-white border-t border-[#F2F2F7] flex-shrink-0">
+            <div className="p-5 bg-white/80 backdrop-blur-xl border-t border-black/5 flex-shrink-0">
               <a 
                 href={getFreeMapAppUrl(selectedRestaurant.name, selectedRestaurant.address)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full flex items-center justify-center gap-2 py-4 bg-[#0071E3] text-white font-bold rounded-2xl hover:bg-blue-600 transition-all shadow-[0_8px_20px_rgba(0,113,227,0.3)] active:scale-95"
+                className="w-full flex items-center justify-center gap-2 py-4 bg-[#1D1D1F] text-white font-bold rounded-2xl hover:bg-black transition-all shadow-xl active:scale-[0.98]"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
-                開啟地點 (Google Maps)
+                開啟原生地圖定位
               </a>
             </div>
           </div>
         </div>
       )}
 
-      {/* 🌟 朋友推薦的 SHARED 彈出小卡 (登入後才會顯示) */}
+      {/* 🌟 朋友推薦的 SHARED 彈出小卡 */}
       {isLoggedIn && sharedItem && !isGlobalTransitioning && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center px-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl relative scale-100 animate-bounce-in">
-            {/* 上半部：相片與標籤 */}
+        <div className="fixed inset-0 z-[140] flex items-center justify-center px-4 bg-black/60 backdrop-blur-md animate-fade-in">
+          <div className="bg-white/95 backdrop-blur-3xl w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl relative scale-100 animate-bounce-in border border-white/50">
             <div className="h-56 w-full relative">
               <img src={getFoodImage(sharedItem.name)} className="w-full h-full object-cover" alt="food" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
               
-              <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-md text-white text-[10px] font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 tracking-wider shadow-sm border border-white/10">
+              <div className="absolute top-4 left-4 bg-black/50 backdrop-blur-xl text-white text-[10px] font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 tracking-wider shadow-sm border border-white/20">
                 <svg className="w-3.5 h-3.5 text-[#34C759]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                好友推薦
+                好友私藏推薦
               </div>
               
-              <div className="absolute bottom-4 left-4 right-4">
-                <span className="text-[10px] font-bold text-white bg-white/20 backdrop-blur-md px-2 py-0.5 rounded-md inline-block mb-1 border border-white/20">{sharedItem.category}</span>
+              <div className="absolute bottom-4 left-5 right-5">
+                <span className="text-[10px] font-bold text-white bg-white/20 backdrop-blur-md px-2.5 py-1 rounded-md inline-block mb-1 border border-white/20">{sharedItem.category}</span>
                 <h2 className="text-2xl font-bold text-white leading-tight drop-shadow-md">{sharedItem.name}</h2>
               </div>
             </div>
             
-            {/* 下半部：資訊與操作 */}
             <div className="p-6">
-              <div className="flex items-start gap-1.5 text-xs text-[#86868B] mb-4">
-                <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3" strokeWidth="2"/></svg>
+              <div className="flex items-start gap-1.5 text-xs font-medium text-[#555] mb-5 bg-black/5 p-2 rounded-lg">
+                <svg className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#0071E3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3" strokeWidth="2"/></svg>
                 <span className="line-clamp-2 leading-relaxed">{sharedItem.address}</span>
               </div>
               
               {sharedItem.note && (
-                <div className="bg-[#F5F5F7] p-3.5 rounded-xl mb-5 border border-[#E5E5EA]">
-                  <p className="text-[13px] text-[#333336] leading-relaxed break-words relative pl-3">
-                    <span className="absolute left-0 top-0 text-[#C7C7CC] text-lg font-serif">"</span>
+                <div className="bg-black/5 p-4 rounded-2xl mb-6 border border-black/5 shadow-inner">
+                  <p className="text-[13px] text-[#222] font-medium leading-relaxed break-words relative pl-3">
+                    <span className="absolute left-0 top-0 text-[#888] text-lg font-serif">"</span>
                     {sharedItem.note}
                   </p>
                 </div>
               )}
               
-              <div className="flex items-center gap-2 text-xs font-semibold text-[#86868B] mb-6 bg-[#F9F9FB] p-2 rounded-lg inline-flex w-full">
-                 <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-orange-400 flex items-center justify-center text-white text-[11px] shadow-sm">
+              <div className="flex items-center gap-2 text-xs font-bold text-[#888] mb-6 w-full justify-center">
+                 <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-orange-400 flex items-center justify-center text-white text-[11px] shadow-sm transform hover:scale-110 transition-transform">
                    {sharedItem.recommendedBy.charAt(0).toUpperCase()}
                  </div>
                  這間店由 <span className="text-black">@{sharedItem.recommendedBy}</span> 推薦給您
               </div>
 
-              {/* 操作按鈕 */}
               <div className="flex gap-3">
-                <button onClick={clearSharedItem} className="flex-[1] py-3.5 bg-white border border-[#E5E5EA] text-[#86868B] hover:bg-[#F5F5F7] font-bold rounded-xl transition-colors text-sm">
+                <button onClick={clearSharedItem} className="flex-[1] py-3.5 bg-black/5 text-[#555] hover:bg-black/10 hover:text-black font-bold rounded-xl transition-all active:scale-95 text-sm">
                   沒興趣
                 </button>
-                <button onClick={handleAcceptShared} className="flex-[2] py-3.5 bg-[#1D1D1F] text-white font-bold rounded-xl hover:bg-black transition-all shadow-md active:scale-95 text-sm flex items-center justify-center gap-2">
+                <button onClick={handleAcceptShared} className="flex-[2] py-3.5 bg-[#1D1D1F] text-white font-bold rounded-xl hover:bg-black transition-all shadow-xl active:scale-95 text-sm flex items-center justify-center gap-2">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4"/></svg>
-                  加入口袋名單
+                  收下名單
                 </button>
               </div>
             </div>
@@ -1139,28 +1162,29 @@ export default function App() {
 
       {/* 全域 Toast 通知 */}
       {toastMessage && (
-        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[110] animate-fade-in-up">
-          <div className="bg-black/90 backdrop-blur-md text-white px-5 py-3 rounded-full shadow-2xl flex items-center gap-2 border border-white/10">
-            <svg className="w-4 h-4 text-[#34C759]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg>
+        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[150] animate-fade-in-up">
+          <div className="bg-black/80 backdrop-blur-xl text-white px-5 py-3.5 rounded-full shadow-2xl flex items-center gap-2.5 border border-white/20">
+            <div className="w-5 h-5 bg-[#34C759] rounded-full flex items-center justify-center shadow-[0_0_10px_rgba(52,199,89,0.5)]">
+              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg>
+            </div>
             <span className="text-sm font-bold tracking-wide">{toastMessage}</span>
           </div>
         </div>
       )}
 
-      {/* 全域樣式補充 */}
       <style>{`
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
         @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
         .animate-fade-in { animation: fade-in 0.6s cubic-bezier(0.2,0.8,0.2,1) forwards; }
-        @keyframes fade-in-up { from { opacity: 0; transform: translate(-50%, 20px); } to { opacity: 1; transform: translate(-50%, 0); } }
-        .animate-fade-in-up { animation: fade-in-up 0.4s cubic-bezier(0.2,0.8,0.2,1) forwards; }
+        @keyframes fade-in-up { from { opacity: 0; transform: translate(-50%, 20px) scale(0.95); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
+        .animate-fade-in-up { animation: fade-in-up 0.5s cubic-bezier(0.2,0.8,0.2,1) forwards; }
         @keyframes bounce-in { 
-          0% { opacity: 0; transform: scale(0.9); } 
-          60% { opacity: 1; transform: scale(1.02); } 
-          100% { opacity: 1; transform: scale(1); } 
+          0% { opacity: 0; transform: scale(0.9) translateY(10px); } 
+          60% { opacity: 1; transform: scale(1.02) translateY(-2px); } 
+          100% { opacity: 1; transform: scale(1) translateY(0); } 
         }
-        .animate-bounce-in { animation: bounce-in 0.5s cubic-bezier(0.2,0.8,0.2,1) forwards; }
+        .animate-bounce-in { animation: bounce-in 0.6s cubic-bezier(0.2,0.8,0.2,1) forwards; }
       `}</style>
     </div>
   );
