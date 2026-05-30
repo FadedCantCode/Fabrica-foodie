@@ -49,6 +49,37 @@ const getFreeMapAppUrl = (name, address) => {
 };
 
 // ==========================================
+// 🏷️ 智慧 Auto-Tag 演算法 (自動修正新舊標籤)
+// ==========================================
+const getSmartTag = (name, currentCategory = "") => {
+  const n = name || "";
+  if (n.includes("鍋") || n.includes("麻辣") || n.includes("涮涮") || n.includes("石二鍋") || n.includes("海底撈") || n.includes("火鍋")) {
+    return "火鍋專賣";
+  }
+  if (n.includes("茶") || n.includes("嵐") || n.includes("五桐") || n.includes("不可") || n.includes("渴") || n.includes("奶") || n.includes("飲料") || n.includes("COCO") || n.includes("紅茶") || n.includes("綠茶") || n.includes("手搖") || n.includes("舖") || n.includes("珍奶")) {
+    return "手搖茶攤";
+  }
+  if (n.includes("咖啡") || n.includes("Cafe") || n.includes("cafe") || n.includes("甜點") || n.includes("不二") || n.includes("烘焙") || n.includes("麵包") || n.includes("塔") || n.includes("蛋糕") || n.includes("甜食") || n.includes("點心") || n.includes("舒芙蕾")) {
+    return "咖啡甜點";
+  }
+  if (n.includes("拉麵") || n.includes("日式") || n.includes("壽司") || n.includes("丼") || n.includes("刺身") || n.includes("居酒屋") || n.includes("食堂") || n.includes("和食") || n.includes("燒鳥")) {
+    return "日式料理";
+  }
+  if (n.includes("便當") || n.includes("飯") || n.includes("燥") || n.includes("羹") || n.includes("麵") || n.includes("肉圓") || n.includes("小吃") || n.includes("排骨") || n.includes("雞肉") || n.includes("台式") || n.includes("傳統")) {
+    return "台式小吃 • 便當";
+  }
+  if (n.includes("燒肉") || n.includes("烤") || n.includes("串燒") || n.includes("燒烤") || n.includes("乾杯") || n.includes("屋馬")) {
+    return "燒肉串燒";
+  }
+  
+  // 清理現有的分類名稱，確保排版好看
+  if (currentCategory && currentCategory !== "美食餐廳" && currentCategory !== "在地美食" && currentCategory !== "精選美食") {
+    return currentCategory.replace(" • ", " • ").trim();
+  }
+  return "精選美食";
+};
+
+// ==========================================
 // 🎨 原生 3D Vertex & Fragment Shaders (黑白液態)
 // ==========================================
 const vertexShader = `
@@ -158,7 +189,7 @@ const GooeyLoader = () => {
 };
 
 // ==========================================
-// 🌈 原生 WebGL 彩色流體漸層背景 (自製高品質 Shader)
+// 🌈 原生 WebGL 彩色流體漸層背景 (自製高品質無色系 Shader)
 // ==========================================
 const ColorfulBackground = ({ show }) => {
   const containerRef = useRef(null);
@@ -193,7 +224,6 @@ const ColorfulBackground = ({ show }) => {
         uniform vec2 u_resolution;
         varying vec2 vUv;
 
-        // Simple Simplex Noise implementation
         vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
         vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
         vec3 permute(vec3 x) { return mod289(((x*34.0)+1.0)*x); }
@@ -223,17 +253,14 @@ const ColorfulBackground = ({ show }) => {
           vec2 uv = gl_FragCoord.xy / u_resolution.xy;
           float t = u_time * 0.2;
           
-          // Generate fluid distortion
           float n1 = snoise(uv * 1.5 + vec2(t, t * 0.5));
           float n2 = snoise(uv * 2.0 - vec2(t * 0.3, t * 0.8));
           vec2 distortedUv = uv + vec2(n1, n2) * 0.2;
           
-          // 視覺一致性：黑、白、灰 高質感流體配置
-          vec3 color1 = vec3(0.96, 0.96, 0.97); // 亮灰白 (貼合原本背景底色)
-          vec3 color2 = vec3(0.12, 0.12, 0.12); // 深灰黑 (增添深邃層次)
-          vec3 color3 = vec3(0.75, 0.75, 0.75); // 銀灰色 (完美過渡)
+          vec3 color1 = vec3(0.96, 0.96, 0.97); 
+          vec3 color2 = vec3(0.12, 0.12, 0.12); 
+          vec3 color3 = vec3(0.75, 0.75, 0.75); 
           
-          // Mix colors based on position and time
           float mix1 = smoothstep(0.0, 1.0, sin(distortedUv.x * 4.0 + t) * 0.5 + 0.5);
           float mix2 = smoothstep(0.0, 1.0, cos(distortedUv.y * 3.0 - t) * 0.5 + 0.5);
           
@@ -310,7 +337,7 @@ export default function App() {
 
   const [newRestName, setNewRestName] = useState("");
   const [newRestAddress, setNewRestAddress] = useState("");
-  const [newRestCategory, setNewRestCategory] = useState("日式甜點 • 咖啡廳");
+  const [newRestCategory, setNewRestCategory] = useState("手搖茶攤");
   const [newRestNote, setNewRestNote] = useState("");
   const [newRestRecommender, setNewRestRecommender] = useState("");
 
@@ -323,6 +350,16 @@ export default function App() {
   const canvasContainerRef = useRef(null);
   const hasSearchedRef = useRef(false);
 
+  // 🌟 精選台灣指標性美食 (高質感雷達備用資料庫，確保附近探索永不落空)
+  const TAIWAN_TRENDY_RECS = [
+    { id: "fallback-1", name: "詹記麻辣火鍋", address: "台北市大安區和平東路三段60號", category: "火鍋專賣", note: "📍 台北極致傳奇麻辣鍋，鴨血豆腐堪稱美味天花板，絕對必吃。" },
+    { id: "fallback-2", name: "五之神製作所", address: "台北市信義區忠孝東路四段553巷6弄6號", category: "日式料理", note: "📍 超濃厚蝦沾麵名店，濃郁蝦湯搭配特色配菜，排隊不間斷。" },
+    { id: "fallback-3", name: "約翰紅茶公司", address: "台北市內湖區江南街98號", category: "手搖茶攤", note: "📍 精緻紅茶專家，大推煮濃那堤與約翰紅茶，茶香極佳。" },
+    { id: "fallback-4", name: "榕錦時光生活園區 - 興波咖啡", address: "台北市大安區金華街167號", category: "咖啡甜點", note: "📍 世界冠軍大師級精品咖啡館，日式老木屋改建極富質感。" },
+    { id: "fallback-5", name: "金峰魯肉飯", address: "台北市中正區羅斯福路一段10號", category: "台式小吃 • 便當", note: "📍 台北排隊殿堂級魯肉飯，油脂與膠質完美交融，香而不膩。" },
+    { id: "fallback-6", name: "屋馬燒肉 園邸店", address: "台中市西區公益路111號", category: "燒肉串燒", note: "📍 台中燒肉神殿代表，香醇雞湯與極致澳洲和牛，極致享受。" }
+  ];
+
   useEffect(() => {
     setMounted(true);
     if (typeof window !== 'undefined') {
@@ -334,7 +371,7 @@ export default function App() {
         setSharedItem({
           name: params.get('share_name'),
           address: params.get('share_address') || "",
-          category: params.get('share_category') || "",
+          category: getSmartTag(params.get('share_name'), params.get('share_category') || ""),
           note: params.get('share_note') || "",
           recommendedBy: params.get('share_by') || "Foodie好友"
         });
@@ -422,7 +459,7 @@ export default function App() {
     return () => unsubscribe();
   }, [firebaseUser, isLoggedIn, threadsUsername]);
 
-  // 自動發起 GPS 請求並探測周邊美食 (使用強化版完全免費開源方案)
+  // 自動發起 GPS 請求並探測周邊美食
   useEffect(() => {
     if (isLoggedIn && typeof window !== 'undefined' && navigator.geolocation && !hasSearchedRef.current) {
       hasSearchedRef.current = true;
@@ -431,7 +468,9 @@ export default function App() {
         setUserLocation({ lat: latitude, lng: longitude });
         triggerSilentNearbySearch(latitude, longitude);
       }, (err) => {
-        console.warn("Geolocation permission denied:", err);
+        console.warn("Geolocation permission denied, loading fallback recommendations:", err);
+        // 如果定位權限被拒絕，自動載入精選地標，確保 UI 永遠美麗豐沛
+        setNearbyRecommendations(TAIWAN_TRENDY_RECS);
       });
     }
   }, [isLoggedIn]);
@@ -454,24 +493,39 @@ export default function App() {
       if (data && data.elements && data.elements.length > 0) {
         const formattedRecs = data.elements.map((el) => {
           const tags = el.tags || {};
+          const name = tags.name || tags['name:zh'] || tags['name:en'] || "隱藏版美食";
           let category = "在地美食 • 餐廳";
           if (tags.amenity === 'cafe') category = "咖啡廳 • 甜點";
           else if (tags.amenity === 'fast_food') category = "在地美食 • 速食";
           else if (tags.shop === 'beverages') category = "飲料 • 手搖飲";
           else if (tags.shop === 'bakery') category = "烘焙坊 • 甜點";
 
+          // 透過智慧 Tag 系統更精準的歸類
+          const autoCategory = getSmartTag(name, category);
+
           return {
             id: el.id.toString(),
-            name: tags.name || tags['name:zh'] || tags['name:en'] || "隱藏版美食",
+            name: name,
             address: tags['addr:street'] ? `${tags['addr:city'] || ''}${tags['addr:street']}${tags['addr:housenumber'] || ''}` : "點擊查看地圖定位",
-            category: category,
+            category: autoCategory,
             note: "📍 透過開源地圖雷達探測到的周邊店家。"
           };
         }).filter(rec => rec.name !== "隱藏版美食"); 
         
-        setNearbyRecommendations(formattedRecs);
+        if (formattedRecs.length > 0) {
+          setNearbyRecommendations(formattedRecs);
+        } else {
+          // 抓出來的若剛好沒名稱，採用備用高質量清單
+          setNearbyRecommendations(TAIWAN_TRENDY_RECS);
+        }
+      } else {
+        // 如果該區域沒有資料，無縫使用指標性資料
+        setNearbyRecommendations(TAIWAN_TRENDY_RECS);
       }
-    } catch (err) { console.error("Auto nearby exploration failed:", err); }
+    } catch (err) { 
+      console.error("Auto nearby exploration failed, switching to premium curated database:", err); 
+      setNearbyRecommendations(TAIWAN_TRENDY_RECS);
+    }
     setIsLocating(false);
   };
 
@@ -503,21 +557,22 @@ export default function App() {
     const name = place.name || displayNameArray[0].trim();
     setNewRestName(name); setNewRestAddress(place.display_name || "");
     
-    let category = "美食餐廳";
-    if (place.type === "cafe") category = "咖啡廳";
-    else if (place.type === "fast_food") category = "速食餐飲";
-    else if (place.type === "bakery") category = "烘焙坊";
-    else if (place.type === "beverages") category = "飲料店 • 手搖飲";
-    else if (place.type === "restaurant") category = "餐廳";
+    let rawCategory = "美食餐廳";
+    if (place.type === "cafe") rawCategory = "咖啡廳";
+    else if (place.type === "fast_food") rawCategory = "速食餐飲";
+    else if (place.type === "bakery") rawCategory = "烘焙坊";
+    else if (place.type === "beverages") rawCategory = "飲料店 • 手搖飲";
+    else if (place.type === "restaurant") rawCategory = "餐廳";
     
-    setNewRestCategory(category); setIsTypingName(false); setNameSuggestions([]);
+    // 透過智慧標籤算法即時賦予
+    const smartCategory = getSmartTag(name, rawCategory);
+    setNewRestCategory(smartCategory); setIsTypingName(false); setNameSuggestions([]);
   };
 
   const handleLogin = (e) => {
     e.preventDefault();
     if (!inputUsername.trim()) { setLoginError("請輸入您的 Threads ID"); return; }
     
-    // 觸發人機交互絲滑轉場：顯示 Loader、開始預載 Shader 背景
     setIsGlobalTransitioning(true);
     setTimeout(() => {
       let formatted = inputUsername.trim(); if (!formatted.startsWith("@")) formatted = "@" + formatted;
@@ -561,10 +616,13 @@ export default function App() {
 
     setTimeout(async () => {
       setDismissedRecommendationIds(prev => [...prev, rec.id]);
+      
+      const smartCategory = getSmartTag(rec.name, rec.category);
+
       if (firebaseUser?.uid === "local-temp-guest") {
         const mockDoc = { 
           id: Math.random().toString(), name: rec.name, address: rec.address, 
-          category: rec.category, note: rec.note, recommendedBy: "系統探索", 
+          category: smartCategory, note: rec.note, recommendedBy: "系統探索", 
           savedAt: { seconds: Math.floor(Date.now() / 1000) }, threadsUrl: "" 
         };
         setRestaurants(prev => [mockDoc, ...prev]);
@@ -573,7 +631,7 @@ export default function App() {
           const cleanUsername = threadsUsername.replace("@", "").trim().toLowerCase();
           const userRestaurantsRef = collection(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants');
           await addDoc(userRestaurantsRef, { 
-            name: rec.name, address: rec.address, category: rec.category, 
+            name: rec.name, address: rec.address, category: smartCategory, 
             note: rec.note, recommendedBy: "系統探索", savedAt: serverTimestamp(), threadsUrl: "" 
           });
         } catch (err) { console.error("Error saving auto-recommendation:", err); }
@@ -630,9 +688,11 @@ export default function App() {
   const handleAcceptShared = async () => {
     if (!sharedItem) return;
     const cleanRecommender = sharedItem.recommendedBy.replace("@", "").trim();
+    const smartCategory = getSmartTag(sharedItem.name, sharedItem.category);
+    
     if (firebaseUser?.uid === "local-temp-guest") {
       const mockDoc = {
-        id: Math.random().toString(), name: sharedItem.name, address: sharedItem.address, category: sharedItem.category, 
+        id: Math.random().toString(), name: sharedItem.name, address: sharedItem.address, category: smartCategory, 
         note: sharedItem.note, recommendedBy: cleanRecommender, savedAt: { seconds: Math.floor(Date.now() / 1000) }, threadsUrl: "" 
       };
       setRestaurants(prev => [mockDoc, ...prev]);
@@ -641,7 +701,7 @@ export default function App() {
         const cleanUsername = threadsUsername.replace("@", "").trim().toLowerCase();
         const userRestaurantsRef = collection(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants');
         await addDoc(userRestaurantsRef, {
-          name: sharedItem.name, address: sharedItem.address, category: sharedItem.category, 
+          name: sharedItem.name, address: sharedItem.address, category: smartCategory, 
           note: sharedItem.note, recommendedBy: cleanRecommender, savedAt: serverTimestamp(), threadsUrl: "" 
         });
       } catch (err) { console.error("Error adding shared document:", err); }
@@ -652,6 +712,8 @@ export default function App() {
 
   const handleAddRestaurant = async (e) => {
     e.preventDefault(); if (!newRestName.trim()) return; setIsGlobalTransitioning(true); 
+
+    const smartCategory = getSmartTag(newRestName, newRestCategory);
 
     let finalNote = newRestNote;
     if (!finalNote.trim()) {
@@ -677,7 +739,7 @@ export default function App() {
     const cleanRecommender = newRestRecommender.replace("@", "").trim();
     if (firebaseUser?.uid === "local-temp-guest") {
       const mockDoc = {
-        id: Math.random().toString(), name: newRestName, address: newRestAddress || "僅提供店名定位", category: newRestCategory, note: finalNote,
+        id: Math.random().toString(), name: newRestName, address: newRestAddress || "僅提供店名定位", category: smartCategory, note: finalNote,
         recommendedBy: cleanRecommender, savedAt: { seconds: Math.floor(Date.now() / 1000) }, threadsUrl: "" 
       };
       setRestaurants(prev => [mockDoc, ...prev]);
@@ -686,7 +748,7 @@ export default function App() {
         const cleanUsername = threadsUsername.replace("@", "").trim().toLowerCase();
         const userRestaurantsRef = collection(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants');
         await addDoc(userRestaurantsRef, {
-          name: newRestName, address: newRestAddress || "僅提供店名定位", category: newRestCategory, note: finalNote,
+          name: newRestName, address: newRestAddress || "僅提供店名定位", category: smartCategory, note: finalNote,
           recommendedBy: cleanRecommender, savedAt: serverTimestamp(), threadsUrl: "" 
         });
       } catch (err) { console.error("Error adding document:", err); }
@@ -695,10 +757,10 @@ export default function App() {
     setTimeout(() => { setIsGlobalTransitioning(false); closeAddModal(); }, 1500);
   };
 
-  const categories = ["全部", ...new Set(restaurants.map(r => r.category ? r.category.split(" • ")[0] : "未分類"))];
+  const categories = ["全部", ...new Set(restaurants.map(r => getSmartTag(r.name, r.category).split(" • ")[0]))];
   const filteredRestaurants = restaurants.filter(restaurant => {
     const name = restaurant.name || ""; const address = restaurant.address || ""; 
-    const note = restaurant.note || ""; const category = restaurant.category || "";
+    const note = restaurant.note || ""; const category = getSmartTag(name, restaurant.category);
     const recommender = restaurant.recommendedBy || ""; 
     const q = searchQuery.toLowerCase();
     const matchesSearch = name.toLowerCase().includes(q) || address.toLowerCase().includes(q) || note.toLowerCase().includes(q) || recommender.toLowerCase().includes(q.replace("@", "")); 
@@ -711,7 +773,7 @@ export default function App() {
   return (
     <div className="relative min-h-screen text-[#1D1D1F] tracking-tight font-sans antialiased overflow-x-hidden bg-[#F4F4F6]">
       
-      {/* 🌟 原生 WebGL 彩色流體漸層背景：只要進入轉場狀態或登入成功即開始渲染 */}
+      {/* 🌟 原生 WebGL 彩色流體漸層背景 */}
       <ColorfulBackground show={isLoggedIn || isGlobalTransitioning} />
 
       {/* 🌟 頂級果凍 Loader 全局轉場覆蓋層 */}
@@ -726,7 +788,7 @@ export default function App() {
       />
 
       {/* ==================== 頁面容器 ==================== */}
-      <div className={`relative z-10 w-full h-full`}>
+      <div className="relative z-10 w-full h-full">
         
         {!isLoggedIn ? (
           <div className={`min-h-screen flex flex-col justify-between px-6 py-10 max-w-sm mx-auto transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isGlobalTransitioning ? 'opacity-0 scale-[0.98] blur-md translate-y-4' : 'opacity-100 scale-100 blur-0 translate-y-0'}`}>
@@ -764,12 +826,14 @@ export default function App() {
                 </button>
               </form>
             </div>
-            <footer className="text-center text-xs text-[#86868B] pt-4 pointer-events-none"><p className="font-semibold text-[#1D1D1F]/40">© Fabrica</p></footer>
+            <footer className="text-center text-xs text-[#86868B] pt-4 pointer-events-none">
+              <p className="font-semibold text-[#1D1D1F]/40">© Fabrica</p>
+            </footer>
           </div>
 
         ) : (
-          /* ---------------- iOS 主檔案庫面板 (加入全局毛玻璃以透出流體色彩) ---------------- */
-          <div className={`pb-20 min-h-screen transition-all duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isGlobalTransitioning ? 'opacity-0 translate-y-12 scale-[0.97] blur-md' : 'opacity-100 translate-y-0 scale-100 blur-0'}`}>
+          /* ---------------- iOS 主檔案庫面板 (半透明磨砂，透出極佳大理石色彩) ---------------- */
+          <div className={`pb-10 min-h-screen transition-all duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isGlobalTransitioning ? 'opacity-0 translate-y-12 scale-[0.97] blur-md' : 'opacity-100 translate-y-0 scale-100 blur-0'}`}>
             <header className="sticky top-0 z-40 bg-white/40 backdrop-blur-2xl border-b border-white/30 px-6 py-4 shadow-[0_4px_30px_rgba(0,0,0,0.05)]">
               <div className="max-w-md mx-auto flex justify-between items-center">
                 <div className="flex flex-col">
@@ -815,7 +879,7 @@ export default function App() {
                   />
                 </div>
 
-                {/* 分類過濾器 (加入毛玻璃與平滑縮放) */}
+                {/* 分類過濾器 (磨砂與彈性動畫) */}
                 <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4">
                   {categories.map(cat => (
                     <button 
@@ -833,7 +897,7 @@ export default function App() {
               {activeRecommendations.length > 0 && (
                 <section className="space-y-3">
                   <h2 className="text-[13px] font-bold text-[#555] uppercase tracking-wider flex items-center gap-1.5 backdrop-blur-sm w-fit px-2 py-0.5 rounded-lg bg-white/20">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    <svg className="w-4 h-4 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                     附近為您探索的隱藏版
                   </h2>
                   <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide -mx-4 px-4">
@@ -850,7 +914,7 @@ export default function App() {
                           />
                           <div className='absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent'></div>
                           <span className="absolute top-3 left-3 text-[10px] font-bold text-white bg-black/40 backdrop-blur-md px-2 py-1 rounded-md shadow-sm border border-white/20">
-                            {rec.category}
+                            {getSmartTag(rec.name, rec.category)}
                           </span>
                           <h3 className='absolute bottom-3 left-3 right-3 font-bold text-white text-base line-clamp-1 drop-shadow-md'>{rec.name}</h3>
                         </figure>
@@ -881,73 +945,76 @@ export default function App() {
                     <div className="w-6 h-6 border-2 border-black border-t-transparent rounded-full animate-spin mx-auto opacity-50"></div>
                   </div>
                 ) : filteredRestaurants.length > 0 ? (
-                  filteredRestaurants.map(restaurant => (
-                    <div 
-                      key={restaurant.id} 
-                      className={`group bg-white/70 backdrop-blur-3xl p-2 rounded-[24px] shadow-sm border border-white/50 transition-all duration-400 ease-out overflow-hidden cursor-pointer hover:shadow-lg hover:bg-white/80 ${deletingIds.includes(restaurant.id) ? 'scale-95 opacity-0 translate-y-4' : 'scale-100 opacity-100 translate-y-0'}`}
-                      onClick={() => setSelectedRestaurant(restaurant)}
-                    >
-                      <figure className='w-full h-56 relative overflow-hidden rounded-[18px] bg-black/5'>
-                        <img 
-                          src={getFoodImage(restaurant.name)} 
-                          alt={restaurant.name} 
-                          className='w-full h-full object-cover transition-transform duration-700 group-hover:scale-105'
-                        />
-                        <div className='absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 opacity-80 group-hover:opacity-100 transition-opacity duration-300'></div>
-                        
-                        <span className="absolute top-3 left-3 text-[10px] font-bold text-white bg-black/30 backdrop-blur-md px-2.5 py-1 rounded-md border border-white/20 shadow-sm z-10 transition-transform group-hover:scale-105">
-                          {restaurant.category || '未分類'}
-                        </span>
-
-                        {restaurant.recommendedBy && (
-                          <a 
-                            href={`https://www.threads.net/@${restaurant.recommendedBy.replace('@', '')}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()} 
-                            className="absolute top-3 right-3 z-20 bg-white/90 backdrop-blur-md px-2.5 py-1 rounded-full flex items-center gap-1.5 text-[10px] font-bold text-[#1D1D1F] shadow-md hover:scale-110 active:scale-95 transition-transform"
-                          >
-                            <div className="w-3.5 h-3.5 rounded-full bg-gradient-to-br from-purple-500 to-orange-400 flex items-center justify-center text-white text-[8px]">
-                              {restaurant.recommendedBy.replace('@', '').charAt(0).toUpperCase()}
-                            </div>
-                            @{restaurant.recommendedBy.replace('@', '')}
-                          </a>
-                        )}
-
-                        <div className="absolute bottom-3 left-4 right-4 z-10 transition-transform duration-300 group-hover:-translate-y-1">
-                           <h3 className='text-xl font-bold text-white leading-tight line-clamp-1 drop-shadow-md'>{restaurant.name}</h3>
-                           <div className="flex items-center gap-1 mt-1 text-white/90 text-xs">
-                             <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3" strokeWidth="2"/></svg>
-                             <span className="line-clamp-1 drop-shadow-sm font-medium">{restaurant.address}</span>
-                           </div>
-                        </div>
-                      </figure>
-
-                      <article className='px-3 pt-3 pb-2 relative'>
-                        {restaurant.note && (
-                          <p className='text-[13px] text-[#444] font-medium leading-relaxed line-clamp-2'>{restaurant.note}</p>
-                        )}
-
-                        <div className='flex justify-between items-center pt-3 mt-2 border-t border-white/40'>
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); handleDeleteRestaurant(restaurant.id); }} 
-                            className="flex items-center gap-1.5 text-xs font-bold text-[#FF3B30] hover:bg-white/60 px-3 py-1.5 rounded-lg transition-all active:scale-95"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                            刪除
-                          </button>
+                  filteredRestaurants.map(restaurant => {
+                    const smartCategory = getSmartTag(restaurant.name, restaurant.category);
+                    return (
+                      <div 
+                        key={restaurant.id} 
+                        className={`group bg-white/70 backdrop-blur-3xl p-2 rounded-[24px] shadow-sm border border-white/50 transition-all duration-400 ease-out overflow-hidden cursor-pointer hover:shadow-lg hover:bg-white/80 ${deletingIds.includes(restaurant.id) ? 'scale-95 opacity-0 translate-y-4' : 'scale-100 opacity-100 translate-y-0'}`}
+                        onClick={() => setSelectedRestaurant(restaurant)}
+                      >
+                        <figure className='w-full h-56 relative overflow-hidden rounded-[18px] bg-black/5'>
+                          <img 
+                            src={getFoodImage(restaurant.name)} 
+                            alt={restaurant.name} 
+                            className='w-full h-full object-cover transition-transform duration-700 group-hover:scale-105'
+                          />
+                          <div className='absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 opacity-80 group-hover:opacity-100 transition-opacity duration-300'></div>
                           
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); handleShare(restaurant); }} 
-                            className="flex items-center gap-1 text-xs font-bold text-[#1D1D1F] hover:bg-white/60 px-3 py-1.5 rounded-lg transition-all active:scale-95 ml-auto"
-                          >
-                            分享名單
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7"/></svg>
-                          </button>
-                        </div>
-                      </article>
-                    </div>
-                  ))
+                          <span className="absolute top-3 left-3 text-[10px] font-bold text-white bg-black/30 backdrop-blur-md px-2.5 py-1 rounded-md border border-white/20 shadow-sm z-10 transition-transform group-hover:scale-105">
+                            {smartCategory}
+                          </span>
+
+                          {restaurant.recommendedBy && (
+                            <a 
+                              href={`https://www.threads.net/@${restaurant.recommendedBy.replace('@', '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()} 
+                              className="absolute top-3 right-3 z-20 bg-white/90 backdrop-blur-md px-2.5 py-1 rounded-full flex items-center gap-1.5 text-[10px] font-bold text-[#1D1D1F] shadow-md hover:scale-110 active:scale-95 transition-transform"
+                            >
+                              <div className="w-3.5 h-3.5 rounded-full bg-gradient-to-br from-purple-500 to-orange-400 flex items-center justify-center text-white text-[8px]">
+                                {restaurant.recommendedBy.replace('@', '').charAt(0).toUpperCase()}
+                              </div>
+                              @{restaurant.recommendedBy.replace('@', '')}
+                            </a>
+                          )}
+
+                          <div className="absolute bottom-3 left-4 right-4 z-10 transition-transform duration-300 group-hover:-translate-y-1">
+                             <h3 className='text-xl font-bold text-white leading-tight line-clamp-1 drop-shadow-md'>{restaurant.name}</h3>
+                             <div className="flex items-center gap-1 mt-1 text-white/90 text-xs">
+                               <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3" strokeWidth="2"/></svg>
+                               <span className="line-clamp-1 drop-shadow-sm font-medium">{restaurant.address}</span>
+                             </div>
+                          </div>
+                        </figure>
+
+                        <article className='px-3 pt-3 pb-2 relative'>
+                          {restaurant.note && (
+                            <p className='text-[13px] text-[#444] font-medium leading-relaxed line-clamp-2'>{restaurant.note}</p>
+                          )}
+
+                          <div className='flex justify-between items-center pt-3 mt-2 border-t border-white/40'>
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); handleDeleteRestaurant(restaurant.id); }} 
+                              className="flex items-center gap-1.5 text-xs font-bold text-[#FF3B30] hover:bg-white/60 px-3 py-1.5 rounded-lg transition-all active:scale-95"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                              刪除
+                            </button>
+                            
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); handleShare(restaurant); }} 
+                              className="flex items-center gap-1 text-xs font-bold text-[#1D1D1F] hover:bg-white/60 px-3 py-1.5 rounded-lg transition-all active:scale-95 ml-auto"
+                            >
+                              分享名單
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7"/></svg>
+                            </button>
+                          </div>
+                        </article>
+                      </div>
+                    );
+                  })
                 ) : (
                   <div className="text-center py-16 px-4 bg-white/40 backdrop-blur-xl rounded-[32px] border border-white/40 shadow-sm">
                     <div className="w-16 h-16 bg-white/60 backdrop-blur-md rounded-full mx-auto flex items-center justify-center shadow-sm border border-white/50 mb-4 hover:scale-110 transition-transform">
@@ -958,6 +1025,12 @@ export default function App() {
                   </div>
                 )}
               </section>
+
+              {/* 🌟 登入後之 Fabrica 頁尾 */}
+              <footer className="text-center text-xs text-[#86868B]/60 pt-8 pb-4">
+                <p className="font-bold tracking-widest text-[10px] uppercase mb-1">FABRICA FOODIE</p>
+                <p className="font-semibold">© Fabrica All Rights Reserved.</p>
+              </footer>
             </main>
           </div>
         )}
@@ -984,7 +1057,7 @@ export default function App() {
                 <input 
                   required 
                   type="text" 
-                  placeholder="例如：Fabrica 咖啡廳" 
+                  placeholder="例如：詹記麻辣火鍋" 
                   value={newRestName} 
                   onChange={(e) => { setNewRestName(e.target.value); setIsTypingName(true); }} 
                   className="w-full bg-black/5 text-sm font-bold rounded-xl py-3.5 px-4 border border-transparent focus:bg-white focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all shadow-inner" 
@@ -1011,7 +1084,7 @@ export default function App() {
               </div>
               
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#86868B] ml-1 uppercase tracking-wider">分類</label>
+                <label className="text-xs font-bold text-[#86868B] ml-1 uppercase tracking-wider">分類 (系統將智慧修正)</label>
                 <input type="text" placeholder="例如：日式甜點 • 咖啡廳" value={newRestCategory} onChange={(e) => setNewRestCategory(e.target.value)} className="w-full bg-black/5 text-sm font-bold rounded-xl py-3.5 px-4 border border-transparent focus:bg-white focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all shadow-inner" />
               </div>
 
@@ -1067,7 +1140,7 @@ export default function App() {
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20"></div>
               <div className="absolute bottom-5 left-5 right-5">
                 <span className="text-[10px] font-bold text-white bg-white/20 backdrop-blur-md px-2.5 py-1 rounded-md inline-block mb-2 border border-white/20 shadow-sm">
-                  {selectedRestaurant.category}
+                  {getSmartTag(selectedRestaurant.name, selectedRestaurant.category)}
                 </span>
                 <h2 className="text-2xl font-bold text-white leading-tight drop-shadow-lg">{selectedRestaurant.name}</h2>
               </div>
@@ -1090,6 +1163,7 @@ export default function App() {
               </div>
             </div>
 
+            {/* 🌟 修改原生的開啟地圖按鈕為「查看地點」 */}
             <div className="p-5 bg-white/80 backdrop-blur-xl border-t border-black/5 flex-shrink-0">
               <a 
                 href={getFreeMapAppUrl(selectedRestaurant.name, selectedRestaurant.address)}
@@ -1098,7 +1172,7 @@ export default function App() {
                 className="w-full flex items-center justify-center gap-2 py-4 bg-[#1D1D1F] text-white font-bold rounded-2xl hover:bg-black transition-all shadow-xl active:scale-[0.98]"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
-                開啟原生地圖定位
+                查看地點
               </a>
             </div>
           </div>
@@ -1115,11 +1189,13 @@ export default function App() {
               
               <div className="absolute top-4 left-4 bg-black/50 backdrop-blur-xl text-white text-[10px] font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 tracking-wider shadow-sm border border-white/20">
                 <svg className="w-3.5 h-3.5 text-[#34C759]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                好友私藏推薦
+                SHARED • 好友私藏推薦
               </div>
               
               <div className="absolute bottom-4 left-5 right-5">
-                <span className="text-[10px] font-bold text-white bg-white/20 backdrop-blur-md px-2.5 py-1 rounded-md inline-block mb-1 border border-white/20">{sharedItem.category}</span>
+                <span className="text-[10px] font-bold text-white bg-white/20 backdrop-blur-md px-2.5 py-1 rounded-md inline-block mb-1 border border-white/20">
+                  {getSmartTag(sharedItem.name, sharedItem.category)}
+                </span>
                 <h2 className="text-2xl font-bold text-white leading-tight drop-shadow-md">{sharedItem.name}</h2>
               </div>
             </div>
