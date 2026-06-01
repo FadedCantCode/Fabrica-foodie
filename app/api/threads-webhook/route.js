@@ -16,6 +16,30 @@ const firebaseConfig = {
 const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(firebaseApp);
 const appId = 'fabrica-foodie-app';
+const GEMINI_MODEL = 'gemini-2.5-flash';
+
+async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 10000) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data?.error?.message || `Request failed with ${response.status}`);
+    }
+    return data;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function parseGeminiJson(rawText) {
+  const cleanJsonStr = rawText
+    .replace(/```json|```/g, "")
+    .trim();
+  const jsonMatch = cleanJsonStr.match(/\{[\s\S]*\}/);
+  return JSON.parse(jsonMatch ? jsonMatch[0] : cleanJsonStr);
+}
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -23,7 +47,12 @@ export async function GET(request) {
   const token = searchParams.get('hub.verify_token');
   const challenge = searchParams.get('hub.challenge');
 
-  const verifyToken = process.env.THREADS_VERIFY_TOKEN || 'fabrica_studio_secret';
+  const verifyToken = process.env.THREADS_VERIFY_TOKEN;
+
+  if (!verifyToken) {
+    console.error('THREADS_VERIFY_TOKEN is not configured.');
+    return new Response('Webhook verification is not configured', { status: 500 });
+  }
 
   if (mode === 'subscribe' && token === verifyToken) {
     console.log('✅ Meta Webhook 驗證成功！');
@@ -56,9 +85,10 @@ export async function POST(request) {
 
     if (threadsAccessToken && parentPostId) {
       try {
-        const fetchPostUrl = `https://graph.threads.net/v1.0/${parentPostId}?fields=text,media_url,media_type&access_token=${threadsAccessToken}`;
-        const threadsRes = await fetch(fetchPostUrl);
-        const threadsData = await threadsRes.json();
+        const fetchPostUrl = `https://graph.threads.net/v1.0/${parentPostId}?fields=text,media_url,media_type`;
+        const threadsData = await fetchJsonWithTimeout(fetchPostUrl, {
+          headers: { Authorization: `Bearer ${threadsAccessToken}` }
+        });
         foodPostText = threadsData.text || "";
       } catch (err) {
         console.error("無法自 Threads 抓取原串文內容，將降級使用標記留言進行解析:", err);
@@ -68,9 +98,9 @@ export async function POST(request) {
     const textToAnalyze = foodPostText || triggerText;
 
     // 🌟 對齊 Vercel 變數名稱
-    const geminiApiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+    const geminiApiKey = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
     if (!geminiApiKey) {
-      console.error("❌ 系統錯誤：未配置 NEXT_PUBLIC_GEMINI_API_KEY 環境變數！");
+      console.error("❌ 系統錯誤：未配置 GEMINI_API_KEY 環境變數！");
       return NextResponse.json({ error: "內部 API 設定未完成" }, { status: 500 });
     }
 
@@ -100,14 +130,14 @@ export async function POST(request) {
     try {
       // 🌟 升級為 2026 最新主力萬用模型 gemini-2.5-flash
       // 網址保留 ?key= 參數，這是 Google API 路由分配的必要條件
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiApiKey}`;
       
       const payload = {
         contents: [{ parts: [{ text: `Threads貼文內容：${textToAnalyze}` }] }],
         systemInstruction: { parts: [{ text: systemPrompt }] }
       };
 
-      const geminiResponse = await fetch(geminiUrl, {
+      const geminiData = await fetchJsonWithTimeout(geminiUrl, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
@@ -115,15 +145,12 @@ export async function POST(request) {
         },
         body: JSON.stringify(payload)
       });
-
-      const geminiData = await geminiResponse.json();
       
       if (geminiData.error) {
          console.error("🤖 Gemini API 錯誤:", geminiData.error);
       } else {
          const rawAiText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
-         const cleanJsonStr = rawAiText.replace(/```json|```/g, "").trim();
-         const parsed = JSON.parse(cleanJsonStr);
+         const parsed = parseGeminiJson(rawAiText);
          
          if (parsed.name) {
            aiResult = parsed;
