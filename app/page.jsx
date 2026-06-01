@@ -6,8 +6,6 @@ import {
   getAuth, 
   GoogleAuthProvider,
   signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
   signOut,
   onAuthStateChanged 
 } from 'firebase/auth';
@@ -37,22 +35,11 @@ const firebaseConfig = {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({ prompt: "select_account" });
 const db = getFirestore(app);
 const appId = 'fabrica-foodie-app'; 
 const FABRICA_THREADS_HANDLE = '@fabrica_tw';
 
 const createVerificationCode = () => `FAB-${Math.floor(1000 + Math.random() * 9000)}`;
-
-const extractThreadsAuthor = (url = "") => {
-  try {
-    const parsed = new URL(url);
-    const match = parsed.pathname.match(/\/@([^/]+)/);
-    return match?.[1] || "";
-  } catch (err) {
-    return "";
-  }
-};
 
 // ==========================================
 // 🗺️ 輔助函數、AI 與智慧標籤
@@ -251,7 +238,6 @@ export default function App() {
   const [mounted, setMounted] = useState(false); 
   const canvasContainerRef = useRef(null);
   const hasSearchedRef = useRef(false);
-  const isAuthed = Boolean(firebaseUser);
   const getUserLibraryId = () => firebaseUser?.uid || "";
   const getCleanThreadsUsername = () => threadsUsername.replace("@", "").trim().toLowerCase();
 
@@ -345,11 +331,6 @@ export default function App() {
   }, [mounted, isLoggedIn]);
 
   useEffect(() => {
-    getRedirectResult(auth).catch((err) => {
-      console.error("Google redirect sign-in failed:", err);
-      setLoginError(`Google 登入失敗：${err.code || err.message}`);
-    });
-
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setFirebaseUser(user || null);
       if (user) {
@@ -361,7 +342,6 @@ export default function App() {
       } else {
         setIsLoggedIn(false);
         setThreadsUsername("");
-        setRestaurants([]);
       }
     });
     return () => unsubscribe();
@@ -406,7 +386,7 @@ export default function App() {
 
   // 🌟 實時監聽資料庫且加上強置 Error Callback 預防靜默錯誤
   useEffect(() => {
-    if (!firebaseUser) return; 
+    if (!firebaseUser || !isLoggedIn) return; 
     setIsLoading(true);
     const userLibraryId = getUserLibraryId();
     const unsubscribe = onSnapshot(
@@ -424,11 +404,11 @@ export default function App() {
       }
     );
     return () => unsubscribe();
-  }, [firebaseUser, threadsUsername]);
+  }, [firebaseUser, isLoggedIn, threadsUsername]);
 
   // 🌟 智慧探店三重備源引擎 (Overpass ➔ Nominatim ➔ Photon)
   useEffect(() => {
-    if (isAuthed && typeof window !== 'undefined' && navigator.geolocation && !hasSearchedRef.current) {
+    if (isLoggedIn && typeof window !== 'undefined' && navigator.geolocation && !hasSearchedRef.current) {
       hasSearchedRef.current = true;
       navigator.geolocation.getCurrentPosition((position) => {
         const { latitude, longitude } = position.coords;
@@ -439,7 +419,7 @@ export default function App() {
         setNearbyRecommendations(TAIWAN_TRENDY_RECS);
       });
     }
-  }, [isAuthed]);
+  }, [isLoggedIn]);
 
   const triggerUltimateNearbySearch = async (lat, lng) => {
     let results = [];
@@ -598,7 +578,6 @@ export default function App() {
 
   const handleGoogleSignIn = (e) => {
     e.preventDefault();
-    e.stopPropagation();
     const cleanUsername = inputUsername.replace("@", "").trim().toLowerCase();
     if (cleanUsername && typeof window !== 'undefined') {
       window.localStorage.setItem('fabrica_threads_username', cleanUsername);
@@ -607,11 +586,6 @@ export default function App() {
     setVerificationCode("");
     setIsWaitingVerification(false);
     setLoginError("");
-    signInWithRedirect(auth, googleProvider).catch((err) => {
-      console.error("Google redirect sign-in failed:", err);
-      setLoginError(`Google 登入失敗：${err.code || err.message}`);
-    });
-    return;
     signInWithPopup(auth, googleProvider).catch((err) => {
       console.error("Google sign-in failed:", err);
       setLoginError("Google 登入失敗，請再試一次。");
@@ -794,9 +768,8 @@ export default function App() {
       }
 
       const userLibraryId = getUserLibraryId();
+      const cleanUsername = getCleanThreadsUsername() || firebaseUser?.email || "google-user";
       const sourceUrl = rawText.match(/https?:\/\/\S+/)?.[0] || "";
-      const sourceAuthor = extractThreadsAuthor(sourceUrl);
-      const cleanUsername = sourceAuthor || getCleanThreadsUsername() || firebaseUser?.email || "google-user";
       const newDoc = {
         name: aiResult.name || "待確認美食",
         address: aiResult.address || "",
@@ -812,7 +785,6 @@ export default function App() {
         source: "manual_threads_import",
         sourceText: rawText,
         threadsUrl: sourceUrl,
-        sourceAuthor,
         recommendedBy: cleanUsername,
         savedAt: serverTimestamp()
       };
@@ -1113,7 +1085,7 @@ export default function App() {
     <div className="relative min-h-screen text-[#1D1D1F] tracking-tight font-sans antialiased overflow-x-hidden overflow-y-scroll bg-[#F4F4F6] touch-manipulation">
       
       {/* 🌟 登入後之 Blur Vignette + 原生 WebGL 彩色流體背景 */}
-      {(isAuthed || isGlobalTransitioning) && (
+      {(isLoggedIn || isGlobalTransitioning) && (
         <BlurVignette blur="35px" className="fixed inset-0 z-0 pointer-events-none transition-opacity duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)] opacity-100">
            <ColorfulBackground show={true} />
         </BlurVignette>
@@ -1125,7 +1097,7 @@ export default function App() {
       </div>
 
       {/* 登入前的黑白原生 3D 液態球體著色器背景 */}
-      {!isAuthed && (
+      {!isLoggedIn && (
         <div 
           ref={canvasContainerRef} 
           className={`fixed inset-0 z-0 w-screen h-screen pointer-events-auto transition-opacity duration-1000 ease-in-out ${isGlobalTransitioning ? 'opacity-0 invisible' : 'opacity-100 visible'}`} 
@@ -1133,9 +1105,9 @@ export default function App() {
       )}
 
       {/* ==================== 頁面容器 (🌟 修復：登入後取消 items-center 且置中 layout，完美解決卡片偏左與 Header 未整版問題！) ==================== */}
-      <div className={`relative z-10 w-full min-h-screen flex flex-col ${!isAuthed ? 'items-center justify-center' : 'items-center'}`}>
+      <div className={`relative z-10 w-full min-h-screen flex flex-col ${!isLoggedIn ? 'items-center justify-center' : 'items-center'}`}>
         
-        {!isAuthed ? (
+        {!isLoggedIn ? (
           // --- 登入畫面 ---
           <div className="relative w-full min-h-screen flex flex-row justify-between items-stretch">
             
@@ -1167,7 +1139,7 @@ export default function App() {
                       <input type="text" placeholder="輸入您的 Threads 帳號" value={inputUsername} onChange={(e) => setInputUsername(e.target.value.replace("@", ""))} className="w-full bg-white/80 text-base font-medium rounded-2xl py-4.5 pl-12 pr-5 border border-[#D2D2D7] focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all duration-300 placeholder-[#86868B]/70 shadow-[0_2px_8px_rgba(0,0,0,0.01)]" />
                     </div>
                   </div>
-                  {false && verificationCode && (
+                  {verificationCode && (
                     <div className="rounded-2xl border border-black/10 bg-white/75 p-4 text-left shadow-sm">
                       <p className="text-[11px] font-bold uppercase tracking-wider text-[#86868B]">Threads 驗證</p>
                       <p className="mt-2 text-sm font-semibold leading-relaxed text-[#1D1D1F]">到 Threads 留言或發文：</p>
@@ -1296,8 +1268,6 @@ export default function App() {
                   </div>
                 ) : displayRestaurants.length > 0 ? (
                   displayRestaurants.map((restaurant, index) => {
-                    const recommenderHandle = restaurant.sourceAuthor || restaurant.recommendedBy?.replace('@', '') || "";
-                    const recommenderUrl = restaurant.threadsUrl || `https://www.threads.net/@${recommenderHandle || "fabrica_tw"}`;
                     const smartCategory = getSmartTag(restaurant.name, restaurant.category);
                     const isDraggingThis = draggingId === restaurant.id;
                     const isSystemRecommended = restaurant.recommendedBy === "系統探索" || restaurant.recommendedBy === "系統推薦";
@@ -1338,16 +1308,16 @@ export default function App() {
                             
                             {restaurant.recommendedBy && (
                               <a 
-                                href={recommenderUrl} 
+                                href={isSystemRecommended ? "https://www.threads.net/@fabrica_tw" : `https://www.threads.net/@${restaurant.recommendedBy.replace('@', '')}`} 
                                 target="_blank" 
                                 rel="noopener noreferrer" 
                                 onClick={(e) => e.stopPropagation()} 
                                 className="absolute top-3 right-3 z-20 bg-white/95 backdrop-blur-md px-2.5 py-1.5 rounded-full flex items-center gap-1.5 text-[10px] font-bold text-neutral-900 shadow-md hover:scale-110 active:scale-90 transition-transform pointer-events-auto"
                               >
                                 <div className="w-3.5 h-3.5 rounded-full bg-gradient-to-br from-purple-500 to-orange-400 flex items-center justify-center text-white text-[8px]">
-                                  {isSystemRecommended ? "F" : recommenderHandle.charAt(0).toUpperCase()}
+                                  {isSystemRecommended ? "F" : restaurant.recommendedBy.replace('@', '').charAt(0).toUpperCase()}
                                 </div>
-                                @{isSystemRecommended ? "fabrica_tw" : recommenderHandle}
+                                @{isSystemRecommended ? "fabrica_tw" : restaurant.recommendedBy.replace('@', '')}
                               </a>
                             )}
                             <div className="absolute bottom-3 left-4 right-4 z-10 transition-transform duration-300 group-hover:-translate-y-1">
@@ -1531,7 +1501,7 @@ export default function App() {
         </div>
       )}
 
-      {isAuthed && sharedItem && !isGlobalTransitioning && (
+      {isLoggedIn && sharedItem && !isGlobalTransitioning && (
         <div className="fixed inset-0 z-[140] flex items-center justify-center px-4 bg-black/60 backdrop-blur-md animate-fade-in">
           <div className="bg-white/95 backdrop-blur-3xl w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl relative scale-100 animate-bounce-in border border-white/50">
             <BlurVignette blur="15px" className="h-56 w-full relative">
