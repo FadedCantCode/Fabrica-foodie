@@ -107,7 +107,7 @@ const LiquidGlassCard = ({ children, className, onClick }) => {
   );
 };
 
-// 🌟 增強版 Blur Vignette (大片級邊緣磨砂與超強暗角漸層遮罩)
+// 🌟 增強版 Blur Vignette (電影級邊緣磨砂與超強暗角漸層遮罩)
 const BlurVignette = ({ children, className, blur = '35px' }) => {
   return (
     <div className={`relative ${className}`}>
@@ -233,6 +233,15 @@ export default function App() {
   const [draggingId, setDraggingId] = useState(null); // 用於控制 z-index 與透明度
   const pressTimer = useRef(null);
 
+  // 🌟 物理拖動位置與排列的 React State (全新 3D 彈性推動效果)
+  const [dragState, setDragState] = useState({
+    draggingId: null,
+    startIndex: -1,
+    hoveredIndex: -1,
+    dx: 0,
+    dy: 0
+  });
+
   // 🌟 全台神級備用資料庫
   const TAIWAN_TRENDY_RECS = [
     { id: "fallback-1", name: "詹記麻辣火鍋", address: "台北市大安區和平東路三段60號", category: "火鍋專賣", note: "📍 台北極致傳奇麻辣鍋，鴨血豆腐堪稱美味天花板，絕對必吃。" },
@@ -274,12 +283,6 @@ export default function App() {
     }
   `;
 
-  const isDuplicateRestaurant = (name) => {
-    if (!name) return false;
-    const target = name.replace(/\s+/g, "").toLowerCase();
-    return restaurants.some(r => r.name && r.name.replace(/\s+/g, "").toLowerCase() === target);
-  };
-
   useEffect(() => { setMounted(true); }, []);
 
   // 登入前黑白 3D 背景
@@ -313,15 +316,25 @@ export default function App() {
     initAuth(); const unsubscribe = onAuthStateChanged(auth, (user) => { if (user) setFirebaseUser(user); }); return () => unsubscribe();
   }, []);
 
+  // 🌟 實時監聽資料庫且加上強置 Error Callback 預防靜默錯誤
   useEffect(() => {
     if (!firebaseUser || !isLoggedIn || !threadsUsername || firebaseUser.uid === "local-temp-guest") return; 
     setIsLoading(true);
     const cleanUsername = threadsUsername.replace("@", "").trim().toLowerCase();
-    const unsubscribe = onSnapshot(collection(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants'), (snapshot) => {
-      const list = []; snapshot.forEach((doc) => list.push({ id: doc.id, ...doc.data() }));
-      const sortedList = list.sort((a, b) => (b.savedAt?.seconds || 0) - (a.savedAt?.seconds || 0));
-      setRestaurants(sortedList); setIsLoading(false);
-    });
+    const unsubscribe = onSnapshot(
+      collection(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants'), 
+      (snapshot) => {
+        const list = []; snapshot.forEach((doc) => list.push({ id: doc.id, ...doc.data() }));
+        const sortedList = list.sort((a, b) => (b.savedAt?.seconds || 0) - (a.savedAt?.seconds || 0));
+        setRestaurants(sortedList); setIsLoading(false);
+      },
+      (error) => {
+        console.error("Firestore loading subscription error:", error);
+        setIsLoading(false);
+        setToastMessage("⚠️ 無法連線至雲端資料庫，目前使用本地離線快取！");
+        setTimeout(() => setToastMessage(""), 3000);
+      }
+    );
     return () => unsubscribe();
   }, [firebaseUser, isLoggedIn, threadsUsername]);
 
@@ -410,7 +423,7 @@ export default function App() {
       } catch (err) { console.error("Nominatim fallback failed:", err); }
     }
 
-    // 🌟 3. Photon 全球極速地理搜尋備份引擎 (第三重極限備援防護，100% 絕對抓出台灣真實店家名稱)
+    // 🌟 3. Photon 全球極速地理搜尋備份引擎 (第三重極限備援防護)
     if (results.length === 0) {
       try {
         console.log("Launching Phase 3 Photon Geocoder...");
@@ -633,6 +646,9 @@ export default function App() {
       setToastMessage(`⚠️ ${newRestName} 已在您的口袋名單中！`); setTimeout(() => setToastMessage(""), 3000); return;
     }
 
+    // 🌟 修正 Bug 1 & 6：先取得 cleanRecommender 的宣告，確保順暢執行不報 ReferenceError！
+    const cleanRecommender = newRestRecommender.replace("@", "").trim();
+
     // 🌟 瞬間關閉Modal，極致快速！
     closeAddModal();
     setToastMessage(`✨ 正在收藏並撰寫專屬 AI 短評...`);
@@ -737,6 +753,14 @@ export default function App() {
       cardEl.style.zIndex = "100";
       cardEl.style.boxShadow = "0 35px 70px rgba(0,0,0,0.35)";
       document.body.style.userSelect = 'none'; 
+      
+      setDragState({
+        draggingId: restaurant.id,
+        startIndex: index,
+        hoveredIndex: index,
+        dx: 0,
+        dy: 0
+      });
       setDraggingId(restaurant.id);
     };
 
@@ -771,7 +795,7 @@ export default function App() {
       moveEvent.preventDefault(); 
       if (dragRef.current.id === null || !dragRef.current.el) return;
 
-      // 60FPS 硬體加速：完美地緊密跟隨滑鼠正中心，不離游標！
+      // 60FPS 硬體加速：完美的跟隨與帶有物理加速度的頃斜角
       dragRef.current.el.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(1.05) rotate(${dx * 0.04}deg)`;
 
       // 穿透自身以正確捕捉碰撞目標
@@ -792,6 +816,11 @@ export default function App() {
           dragRef.current.startY += shift;
           dragRef.current.hoveredIndex = targetIdx;
           
+          setDragState(prev => ({
+            ...prev,
+            hoveredIndex: targetIdx
+          }));
+
           setDisplayRestaurants(prev => {
             const arr = [...prev];
             const oldIdx = arr.findIndex(r => r.id === dragRef.current.id);
@@ -829,6 +858,7 @@ export default function App() {
 
       document.body.style.userSelect = 'auto';
       dragRef.current = { id: null, startX: 0, startY: 0, offsetX: 0, offsetY: 0, el: null, hoveredIndex: -1, isDragging: false, isLongPressed: false };
+      setDragState({ draggingId: null, startIndex: -1, hoveredIndex: -1, dx: 0, dy: 0 });
       setDraggingId(null);
 
       window.removeEventListener('pointermove', handleGlobalPointerMove);
@@ -864,8 +894,8 @@ export default function App() {
         />
       )}
 
-      {/* ==================== 頁面容器 (🌟 修復：登入後取消 items-center / justify-center 防止排版偏左不置中) ==================== */}
-      <div className={`relative z-10 w-full min-h-screen flex ${!isLoggedIn ? 'items-center justify-center' : 'justify-center'}`}>
+      {/* ==================== 頁面容器 (🌟 修復：登入後取消 items-center 且置中 layout，完美解決卡片偏左與 Header 未整版問題！) ==================== */}
+      <div className={`relative z-10 w-full min-h-screen flex flex-col ${!isLoggedIn ? 'items-center justify-center' : 'items-center'}`}>
         
         {!isLoggedIn ? (
           // --- 登入畫面 ---
@@ -922,9 +952,10 @@ export default function App() {
 
         ) : (
           // --- 登入後主檔案庫面板 ---
-          <div className={`w-full max-w-md pb-10 min-h-screen transition-all duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isGlobalTransitioning ? 'opacity-0 translate-y-12 scale-[0.97] blur-md' : 'opacity-100 translate-y-0 scale-100 blur-0'}`}>
-            <header className="sticky top-0 z-40 bg-white/40 backdrop-blur-2xl border-b border-white/30 px-6 py-4 shadow-[0_4px_30px_rgba(0,0,0,0.05)] transition-all">
-              <div className="flex justify-between items-center">
+          <div className={`w-full min-h-screen flex flex-col items-center transition-all duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isGlobalTransitioning ? 'opacity-0 translate-y-12 scale-[0.97] blur-md' : 'opacity-100 translate-y-0 scale-100 blur-0'}`}>
+            {/* 🌟 修正：Header滿版橫跨網頁，內部精準置中對稱！ */}
+            <header className="w-full sticky top-0 z-40 bg-white/40 backdrop-blur-2xl border-b border-white/30 px-6 py-4 shadow-[0_4px_30px_rgba(0,0,0,0.05)] transition-all flex justify-center">
+              <div className="w-full max-w-md flex justify-between items-center">
                 <div className="flex flex-col animate-bounce-in">
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] font-bold tracking-wider text-[#555555] uppercase">FABRICA MAPS</span>
@@ -940,7 +971,8 @@ export default function App() {
               </div>
             </header>
 
-            <main className="mt-6 space-y-6 relative z-10">
+            {/* 🌟 修正：餐廳卡片列與主面板寬度完全設定在 max-w-md 並在網頁端對稱置中！ */}
+            <main className="w-full max-w-md px-4 mt-6 space-y-6 relative z-10">
               
               {/* 🌟 手動新增口袋名單按鈕 (LiquidGlassCard 套件) */}
               <LiquidGlassCard onClick={() => setShowAddModal(true)} className="w-full py-4 text-sm font-bold text-[#1D1D1F] flex items-center justify-center gap-2 shadow-sm border border-white/50 bg-white/30 hover:scale-[1.01]">
@@ -1012,16 +1044,30 @@ export default function App() {
                     const isDraggingThis = draggingId === restaurant.id;
                     const isSystemRecommended = restaurant.recommendedBy === "系統探索" || restaurant.recommendedBy === "系統推薦";
 
+                    // 🌟 智慧推動特效位移 (當其他卡片被拖曳過來時，自動計算往上或往下推擠翻譯 %)
+                    let translateY = 0;
+                    if (dragState.draggingId && dragState.hoveredIndex !== -1 && !isDraggingThis) {
+                      const start = dragState.startIndex;
+                      const hover = dragState.hoveredIndex;
+                      if (start < hover && index > start && index <= hover) {
+                        translateY = -105; // 往前/往上擠開
+                      } else if (start > hover && index < start && index >= hover) {
+                        translateY = 105; // 往後/往下擠開
+                      }
+                    }
+
                     return (
                       <div
                         key={restaurant.id}
                         data-sort-index={index}
                         data-restaurant-id={restaurant.id}
                         onPointerDown={(e) => handlePointerDown(e, restaurant, index)}
-                        className={`group select-none cursor-grab active:cursor-grabbing w-full animate-fade-in-up ${deletingIds.includes(restaurant.id) ? 'scale-95 opacity-0' : 'scale-100 opacity-100'}`}
+                        className={`group select-none cursor-grab active:cursor-grabbing w-full`}
                         style={{
-                          transition: isDraggingThis ? 'none' : 'transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.4s ease',
-                          touchAction: 'none' 
+                          transform: isDraggingThis ? 'none' : `translate3d(0, ${translateY}%, 0)`,
+                          transition: isDraggingThis ? 'none' : 'transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.4s ease',
+                          touchAction: 'none',
+                          opacity: isDraggingThis ? 0.6 : 1
                         }}
                       >
                         {/* 經典白底 bg-white 加上精細邊框高質感設計 */}
@@ -1107,24 +1153,27 @@ export default function App() {
             <form onSubmit={handleAddRestaurant} className="space-y-4">
               
               {/* 🌟 店名輸入框以及對其完美的建議選單 */}
-              <div className="space-y-1.5 relative">
+              <div className="space-y-1.5">
                 <label className="text-xs font-bold text-[#86868B] ml-1 uppercase tracking-wider">店名 *</label>
-                <input required type="text" placeholder="例如：詹記麻辣火鍋" value={newRestName} onChange={(e) => { setNewRestName(e.target.value); setIsTypingName(true); }} className="w-full bg-black/5 text-sm font-bold rounded-xl py-3.5 px-4 border border-transparent focus:bg-white focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all shadow-inner" />
-                {isTypingName && (nameSuggestions.length > 0 || isSearchingPlaces) && (
-                  // 🌟 修正：對齊與置中店名選項，完美精準對稱！
-                  <div className="absolute top-[76px] left-0 w-full bg-white/95 backdrop-blur-xl rounded-xl shadow-2xl border border-black/10 overflow-hidden z-50 max-h-48 overflow-y-auto animate-fade-in-up">
-                    {isSearchingPlaces ? (
-                       <div className="p-3 text-xs text-center text-[#86868B] animate-pulse">搜尋地圖座標中...</div>
-                    ) : (
-                       nameSuggestions.map(place => (
-                         <div key={place.place_id} onClick={() => handleSelectSuggestion(place)} className="p-3 hover:bg-black/5 cursor-pointer border-b border-black/5 last:border-0 transition-colors">
-                           <div className="font-bold text-sm text-[#1D1D1F] text-center">{place.name || place.display_name.split(',')[0]}</div>
-                           <div className="text-[11px] text-[#86868B] mt-0.5 line-clamp-1 text-center font-medium">{place.display_name}</div>
-                         </div>
-                       ))
-                    )}
-                  </div>
-                )}
+                {/* 🌟 修正：店名包裹一層 relative，徹底解決下拉選單在不同解析度下偏左與未對齊的痛點 */}
+                <div className="relative w-full">
+                  <input required type="text" placeholder="例如：詹記麻辣火鍋" value={newRestName} onChange={(e) => { setNewRestName(e.target.value); setIsTypingName(true); }} className="w-full bg-black/5 text-sm font-bold rounded-xl py-3.5 px-4 border border-transparent focus:bg-white focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all shadow-inner" />
+                  {isTypingName && (nameSuggestions.length > 0 || isSearchingPlaces) && (
+                    // 🌟 修正：設定寬度為 w-full 且內容置中 (text-center)，達到完美對齊！
+                    <div className="absolute top-full left-0 mt-1 w-full bg-white/95 backdrop-blur-xl rounded-xl shadow-2xl border border-black/10 overflow-hidden z-50 max-h-48 overflow-y-auto animate-fade-in-up">
+                      {isSearchingPlaces ? (
+                         <div className="p-3 text-xs text-center text-[#86868B] animate-pulse">搜尋地圖座標中...</div>
+                      ) : (
+                         nameSuggestions.map(place => (
+                           <div key={place.place_id || place.osm_id || Math.random().toString()} onClick={() => handleSelectSuggestion(place)} className="p-3 hover:bg-black/5 cursor-pointer border-b border-black/5 last:border-0 transition-all text-center">
+                             <div className="font-bold text-sm text-[#1D1D1F]">{place.name || place.display_name.split(',')[0]}</div>
+                             <div className="text-[11px] text-[#86868B] mt-0.5 line-clamp-1 font-medium">{place.display_name}</div>
+                           </div>
+                         ))
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="space-y-1.5">
@@ -1187,7 +1236,7 @@ export default function App() {
             </div>
             
             <div className="p-5 bg-white/80 backdrop-blur-xl border-t border-black/5 flex-shrink-0">
-              {/* 查看地點按鈕改用極高質感的 LiquidGlassCard 套件 */}
+              {/* 🌟 查看地點按鈕改用極高質感的 LiquidGlassCard 套件 */}
               <LiquidGlassCard onClick={() => window.open(getFreeMapAppUrl(selectedRestaurant.name, selectedRestaurant.address), "_blank")} className="w-full flex items-center justify-center gap-2 py-4 bg-black/95 text-white font-bold rounded-2xl shadow-xl active:scale-[0.95]">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
                 查看地點
