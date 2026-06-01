@@ -1,30 +1,9 @@
 import { NextResponse } from 'next/server';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import {
-  getFirestore,
-  collection,
-  addDoc,
-  doc,
-  setDoc,
-  serverTimestamp
-} from 'firebase/firestore';
+import { FieldValue, getAdminDb } from '../../../lib/firebaseAdmin';
 
 const FABRICA_HANDLE = '@fabrica_tw';
 const GEMINI_MODEL = 'gemini-2.5-flash';
 const appId = 'fabrica-foodie-app';
-
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "",
-  authDomain: "fabrica-foodie.firebaseapp.com",
-  projectId: "fabrica-foodie",
-  storageBucket: "fabrica-foodie.firebasestorage.app",
-  messagingSenderId: "635499185101",
-  appId: "1:635499185101:web:e5b4dcba1c57e782467a84",
-  measurementId: "G-MPYBH4KBER"
-};
-
-const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-const db = getFirestore(firebaseApp);
 
 async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 10000) {
   const controller = new AbortController();
@@ -166,11 +145,12 @@ export async function POST(request) {
 
     const verificationCode = extractVerificationCode(triggerText);
     if (verificationCode && lowerTriggerText.includes("verify")) {
-      await setDoc(doc(db, 'artifacts', appId, 'verifiedUsers', cleanUsername), {
+      const db = getAdminDb();
+      await db.collection('artifacts').doc(appId).collection('verifiedUsers').doc(cleanUsername).set({
         username: cleanUsername,
         verificationCode,
         verified: true,
-        verifiedAt: serverTimestamp(),
+        verifiedAt: FieldValue.serverTimestamp(),
         source: "threads_mention"
       }, { merge: true });
 
@@ -208,11 +188,12 @@ export async function POST(request) {
       sourceImageUrl: parentPost.mediaUrl || "",
       sourceMediaType: parentPost.mediaType || "",
       recommendedBy: cleanUsername,
-      savedAt: serverTimestamp(),
+      savedAt: FieldValue.serverTimestamp(),
       threadsUrl: parentPostId ? `https://threads.net/post/${parentPostId}` : ""
     };
 
-    await addDoc(collection(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants'), newDoc);
+    const db = getAdminDb();
+    await db.collection('artifacts').doc(appId).collection('users').doc(cleanUsername).collection('restaurants').add(newDoc);
 
     return NextResponse.json({
       success: true,
