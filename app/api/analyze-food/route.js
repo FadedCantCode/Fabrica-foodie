@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+
 const GEMINI_MODEL = "gemini-2.5-flash";
 
 function extractFirstUrl(text = "") {

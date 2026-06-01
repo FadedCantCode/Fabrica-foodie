@@ -5,7 +5,6 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getAuth, 
   GoogleAuthProvider,
-  signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
   signOut,
@@ -401,7 +400,7 @@ export default function App() {
       setIsLoggedIn(true);
       setIsWaitingVerification(false);
       setLoginError("");
-      setToastMessage("Threads ?????????????");
+      setToastMessage("Threads verification complete.");
       setTimeout(() => setToastMessage(""), 3000);
     };
 
@@ -623,11 +622,11 @@ export default function App() {
 
   const getGoogleAuthErrorMessage = (error) => {
     const code = error?.code || "";
-    if (code.includes("unauthorized-domain")) return `Google ???? (${code})??? Firebase Authentication > Settings > Authorized domains ???????`; 
-    if (code.includes("invalid-api-key")) return `Google ???? (${code})??????? NEXT_PUBLIC_FIREBASE_API_KEY?`; 
-    if (code.includes("popup-blocked")) return `????????? (${code})???????????`; 
-    if (code.includes("popup-closed-by-user")) return "???? Google ?????";
-    return code ? `Google ?????${code}` : "Google ???????????";
+    if (code.includes("unauthorized-domain")) return `Google login failed (${code}). Add this Vercel domain in Firebase Authentication > Settings > Authorized domains.`;
+    if (code.includes("invalid-api-key")) return `Google login failed (${code}). Check NEXT_PUBLIC_FIREBASE_API_KEY in Vercel.`;
+    if (code.includes("popup-blocked")) return "Browser blocked the auth popup. This build uses redirect sign-in; please try again.";
+    if (code.includes("popup-closed-by-user")) return "Google login was cancelled.";
+    return code ? `Google login failed: ${code}` : "Google login failed. Please try again.";
   };
 
   const handleGoogleSignIn = async (e) => {
@@ -637,20 +636,12 @@ export default function App() {
     }
     setVerificationCode("");
     setIsWaitingVerification(false);
-    setLoginError("");
+    setLoginError("Opening Google sign-in...");
     try {
-      await signInWithPopup(auth, googleProvider);
+      await signInWithRedirect(auth, googleProvider);
     } catch (err) {
-      console.error("Google sign-in failed:", err);
+      console.error("Google redirect sign-in failed:", err);
       setLoginError(getGoogleAuthErrorMessage(err));
-      if (err?.code && !err.code.includes("popup-closed-by-user")) {
-        try {
-          await signInWithRedirect(auth, googleProvider);
-        } catch (redirectErr) {
-          console.error("Google redirect sign-in failed:", redirectErr);
-          setLoginError(getGoogleAuthErrorMessage(redirectErr));
-        }
-      }
     }
   };
 
@@ -668,16 +659,56 @@ export default function App() {
     }, 800);
   };
 
-  const handleVerificationStart = (e) => {
+  const verifyThreadsProofUrl = async (cleanUsername, code, proofUrl) => {
+    setLoginError("Checking Threads proof...");
+    const response = await fetch("/api/verify-threads-proof", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: cleanUsername, code, proofUrl })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.verified) {
+      throw new Error(data.error || "Threads proof verification failed");
+    }
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem('fabrica_auth_mode', firebaseUser ? 'google_threads' : 'threads');
+      window.localStorage.setItem('fabrica_threads_username', cleanUsername);
+      window.localStorage.removeItem('fabrica_threads_verification');
+    }
+    setThreadsUsername(`@${cleanUsername}`);
+    setInputUsername(cleanUsername);
+    setIsLoggedIn(true);
+    setIsWaitingVerification(false);
+    setLoginError("");
+    setToastMessage("Threads verification complete.");
+    setTimeout(() => setToastMessage(""), 3000);
+  };
+
+  const handleVerificationStart = async (e) => {
     e.preventDefault();
     const cleanUsername = inputUsername.replace("@", "").trim().toLowerCase();
-    if (!cleanUsername) { setLoginError("請輸入您的 Threads ID"); return; }
+    if (!cleanUsername) { setLoginError("Please enter your Threads ID."); return; }
+
+    if (verificationCode && verificationUsername === cleanUsername) {
+      const proofUrl = typeof window !== "undefined" ? window.prompt("Paste the Threads post/comment URL that contains your verification code.") : "";
+      if (!proofUrl) {
+        setLoginError("Meta webhook is not available during app review. Paste a public Threads proof URL to finish verification.");
+        return;
+      }
+      try {
+        await verifyThreadsProofUrl(cleanUsername, verificationCode, proofUrl.trim());
+      } catch (error) {
+        console.error("Threads proof verification failed:", error);
+        setLoginError("Could not verify that URL. Make sure the post/comment contains @fabrica_tw verify FAB-xxxx and matches your Threads ID.");
+      }
+      return;
+    }
 
     const code = createVerificationCode();
     setVerificationUsername(cleanUsername);
     setVerificationCode(code);
     setIsWaitingVerification(true);
-    setLoginError("");
+    setLoginError("Post or comment this on Threads: @fabrica_tw verify " + code + ". Then press the Threads button again and paste the proof URL.");
 
     if (typeof window !== 'undefined') {
       window.localStorage.setItem('fabrica_threads_verification', JSON.stringify({ username: cleanUsername, code }));
@@ -1199,7 +1230,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <form onSubmit={handleGoogleSignIn} className="space-y-5 bg-white/45 backdrop-blur-xl border border-white/60 p-6 rounded-[32px] shadow-[0_20px_40px_rgba(0,0,0,0.03)] hover:shadow-lg transition-all duration-300">
+                <form onSubmit={handleVerificationStart} className="space-y-5 bg-white/45 backdrop-blur-xl border border-white/60 p-6 rounded-[32px] shadow-[0_20px_40px_rgba(0,0,0,0.03)] hover:shadow-lg transition-all duration-300">
                   <div className="space-y-3">
                     <div className="relative flex items-center w-full group">
                       <span className="absolute left-5 top-1/2 -translate-y-1/2 text-base font-semibold text-[#86868B] select-none pointer-events-none group-focus-within:text-black transition-colors">@</span>
@@ -1219,13 +1250,20 @@ export default function App() {
                     </div>
                   )}
                   {loginError && <p className="text-xs font-bold text-[#FF3B30]">{loginError}</p>}
-                  <button type="submit" className="group relative cursor-pointer w-full h-[56px] border border-[#D2D2D7] bg-white rounded-2xl overflow-hidden text-[#1D1D1F] font-semibold transition-all duration-300 shadow-sm hover:shadow-md active:scale-90 outline-none">
-                    <div className="absolute inset-0 flex items-center justify-center translate-x-0 group-hover:translate-x-16 group-hover:opacity-0 transition-all duration-300 z-20 pointer-events-none select-none">進入美食檔案</div>
-                    <div className="absolute inset-0 flex gap-2 items-center justify-center text-white z-20 translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none select-none">
-                      <span className="font-semibold text-sm">進入美食檔案</span><svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
-                    </div>
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-[#1D1D1F] scale-0 group-hover:scale-[35] transition-transform duration-500 ease-out z-10"></div>
-                  </button>
+                  <div className="grid gap-3">
+                    <button type="submit" className="group relative cursor-pointer w-full h-[56px] border border-[#D2D2D7] bg-white rounded-2xl overflow-hidden text-[#1D1D1F] font-semibold transition-all duration-300 shadow-sm hover:shadow-md active:scale-90 outline-none">
+                      <div className="absolute inset-0 flex items-center justify-center translate-x-0 group-hover:translate-x-16 group-hover:opacity-0 transition-all duration-300 z-20 pointer-events-none select-none">
+                        {verificationCode ? "我已完成 Threads 標記" : "Threads 驗證登入"}
+                      </div>
+                      <div className="absolute inset-0 flex gap-2 items-center justify-center text-white z-20 translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none select-none">
+                        <span className="font-semibold text-sm">{verificationCode ? "貼上驗證連結" : "產生驗證碼"}</span><svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                      </div>
+                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-[#1D1D1F] scale-0 group-hover:scale-[35] transition-transform duration-500 ease-out z-10"></div>
+                    </button>
+                    <button type="button" onClick={handleGoogleSignIn} className="w-full h-[52px] rounded-2xl border border-black/10 bg-black text-white text-sm font-semibold shadow-sm transition-all duration-300 hover:bg-[#1D1D1F] active:scale-95">
+                      使用 Google 登入
+                    </button>
+                  </div>
                 </form>
               </div>
               <footer className="text-center text-xs text-[#86868B] pt-4 pointer-events-none">

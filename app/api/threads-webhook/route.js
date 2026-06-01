@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { FieldValue, getAdminDb } from '../../../lib/firebaseAdmin';
 
+export const dynamic = 'force-dynamic';
+
 const FABRICA_HANDLE = '@fabrica_tw';
 const GEMINI_MODEL = 'gemini-2.5-flash';
 const appId = 'fabrica-foodie-app';

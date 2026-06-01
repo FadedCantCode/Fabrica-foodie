@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getAdminDb } from "../../../lib/firebaseAdmin";
 
+export const dynamic = "force-dynamic";
+
 const appId = "fabrica-foodie-app";
 
 function normalizeUsername(username = "") {
