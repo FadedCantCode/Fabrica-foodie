@@ -84,7 +84,8 @@ const VerticalMarquee = ({ direction = "up", text = "WELCOME TO FOODIE" }) => {
   return (
     <div className="relative w-16 h-screen overflow-hidden flex justify-center items-center select-none bg-black/[0.02]">
       <div className="absolute w-[400vh] flex items-center justify-center rotate-90">
-         <div className={`flex gap-16 whitespace-nowrap text-black/15 font-black text-4xl md:text-5xl tracking-[0.3em] will-change-transform ${animationClass}`}>
+         {/* 🌟 跑馬燈字體調校為純黑色 */}
+         <div className={`flex gap-16 whitespace-nowrap text-black font-black text-4xl md:text-5xl tracking-[0.3em] will-change-transform ${animationClass}`}>
            {marqueeItems.map((item, index) => <span key={index}>{item}</span>)}
          </div>
       </div>
@@ -106,7 +107,7 @@ const LiquidGlassCard = ({ children, className, onClick }) => {
   );
 };
 
-// 🌟 電影級 Blur Vignette 磨砂與超強暗角遮罩
+// 🌟 增強版 Blur Vignette (大片級邊緣磨砂與超強暗角漸層遮罩)
 const BlurVignette = ({ children, className, blur = '35px' }) => {
   return (
     <div className={`relative ${className}`}>
@@ -114,10 +115,10 @@ const BlurVignette = ({ children, className, blur = '35px' }) => {
       <div 
         className="absolute inset-0 pointer-events-none z-10" 
         style={{
-          boxShadow: `inset 0 0 140px 50px rgba(0,0,0,0.9)`,
+          boxShadow: `inset 0 0 150px 65px rgba(0,0,0,0.96)`,
           backdropFilter: `blur(${blur})`,
-          maskImage: `radial-gradient(circle at center, transparent 30%, black 95%)`,
-          WebkitMaskImage: `radial-gradient(circle at center, transparent 30%, black 95%)`
+          maskImage: `radial-gradient(circle at center, transparent 25%, black 90%)`,
+          WebkitMaskImage: `radial-gradient(circle at center, transparent 25%, black 90%)`
         }} 
       />
     </div>
@@ -216,7 +217,8 @@ export default function App() {
 
   const [newRestName, setNewRestName] = useState("");
   const [newRestAddress, setNewRestAddress] = useState("");
-  const [newRestCategory, setNewRestCategory] = useState("手搖茶攤");
+  // 🌟 修正手動新增：分類預填清空，避免無腦載入手搖茶攤
+  const [newRestCategory, setNewRestCategory] = useState("");
   const [newRestNote, setNewRestNote] = useState("");
   const [newRestRecommender, setNewRestRecommender] = useState("");
   const [inputUsername, setInputUsername] = useState("");
@@ -227,7 +229,7 @@ export default function App() {
   const hasSearchedRef = useRef(false);
 
   // 🌟 原生 GPU 加速物理拖曳 Refs (全域精準追蹤偏移防滑手)
-  const dragRef = useRef({ id: null, startX: 0, startY: 0, offsetX: 0, offsetY: 0, el: null, hoveredIndex: -1, isLongPressed: false });
+  const dragRef = useRef({ id: null, startX: 0, startY: 0, offsetX: 0, offsetY: 0, el: null, hoveredIndex: -1, isDragging: false, isLongPressed: false });
   const [draggingId, setDraggingId] = useState(null); // 用於控制 z-index 與透明度
   const pressTimer = useRef(null);
 
@@ -456,7 +458,7 @@ export default function App() {
         let url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(newRestName)}&format=json&addressdetails=1&limit=5&countrycodes=tw`;
         if (userLocation) {
           const lonDelta = 0.05; const latDelta = 0.05;
-          url += `&viewbox=${userLocation.lng - lonDelta},${userLocation.lat + latDelta},${userLocation.lng + lonDelta},${userLocation.lat - latDelta}&bounded=0`;
+          url += `&viewbox=${userLocation.lng - lonDelta},${userLocation.lat + latDelta},${userLocation.lng - lonDelta},${userLocation.lat - latDelta}&bounded=0`;
         }
         const response = await fetch(url, { headers: { 'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8' } });
         const data = await response.json();
@@ -624,31 +626,55 @@ export default function App() {
     setToastMessage(`🎉 成功將 ${sharedItem.name} 收藏至您的地圖！`); setTimeout(() => setToastMessage(""), 3000); clearSharedItem();
   };
 
+  // 🌟 修正手動儲存至地圖不關閉、無反應的問題：改成樂觀UI架構！
   const handleAddRestaurant = async (e) => {
     e.preventDefault(); if (!newRestName.trim()) return;
     if (isDuplicateRestaurant(newRestName)) {
       setToastMessage(`⚠️ ${newRestName} 已在您的口袋名單中！`); setTimeout(() => setToastMessage(""), 3000); return;
     }
 
-    setIsGlobalTransitioning(true); 
+    // 🌟 瞬間關閉Modal，極致快速！
+    closeAddModal();
+    setToastMessage(`✨ 正在收藏並撰寫專屬 AI 短評...`);
+
     const smartCategory = getSmartTag(newRestName, newRestCategory);
-    let finalNote = newRestNote;
-    if (!finalNote.trim()) {
-      const aiNote = await generateAIReview(newRestName, newRestAddress);
-      finalNote = aiNote || "暫無 AI 分析結果，系統已將其加入您的口袋名單。";
-    }
-    const cleanRecommender = newRestRecommender.replace("@", "").trim();
+    const initialNote = "✨ Fabrica AI 正在為您撰寫專屬短評中，請稍候...";
+    
+    let savedDocId = null;
+    const cleanUsername = threadsUsername.replace("@", "").trim().toLowerCase();
+
     if (firebaseUser?.uid === "local-temp-guest") {
-      const mockDoc = { id: Math.random().toString(), name: newRestName, address: newRestAddress || "僅提供店名定位", category: smartCategory, note: finalNote, recommendedBy: cleanRecommender, savedAt: { seconds: Math.floor(Date.now() / 1000) } };
+      savedDocId = Math.random().toString();
+      const mockDoc = { id: savedDocId, name: newRestName, address: newRestAddress || "僅提供店名定位", category: smartCategory, note: initialNote, recommendedBy: cleanRecommender, savedAt: { seconds: Math.floor(Date.now() / 1000) } };
       setRestaurants(prev => [mockDoc, ...prev]);
     } else {
       try {
-        const cleanUsername = threadsUsername.replace("@", "").trim().toLowerCase();
-        await addDoc(collection(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants'), { name: newRestName, address: newRestAddress || "僅提供店名定位", category: smartCategory, note: finalNote, recommendedBy: cleanRecommender, savedAt: serverTimestamp() });
-      } catch (err) { console.error("Error adding document:", err); }
+        const docRef = await addDoc(collection(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants'), {
+          name: newRestName, address: newRestAddress || "僅提供店名定位", category: smartCategory, note: initialNote, recommendedBy: cleanRecommender, savedAt: serverTimestamp()
+        });
+        savedDocId = docRef.id;
+      } catch (err) { 
+        console.error("Error adding document:", err); 
+      }
     }
-    setNewRestName(""); setNewRestAddress(""); setNewRestNote(""); setNewRestRecommender("");
-    setTimeout(() => { setIsGlobalTransitioning(false); closeAddModal(); }, 1500);
+
+    setNewRestName(""); setNewRestAddress(""); setNewRestCategory(""); setNewRestRecommender(""); setNewRestNote("");
+
+    // 背景非同步生成 AI 評論並更新
+    generateAIReview(newRestName, newRestAddress).then(async (aiNote) => {
+      const finalNote = aiNote || "暫無 AI 分析結果，系統已將其加入您的口袋名單。";
+      if (firebaseUser?.uid === "local-temp-guest") {
+        setRestaurants(prev => prev.map(item => item.id === savedDocId ? { ...item, note: finalNote } : item));
+      } else if (savedDocId) {
+        try {
+          await updateDoc(doc(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants', savedDocId), { note: finalNote });
+        } catch (err) {
+          console.error("Error async updating AI review:", err);
+        }
+      }
+      setToastMessage(`🎉 AI 已經成功為 ${newRestName} 寫好美味筆記！`);
+      setTimeout(() => setToastMessage(""), 3000);
+    });
   };
 
   // 🌟 智慧宣告 categories
@@ -671,36 +697,41 @@ export default function App() {
   const activeRecommendations = nearbyRecommendations.filter(rec => !dismissedRecommendationIds.includes(rec.id));
 
   // ==========================================
-  // 🚀 全域級 Window 指標追蹤物理拖曳系統 (零漂移，60FPS，支援手機長按)
+  // 🚀 全域級 Window 指標追蹤物理拖曳系統 (零漂移，60FPS，支援手機長按，且完美支援點擊)
   // ==========================================
   const handlePointerDown = (e, restaurant, index) => {
     if (e.target.closest("button") || e.target.closest("a")) return;
     
+    e.preventDefault();
     const cardEl = e.currentTarget;
     const startX = e.clientX;
     const startY = e.clientY;
     const pointerId = e.pointerId;
+    const rect = cardEl.getBoundingClientRect();
+    
+    // 🌟 鎖定最初偏移，徹底消滅漂移與過度偏差問題
+    const offsetX = startX - rect.left;
+    const offsetY = startY - rect.top;
 
-    // 清除舊的計時器
     if (pressTimer.current) clearTimeout(pressTimer.current);
 
-    const initiateDrag = () => {
+    dragRef.current = {
+      id: restaurant.id,
+      startX: startX,
+      startY: startY,
+      offsetX: offsetX,
+      offsetY: offsetY,
+      el: cardEl,
+      hoveredIndex: index,
+      isDragging: false,
+      isLongPressed: false
+    };
+
+    const startDrag = () => {
+      dragRef.current.isDragging = true;
+      dragRef.current.isLongPressed = true;
       cardEl.setPointerCapture(pointerId);
       if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(40); // 物理回饋震動
-      
-      const rect = cardEl.getBoundingClientRect();
-      
-      // 🌟 精準計算 OffsetX/Y 以消除滑鼠定位差
-      dragRef.current = {
-        id: restaurant.id,
-        startX: startX,
-        startY: startY,
-        offsetX: startX - rect.left,
-        offsetY: startY - rect.top,
-        el: cardEl,
-        hoveredIndex: index,
-        isLongPressed: true
-      };
       
       cardEl.style.transition = 'none';
       cardEl.style.zIndex = "100";
@@ -709,23 +740,30 @@ export default function App() {
       setDraggingId(restaurant.id);
     };
 
-    // 🌟 手機觸控版必須「長按 300 毫秒」才啟用拖拽，滑鼠點擊則直接秒啟用！
+    // 🌟 手機觸控版必須「長按 300 毫秒」才啟用拖拽，滑鼠點擊則在 Move 中觸發！
     if (e.pointerType === 'touch') {
       pressTimer.current = setTimeout(() => {
-        initiateDrag();
+        startDrag();
       }, 300);
     } else {
-      initiateDrag();
+      // 電腦版點擊事件由 Move 控制，滑動才判定為 Drag 
     }
 
     const handleGlobalPointerMove = (moveEvent) => {
       const dx = moveEvent.clientX - startX;
       const dy = moveEvent.clientY - startY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
 
-      // 如果還未觸發長按但使用者手指移動了 15px 以上，代表只是正常滑動頁面，取消長按計時
-      if (!dragRef.current.isLongPressed) {
-        if (Math.sqrt(dx * dx + dy * dy) > 15) {
-          if (pressTimer.current) clearTimeout(pressTimer.current);
+      // 如果還未觸發拖曳，但在電腦上移動大於 8px，或在手機長按前移動大於 15px
+      if (!dragRef.current.isDragging) {
+        if (e.pointerType === 'touch') {
+          if (dist > 15) {
+            if (pressTimer.current) clearTimeout(pressTimer.current);
+          }
+        } else {
+          if (dist > 8) {
+            startDrag();
+          }
         }
         return;
       }
@@ -733,7 +771,7 @@ export default function App() {
       moveEvent.preventDefault(); 
       if (dragRef.current.id === null || !dragRef.current.el) return;
 
-      // 60FPS 硬體加速：完美的跟隨與帶有物理加速度的頃斜角
+      // 60FPS 硬體加速：完美地緊密跟隨滑鼠正中心，不離游標！
       dragRef.current.el.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(1.05) rotate(${dx * 0.04}deg)`;
 
       // 穿透自身以正確捕捉碰撞目標
@@ -748,7 +786,7 @@ export default function App() {
         if (!isNaN(targetIdx) && targetIdx !== dragRef.current.hoveredIndex) {
           if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(15); 
           
-          // 🌟 核心修正：動態對齊 startY。由於陣列重排會導致卡片自然高度位移，我們動態調校 offset
+          // 🌟 核心修正：動態對齊起點，防止DOM重排造成的拖拽卡頓偏移
           const cardHeight = dragRef.current.el.offsetHeight + 16; // 16px 爲 gap
           const shift = (targetIdx - dragRef.current.hoveredIndex) * cardHeight;
           dragRef.current.startY += shift;
@@ -772,11 +810,12 @@ export default function App() {
 
       const dx = upEvent.clientX - startX;
       const dy = upEvent.clientY - startY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
       
-      // 點擊臨界判定：微移小於 5 像素直接當作點擊開啟 Modal
-      if (!dragRef.current.isLongPressed && Math.abs(dx) < 5 && Math.abs(dy) < 5) {
+      // 🌟 點擊與拖動精準解耦：位移極小判定為輕觸，100% 成功點開 Modal！
+      if (!dragRef.current.isDragging && dist < 8) {
         setSelectedRestaurant(restaurant);
-      } else if (dragRef.current.isLongPressed) {
+      } else if (dragRef.current.isDragging) {
         if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(20); // 放下震動
       }
 
@@ -789,7 +828,7 @@ export default function App() {
       }
 
       document.body.style.userSelect = 'auto';
-      dragRef.current = { id: null, startX: 0, startY: 0, offsetX: 0, offsetY: 0, el: null, hoveredIndex: -1, isLongPressed: false };
+      dragRef.current = { id: null, startX: 0, startY: 0, offsetX: 0, offsetY: 0, el: null, hoveredIndex: -1, isDragging: false, isLongPressed: false };
       setDraggingId(null);
 
       window.removeEventListener('pointermove', handleGlobalPointerMove);
@@ -825,8 +864,8 @@ export default function App() {
         />
       )}
 
-      {/* ==================== 頁面容器 ==================== */}
-      <div className="relative z-10 w-full min-h-screen flex items-center justify-center">
+      {/* ==================== 頁面容器 (🌟 修復：登入後取消 items-center / justify-center 防止排版偏左不置中) ==================== */}
+      <div className={`relative z-10 w-full min-h-screen flex ${!isLoggedIn ? 'items-center justify-center' : 'justify-center'}`}>
         
         {!isLoggedIn ? (
           // --- 登入畫面 ---
@@ -883,9 +922,9 @@ export default function App() {
 
         ) : (
           // --- 登入後主檔案庫面板 ---
-          <div className={`w-full pb-10 min-h-screen transition-all duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isGlobalTransitioning ? 'opacity-0 translate-y-12 scale-[0.97] blur-md' : 'opacity-100 translate-y-0 scale-100 blur-0'}`}>
+          <div className={`w-full max-w-md pb-10 min-h-screen transition-all duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isGlobalTransitioning ? 'opacity-0 translate-y-12 scale-[0.97] blur-md' : 'opacity-100 translate-y-0 scale-100 blur-0'}`}>
             <header className="sticky top-0 z-40 bg-white/40 backdrop-blur-2xl border-b border-white/30 px-6 py-4 shadow-[0_4px_30px_rgba(0,0,0,0.05)] transition-all">
-              <div className="max-w-md mx-auto flex justify-between items-center">
+              <div className="flex justify-between items-center">
                 <div className="flex flex-col animate-bounce-in">
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] font-bold tracking-wider text-[#555555] uppercase">FABRICA MAPS</span>
@@ -901,9 +940,9 @@ export default function App() {
               </div>
             </header>
 
-            <main className="max-w-md mx-auto px-4 mt-6 space-y-6 relative z-10">
+            <main className="mt-6 space-y-6 relative z-10">
               
-              {/* 手動新增口袋名單 (LiquidGlassCard 套件) */}
+              {/* 🌟 手動新增口袋名單按鈕 (LiquidGlassCard 套件) */}
               <LiquidGlassCard onClick={() => setShowAddModal(true)} className="w-full py-4 text-sm font-bold text-[#1D1D1F] flex items-center justify-center gap-2 shadow-sm border border-white/50 bg-white/30 hover:scale-[1.01]">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4"/></svg>
                 手動新增口袋名單
@@ -915,7 +954,7 @@ export default function App() {
                   <input type="text" placeholder="搜尋餐廳、地址或推薦人..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-white/60 backdrop-blur-xl text-sm font-medium rounded-2xl py-3 pl-10 pr-4 border border-white/50 focus:bg-white/90 focus:ring-2 focus:ring-black/10 outline-none transition-all duration-300 shadow-sm placeholder-[#86868B]" />
                 </div>
                 
-                {/* 類別篩選選單 (LiquidGlassCard 套件) */}
+                {/* 🌟 類別篩選選單 (LiquidGlassCard 套件) */}
                 <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4">
                   {categories.map(cat => (
                     <LiquidGlassCard 
@@ -961,7 +1000,7 @@ export default function App() {
                 </section>
               )}
 
-              {/* 🌟 餐廳列表 (套用物理手感全域指標拖曳排序系統，支援手機長按防誤觸) */}
+              {/* 🌟 餐廳列表 (全面恢復高對比度純白底，提升文字易讀性，且支援完美手感拖曳排序) */}
               <section className="space-y-4 pb-10 relative">
                 {isLoading ? (
                   <div className="text-center py-10">
@@ -1072,15 +1111,15 @@ export default function App() {
                 <label className="text-xs font-bold text-[#86868B] ml-1 uppercase tracking-wider">店名 *</label>
                 <input required type="text" placeholder="例如：詹記麻辣火鍋" value={newRestName} onChange={(e) => { setNewRestName(e.target.value); setIsTypingName(true); }} className="w-full bg-black/5 text-sm font-bold rounded-xl py-3.5 px-4 border border-transparent focus:bg-white focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all shadow-inner" />
                 {isTypingName && (nameSuggestions.length > 0 || isSearchingPlaces) && (
-                  // 完美寬度對稱 left-0 w-full 下拉建議選單
+                  // 🌟 修正：對齊與置中店名選項，完美精準對稱！
                   <div className="absolute top-[76px] left-0 w-full bg-white/95 backdrop-blur-xl rounded-xl shadow-2xl border border-black/10 overflow-hidden z-50 max-h-48 overflow-y-auto animate-fade-in-up">
                     {isSearchingPlaces ? (
                        <div className="p-3 text-xs text-center text-[#86868B] animate-pulse">搜尋地圖座標中...</div>
                     ) : (
                        nameSuggestions.map(place => (
                          <div key={place.place_id} onClick={() => handleSelectSuggestion(place)} className="p-3 hover:bg-black/5 cursor-pointer border-b border-black/5 last:border-0 transition-colors">
-                           <div className="font-bold text-sm text-[#1D1D1F] text-left">{place.name || place.display_name.split(',')[0]}</div>
-                           <div className="text-[11px] text-[#86868B] mt-0.5 line-clamp-1 text-left font-medium">{place.display_name}</div>
+                           <div className="font-bold text-sm text-[#1D1D1F] text-center">{place.name || place.display_name.split(',')[0]}</div>
+                           <div className="text-[11px] text-[#86868B] mt-0.5 line-clamp-1 text-center font-medium">{place.display_name}</div>
                          </div>
                        ))
                     )}
@@ -1148,7 +1187,7 @@ export default function App() {
             </div>
             
             <div className="p-5 bg-white/80 backdrop-blur-xl border-t border-black/5 flex-shrink-0">
-              {/* 🌟 查看地點按鈕改用極高質感的 LiquidGlassCard 套件 */}
+              {/* 查看地點按鈕改用極高質感的 LiquidGlassCard 套件 */}
               <LiquidGlassCard onClick={() => window.open(getFreeMapAppUrl(selectedRestaurant.name, selectedRestaurant.address), "_blank")} className="w-full flex items-center justify-center gap-2 py-4 bg-black/95 text-white font-bold rounded-2xl shadow-xl active:scale-[0.95]">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
                 查看地點
@@ -1163,7 +1202,7 @@ export default function App() {
           <div className="bg-white/95 backdrop-blur-3xl w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl relative scale-100 animate-bounce-in border border-white/50">
             <BlurVignette blur="15px" className="h-56 w-full relative">
               <img src={getFoodImage(sharedItem)} onError={handleImageError} className="w-full h-full object-cover" alt="food" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent z-10"></div>
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 z-10"></div>
               <div className="absolute top-4 left-4 z-20 bg-black/50 backdrop-blur-xl text-white text-[10px] font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 tracking-wider shadow-sm border border-white/20"><svg className="w-3.5 h-3.5 text-[#34C759]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>SHARED • 好友私藏推薦</div>
               <div className="absolute bottom-4 left-5 right-5 z-20"><span className="text-[10px] font-bold text-white bg-white/20 backdrop-blur-md px-2.5 py-1 rounded-md inline-block mb-1 border border-white/20">{getSmartTag(sharedItem.name, sharedItem.category)}</span><h2 className="text-2xl font-bold text-white leading-tight drop-shadow-md">{sharedItem.name}</h2></div>
             </BlurVignette>
