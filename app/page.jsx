@@ -247,6 +247,7 @@ export default function App() {
   const [verificationCode, setVerificationCode] = useState("");
   const [verificationUsername, setVerificationUsername] = useState("");
   const [isWaitingVerification, setIsWaitingVerification] = useState(false);
+  const [verificationProofUrl, setVerificationProofUrl] = useState("");
   
   const [mounted, setMounted] = useState(false); 
   const canvasContainerRef = useRef(null);
@@ -358,7 +359,7 @@ export default function App() {
         setThreadsUsername(savedThreadsUsername ? `@${savedThreadsUsername}` : fallbackName);
         setInputUsername(savedThreadsUsername || "");
         setAuthMode(savedThreadsUsername ? "google_threads" : "google");
-        setIsLoggedIn(savedAuthMode === "google" || savedAuthMode === "google_threads" || !!savedThreadsUsername);
+        setIsLoggedIn(true);
       } else if (savedAuthMode === "threads" && savedThreadsUsername) {
         setAuthMode("threads");
         setThreadsUsername(`@${savedThreadsUsername}`);
@@ -412,8 +413,12 @@ export default function App() {
           setIsLoggedIn(true);
           setIsWaitingVerification(false);
           setLoginError("");
-          setToastMessage("Threads ?????????????");
+          setToastMessage("Threads \u8eab\u4efd\u9a57\u8b49\u6210\u529f\uff0c\u5df2\u7d81\u5b9a\u5e33\u865f\u3002");
           setTimeout(() => setToastMessage(""), 3000);
+                      <div className="mt-3 space-y-2">
+                        <input type="url" placeholder="\u8cbc\u4e0a\u5b8c\u6210\u9a57\u8b49\u7684 Threads \u9023\u7d50" value={verificationProofUrl} onChange={(e) => setVerificationProofUrl(e.target.value)} className="w-full rounded-xl border border-black/10 bg-white px-3 py-3 text-xs font-semibold outline-none focus:border-black" />
+                        <button type="button" onClick={handleVerificationProofSubmit} className="w-full rounded-xl bg-black px-3 py-3 text-xs font-bold text-white active:scale-[0.98] transition-all">\u6211\u5df2\u5b8c\u6210\u9a57\u8b49\uff0c\u6aa2\u67e5\u9023\u7d50</button>
+                      </div>
           return;
         }
 
@@ -620,11 +625,11 @@ export default function App() {
 
   const getGoogleAuthErrorMessage = (error) => {
     const code = error?.code || "";
-    if (code.includes("unauthorized-domain")) return "Google ??????? Firebase Authentication ??????? Authorized domains?";
-    if (code.includes("invalid-api-key")) return "Google ??????????? NEXT_PUBLIC_FIREBASE_API_KEY?";
-    if (code.includes("popup-blocked")) return "????????????????????";
-    if (code.includes("popup-closed-by-user")) return "???? Google ?????";
-    return "Google ???????????";
+    if (code.includes("unauthorized-domain")) return `Google \u767b\u5165\u5931\u6557 (${code})\uff1a\u8acb\u5230 Firebase Authentication > Settings > Authorized domains \u52a0\u5165\u76ee\u524d\u7db2\u57df\u3002`;
+    if (code.includes("invalid-api-key")) return `Google \u767b\u5165\u5931\u6557 (${code})\uff1a\u7f3a\u5c11\u6216\u932f\u8aa4\u7684 NEXT_PUBLIC_FIREBASE_API_KEY\u3002`;
+    if (code.includes("popup-blocked")) return `\u700f\u89bd\u5668\u5c01\u9396\u5f48\u51fa\u8996\u7a97 (${code})\uff0c\u5df2\u6539\u7528\u91cd\u65b0\u5c0e\u5411\u767b\u5165\u3002`;
+    if (code.includes("popup-closed-by-user")) return "\u4f60\u95dc\u9589\u4e86 Google \u767b\u5165\u8996\u7a97\u3002";
+    return code ? `Google \u767b\u5165\u5931\u6557\uff1a${code}` : "Google \u767b\u5165\u5931\u6557\uff0c\u8acb\u518d\u8a66\u4e00\u6b21\u3002";
   };
 
   const handleGoogleSignIn = async (e) => {
@@ -642,7 +647,7 @@ export default function App() {
       console.error("Google sign-in failed:", err);
       const message = getGoogleAuthErrorMessage(err);
       setLoginError(message);
-      if (err?.code && !err.code.includes("popup-closed-by-user")) {
+    if (code.includes("popup-closed-by-user")) return "\u4f60\u95dc\u9589\u4e86 Google \u767b\u5165\u8996\u7a97\u3002";
         try {
           await signInWithRedirect(auth, googleProvider);
         } catch (redirectErr) {
@@ -675,11 +680,47 @@ export default function App() {
     const code = createVerificationCode();
     setVerificationUsername(cleanUsername);
     setVerificationCode(code);
+    setVerificationProofUrl("");
     setIsWaitingVerification(true);
     setLoginError("");
 
     if (typeof window !== 'undefined') {
       window.localStorage.setItem('fabrica_threads_verification', JSON.stringify({ username: cleanUsername, code }));
+    }
+  };
+
+  const handleVerificationProofSubmit = async (e) => {
+    e.preventDefault();
+    const cleanUsername = verificationUsername || inputUsername.replace("@", "").trim().toLowerCase();
+    if (!cleanUsername || !verificationCode || !verificationProofUrl.trim()) {
+      setLoginError("\u8acb\u5148\u7522\u751f\u9a57\u8b49\u78bc\uff0c\u4e26\u8cbc\u4e0a\u5305\u542b\u9a57\u8b49\u78bc\u7684 Threads \u9023\u7d50\u3002");
+      return;
+    }
+    setLoginError("\u6b63\u5728\u78ba\u8a8d Threads \u9a57\u8b49\u9023\u7d50...");
+    try {
+      const response = await fetch("/api/verify-threads-proof", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: cleanUsername, code: verificationCode, proofUrl: verificationProofUrl.trim() })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.verified) throw new Error(data.error || "Verification failed");
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem('fabrica_auth_mode', firebaseUser ? 'google_threads' : 'threads');
+        window.localStorage.setItem('fabrica_threads_username', cleanUsername);
+        window.localStorage.removeItem('fabrica_threads_verification');
+      }
+      setAuthMode(firebaseUser ? "google_threads" : "threads");
+      setThreadsUsername(`@${cleanUsername}`);
+      setInputUsername(cleanUsername);
+      setIsLoggedIn(true);
+      setIsWaitingVerification(false);
+      setLoginError("");
+          setToastMessage("Threads \u8eab\u4efd\u9a57\u8b49\u6210\u529f\uff0c\u5df2\u7d81\u5b9a\u5e33\u865f\u3002");
+      setTimeout(() => setToastMessage(""), 3000);
+    } catch (error) {
+      console.error("Proof verification failed:", error);
+      setLoginError("\u9a57\u8b49\u5931\u6557\uff1a\u8acb\u78ba\u8a8d\u9023\u7d50\u5167\u5bb9\u5305\u542b @fabrica_tw verify FAB-xxxx\uff0c\u4e14\u9023\u7d50\u5e33\u865f\u8207\u8f38\u5165\u7684 Threads ID \u76f8\u540c\u3002");
     }
   };
 
@@ -702,7 +743,7 @@ export default function App() {
         window.localStorage.removeItem('fabrica_threads_verification');
       }
       setIsLoggedIn(false); setThreadsUsername(""); setInputUsername(""); setRestaurants([]); 
-      setVerificationCode(""); setVerificationUsername(""); setIsWaitingVerification(false);
+      setVerificationCode(""); setVerificationUsername(""); setVerificationProofUrl(""); setIsWaitingVerification(false);
       setNearbyRecommendations([]); setDismissedRecommendationIds([]); hasSearchedRef.current = false; 
       setIsGlobalTransitioning(false);
     }, 1200);
@@ -1222,6 +1263,12 @@ export default function App() {
                         {FABRICA_THREADS_HANDLE} verify {verificationCode}
                       </div>
                       <p className="mt-2 text-xs font-medium leading-relaxed text-[#666]">
+                  {verificationCode && (
+                    <div className="space-y-2">
+                      <input type="url" placeholder="\u8cbc\u4e0a\u5b8c\u6210\u9a57\u8b49\u7684 Threads \u9023\u7d50" value={verificationProofUrl} onChange={(e) => setVerificationProofUrl(e.target.value)} className="w-full rounded-xl border border-black/10 bg-white px-3 py-3 text-xs font-semibold outline-none focus:border-black" />
+                      <button type="button" onClick={handleVerificationProofSubmit} className="w-full rounded-xl bg-black px-3 py-3 text-xs font-bold text-white active:scale-[0.98] transition-all">\u6211\u5df2\u5b8c\u6210\u9a57\u8b49\uff0c\u6aa2\u67e5\u9023\u7d50</button>
+                    </div>
+                  )}
                         驗證成功後會自動進入你的美食庫。之後標記 {FABRICA_THREADS_HANDLE} 的美食文會存到 @{verificationUsername || inputUsername}。
                       </p>
                     </div>

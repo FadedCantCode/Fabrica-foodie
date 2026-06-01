@@ -121,6 +121,11 @@ Foodie supports two separate account flows:
    or comment `@fabrica_tw verify FAB-1234` on Threads. The webhook marks the
    Threads username as verified through Firebase Admin. The app polls
    `/api/check-verification` and opens that user's library once the code matches.
+   If Meta does not deliver webhook events while the Threads app is in
+   development/review mode, paste the Threads post/comment URL into the
+   verification box and click the proof-check button. The app calls
+   `/api/verify-threads-proof`, fetches the public page text, checks for
+   `@fabrica_tw verify FAB-1234`, and marks the username verified.
 2. Google login: sign in with Google first. If no Threads ID is bound yet, enter
    a Threads ID after login and complete the same `FAB-1234` verification flow.
 
