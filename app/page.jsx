@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getAuth, 
@@ -469,6 +469,7 @@ export default function App() {
   };
 
   useEffect(() => {
+    const controller = new AbortController();
     const fetchPlaces = async () => {
       if (!newRestName.trim() || !isTypingName) { setNameSuggestions([]); return; }
       setIsSearchingPlaces(true);
@@ -476,15 +477,22 @@ export default function App() {
         let url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(newRestName)}&format=json&addressdetails=1&limit=5&countrycodes=tw`;
         if (userLocation) {
           const lonDelta = 0.05; const latDelta = 0.05;
-          url += `&viewbox=${userLocation.lng - lonDelta},${userLocation.lat + latDelta},${userLocation.lng - lonDelta},${userLocation.lat - latDelta}&bounded=0`;
+          url += `&viewbox=${userLocation.lng - lonDelta},${userLocation.lat + latDelta},${userLocation.lng + lonDelta},${userLocation.lat - latDelta}&bounded=0`;
         }
-        const response = await fetch(url, { headers: { 'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8' } });
+        const response = await fetch(url, { headers: { 'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8' }, signal: controller.signal });
         const data = await response.json();
         setNameSuggestions(data || []);
-      } catch (err) { console.error("Nominatim API error:", err); }
-      setIsSearchingPlaces(false);
+      } catch (err) {
+        if (err.name !== "AbortError") console.error("Nominatim API error:", err);
+      } finally {
+        if (!controller.signal.aborted) setIsSearchingPlaces(false);
+      }
     };
-    const timer = setTimeout(fetchPlaces, 800); return () => clearTimeout(timer);
+    const timer = setTimeout(fetchPlaces, 800);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [newRestName, isTypingName, userLocation]);
 
   const handleSelectSuggestion = (place) => {
@@ -714,7 +722,7 @@ export default function App() {
   // 🌟 智慧宣告 categories
   const categories = ["全部", ...new Set((restaurants || []).map(r => getSmartTag(r.name, r.category).split(" • ")[0]))];
 
-  const filteredRestaurants = (restaurants || []).filter(restaurant => {
+  const filteredRestaurants = useMemo(() => (restaurants || []).filter(restaurant => {
     const name = restaurant.name || ""; const address = restaurant.address || ""; 
     const note = restaurant.note || ""; const category = getSmartTag(name, restaurant.category);
     const recommender = restaurant.recommendedBy || ""; 
@@ -722,13 +730,16 @@ export default function App() {
     const matchesSearch = name.toLowerCase().includes(q) || address.toLowerCase().includes(q) || note.toLowerCase().includes(q) || recommender.toLowerCase().includes(q.replace("@", "")); 
     const matchesCategory = selectedCategory === "全部" || category.startsWith(selectedCategory);
     return matchesSearch && matchesCategory;
-  });
+  }), [restaurants, searchQuery, selectedCategory]);
 
   useEffect(() => {
     setDisplayRestaurants(filteredRestaurants);
-  }, [restaurants, searchQuery, selectedCategory]);
+  }, [filteredRestaurants]);
 
-  const activeRecommendations = nearbyRecommendations.filter(rec => !dismissedRecommendationIds.includes(rec.id));
+  const activeRecommendations = useMemo(
+    () => nearbyRecommendations.filter(rec => !dismissedRecommendationIds.includes(rec.id)),
+    [nearbyRecommendations, dismissedRecommendationIds]
+  );
 
   // ==========================================
   // 🚀 全域級 Window 指標追蹤物理拖曳系統 (零漂移，60FPS，支援手機長按，且完美支援點擊)
