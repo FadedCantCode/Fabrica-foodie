@@ -4,46 +4,52 @@ import { FieldValue, getAdminDb } from "../../../lib/firebaseAdmin";
 export const dynamic = "force-dynamic";
 
 const appId = "fabrica-foodie-app";
-const FABRICA_HANDLE = "@fabrica_tw";
 
 function normalizeUsername(username = "") {
   return username.replace("@", "").trim().toLowerCase();
 }
 
-function extractThreadsAuthor(url = "") {
-  try {
-    const parsed = new URL(url);
-    return normalizeUsername(parsed.pathname.match(/\/@([^/]+)/)?.[1] || "");
-  } catch {
-    return "";
+async function findVerificationPostViaApi(username, code) {
+  const accessToken = process.env.THREADS_ACCESS_TOKEN;
+  if (!accessToken) throw new Error("THREADS_ACCESS_TOKEN not configured");
+
+  // Step 1: 用 username 查 user ID
+  const userRes = await fetch(
+    `https://graph.threads.net/v1.0/${username}?fields=id,username`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  if (!userRes.ok) {
+    const err = await userRes.json().catch(() => ({}));
+    throw new Error(
+      err?.error?.message || `Cannot find Threads user: ${username}`
+    );
   }
-}
+  const userData = await userRes.json();
+  const userId = userData.id;
 
-function stripHtml(html = "") {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&quot;/g, '"')
-    .replace(/&#x27;|&#39;/g, "'")
-    .replace(/&amp;/g, "&")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-async function fetchThreadsPageText(url) {
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent": "Mozilla/5.0 AppleWebKit/537.36 Chrome Safari",
-      "Accept-Language": "zh-TW,zh;q=0.9,en-US;q=0.8"
-    }
-  });
-
-  if (!response.ok) {
-    throw new Error(`Threads page returned ${response.status}`);
+  // Step 2: 查最新 25 篇貼文
+  const postsRes = await fetch(
+    `https://graph.threads.net/v1.0/${userId}/threads?fields=id,text&limit=25`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  if (!postsRes.ok) {
+    const err = await postsRes.json().catch(() => ({}));
+    throw new Error(
+      err?.error?.message || "Cannot fetch user's Threads posts"
+    );
   }
+  const postsData = await postsRes.json();
+  const posts = postsData.data || [];
 
-  return stripHtml(await response.text()).slice(0, 20000);
+  const upperCode = code.toUpperCase();
+  const found = posts.find(
+    (p) =>
+      p.text &&
+      p.text.toLowerCase().includes("@fabrica_tw") &&
+      p.text.toUpperCase().includes(upperCode)
+  );
+
+  return found || null;
 }
 
 export async function POST(request) {
@@ -51,53 +57,48 @@ export async function POST(request) {
     const body = await request.json();
     const username = normalizeUsername(body?.username || "");
     const code = String(body?.code || "").trim().toUpperCase();
-    const proofUrl = String(body?.proofUrl || "").trim();
 
-    if (!username || !code || !proofUrl) {
-      return NextResponse.json({ verified: false, error: "Missing username, code, or proofUrl" }, { status: 400 });
-    }
-
-    const proofAuthor = extractThreadsAuthor(proofUrl);
-    if (proofAuthor && proofAuthor !== username) {
+    if (!username || !code) {
       return NextResponse.json(
-        { verified: false, error: "Proof URL username does not match" },
+        { verified: false, error: "Missing username or code" },
         { status: 400 }
       );
     }
 
-    const pageText = await fetchThreadsPageText(proofUrl);
-    const lowerText = pageText.toLowerCase();
-    const hasHandle = lowerText.includes(FABRICA_HANDLE);
-    const hasCode = pageText.toUpperCase().includes(code);
+    const post = await findVerificationPostViaApi(username, code);
 
-    if (!hasHandle || !hasCode) {
+    if (!post) {
       return NextResponse.json({
         verified: false,
-        error: "Proof page does not contain the Fabrica verification text"
+        error:
+          "找不到包含驗證碼的公開貼文。請確認貼文是公開的，且包含 @fabrica_tw verify " +
+          code,
       });
     }
 
     const db = getAdminDb();
-    await db.collection("artifacts").doc(appId).collection("verifiedUsers").doc(username).set(
-      {
-        username,
-        verificationCode: code,
-        verified: true,
-        verifiedAt: FieldValue.serverTimestamp(),
-        source: "threads_proof_url",
-        proofUrl
-      },
-      { merge: true }
-    );
+    await db
+      .collection("artifacts")
+      .doc(appId)
+      .collection("verifiedUsers")
+      .doc(username)
+      .set(
+        {
+          username,
+          verificationCode: code,
+          verified: true,
+          verifiedAt: FieldValue.serverTimestamp(),
+          source: "threads_api_scan",
+          proofPostId: post.id,
+        },
+        { merge: true }
+      );
 
     return NextResponse.json({ verified: true, username });
   } catch (error) {
     console.error("Threads proof verification failed:", error);
     return NextResponse.json(
-      {
-        verified: false,
-        error: "Unable to verify proof URL"
-      },
+      { verified: false, error: error.message || "Unable to verify" },
       { status: 500 }
     );
   }
