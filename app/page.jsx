@@ -41,6 +41,16 @@ const FABRICA_THREADS_HANDLE = '@fabrica_tw';
 
 const createVerificationCode = () => `FAB-${Math.floor(1000 + Math.random() * 9000)}`;
 
+const extractThreadsAuthor = (url = "") => {
+  try {
+    const parsed = new URL(url);
+    const match = parsed.pathname.match(/\/@([^/]+)/);
+    return match?.[1] || "";
+  } catch (err) {
+    return "";
+  }
+};
+
 // ==========================================
 // 🗺️ 輔助函數、AI 與智慧標籤
 // ==========================================
@@ -768,8 +778,9 @@ export default function App() {
       }
 
       const userLibraryId = getUserLibraryId();
-      const cleanUsername = getCleanThreadsUsername() || firebaseUser?.email || "google-user";
       const sourceUrl = rawText.match(/https?:\/\/\S+/)?.[0] || "";
+      const sourceAuthor = extractThreadsAuthor(sourceUrl);
+      const cleanUsername = sourceAuthor || getCleanThreadsUsername() || firebaseUser?.email || "google-user";
       const newDoc = {
         name: aiResult.name || "待確認美食",
         address: aiResult.address || "",
@@ -785,6 +796,7 @@ export default function App() {
         source: "manual_threads_import",
         sourceText: rawText,
         threadsUrl: sourceUrl,
+        sourceAuthor,
         recommendedBy: cleanUsername,
         savedAt: serverTimestamp()
       };
@@ -1268,6 +1280,8 @@ export default function App() {
                   </div>
                 ) : displayRestaurants.length > 0 ? (
                   displayRestaurants.map((restaurant, index) => {
+                    const recommenderHandle = restaurant.sourceAuthor || restaurant.recommendedBy?.replace('@', '') || "";
+                    const recommenderUrl = restaurant.threadsUrl || `https://www.threads.net/@${recommenderHandle || "fabrica_tw"}`;
                     const smartCategory = getSmartTag(restaurant.name, restaurant.category);
                     const isDraggingThis = draggingId === restaurant.id;
                     const isSystemRecommended = restaurant.recommendedBy === "系統探索" || restaurant.recommendedBy === "系統推薦";
@@ -1308,16 +1322,16 @@ export default function App() {
                             
                             {restaurant.recommendedBy && (
                               <a 
-                                href={isSystemRecommended ? "https://www.threads.net/@fabrica_tw" : `https://www.threads.net/@${restaurant.recommendedBy.replace('@', '')}`} 
+                                href={recommenderUrl} 
                                 target="_blank" 
                                 rel="noopener noreferrer" 
                                 onClick={(e) => e.stopPropagation()} 
                                 className="absolute top-3 right-3 z-20 bg-white/95 backdrop-blur-md px-2.5 py-1.5 rounded-full flex items-center gap-1.5 text-[10px] font-bold text-neutral-900 shadow-md hover:scale-110 active:scale-90 transition-transform pointer-events-auto"
                               >
                                 <div className="w-3.5 h-3.5 rounded-full bg-gradient-to-br from-purple-500 to-orange-400 flex items-center justify-center text-white text-[8px]">
-                                  {isSystemRecommended ? "F" : restaurant.recommendedBy.replace('@', '').charAt(0).toUpperCase()}
+                                  {isSystemRecommended ? "F" : recommenderHandle.charAt(0).toUpperCase()}
                                 </div>
-                                @{isSystemRecommended ? "fabrica_tw" : restaurant.recommendedBy.replace('@', '')}
+                                @{isSystemRecommended ? "fabrica_tw" : recommenderHandle}
                               </a>
                             )}
                             <div className="absolute bottom-3 left-4 right-4 z-10 transition-transform duration-300 group-hover:-translate-y-1">
