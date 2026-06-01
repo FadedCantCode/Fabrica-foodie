@@ -47,7 +47,7 @@ const getSmartTag = (name, currentCategory = "") => {
   if (n.includes("鍋") || n.includes("麻辣") || n.includes("涮涮") || n.includes("石二鍋") || n.includes("海底撈")) return "火鍋專賣";
   if (n.includes("茶") || n.includes("嵐") || n.includes("五桐") || n.includes("渴") || n.includes("奶") || n.includes("飲料") || n.includes("紅茶") || n.includes("綠茶") || n.includes("手搖")) return "手搖茶攤";
   if (n.includes("咖啡") || n.toLowerCase().includes("cafe") || n.includes("甜點") || n.includes("烘焙") || n.includes("蛋糕")) return "咖啡甜點";
-  if (n.includes("拉麵") || n.includes("日式") || n.includes("壽司") || n.includes("丼") || n.includes("居酒屋") || n.includes("壽司")) return "日式料理";
+  if (n.includes("拉麵") || n.includes("日式") || n.includes("壽司") || n.includes("丼") || n.includes("居酒屋") || n.includes("食堂")) return "日式料理";
   if (n.includes("便當") || n.includes("飯") || n.includes("麵") || n.includes("小吃") || n.includes("排骨")) return "台式小吃 • 便當";
   if (n.includes("燒肉") || n.includes("烤") || n.includes("串燒") || n.includes("乾杯") || n.includes("屋馬")) return "燒肉串燒";
   
@@ -623,6 +623,9 @@ export default function App() {
     setTimeout(() => { setIsGlobalTransitioning(false); closeAddModal(); }, 1500);
   };
 
+  // 🌟 智慧宣告 categories
+  const categories = ["全部", ...new Set(restaurants.map(r => getSmartTag(r.name, r.category).split(" • ")[0]))];
+
   const filteredRestaurants = restaurants.filter(restaurant => {
     const name = restaurant.name || ""; const address = restaurant.address || ""; 
     const note = restaurant.note || ""; const category = getSmartTag(name, restaurant.category);
@@ -989,7 +992,6 @@ export default function App() {
       {/* 🌟 彈出式視窗 (Modals) */}
       {/* ========================================== */}
 
-      {/* 新增餐廳 Modal */}
       {showAddModal && (
         <div className={`fixed inset-0 z-[120] flex items-end sm:items-center justify-center px-0 sm:px-4 pb-0 sm:pb-10 transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isClosingModal ? 'opacity-0' : 'opacity-100'}`}>
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeAddModal} />
@@ -1048,16 +1050,13 @@ export default function App() {
         </div>
       )}
 
-      {/* 🌟 餐廳詳細資訊 Modal (Blur Vignette 精緻套用) */}
       {selectedRestaurant && !isGlobalTransitioning && (
         <div className="fixed inset-0 z-[130] flex items-center justify-center px-4 bg-black/50 backdrop-blur-md animate-fade-in" onClick={() => setSelectedRestaurant(null)}>
           <div className="bg-white/95 backdrop-blur-3xl w-full max-w-sm rounded-[32px] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.3)] relative animate-bounce-in max-h-[85vh] flex flex-col border border-white/50 animate-fade-in" onClick={(e) => e.stopPropagation()}>
             <button onClick={() => setSelectedRestaurant(null)} className="absolute top-4 right-4 z-30 w-8 h-8 bg-black/40 backdrop-blur-md text-white rounded-full flex items-center justify-center hover:bg-black/60 transition-all active:scale-90">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
-            
-            {/* 電影級 Blur Vignette 視覺大作 */}
-            <BlurVignette blur="15px" className="h-56 w-full flex-shrink-0 bg-black/5">
+            <BlurVignette blur="8px" className="h-56 w-full flex-shrink-0 bg-black/5">
               <img src={getFoodImage(selectedRestaurant)} className="w-full h-full object-cover" alt="food" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 z-10"></div>
               <div className="absolute bottom-5 left-5 right-5 z-20">
@@ -1065,7 +1064,6 @@ export default function App() {
                 <h2 className="text-2xl font-bold text-white leading-tight drop-shadow-lg">{selectedRestaurant.name}</h2>
               </div>
             </BlurVignette>
-            
             <div className="p-6 overflow-y-auto flex-1">
               <div className="flex items-start gap-2 text-xs font-medium text-[#555] mb-6 bg-black/5 p-3 rounded-xl border border-black/5">
                 <svg className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#0071E3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3" strokeWidth="2"/></svg>
@@ -1076,7 +1074,6 @@ export default function App() {
                 <p className="text-[14px] text-neutral-900 font-medium leading-loose break-words whitespace-pre-wrap pl-1">{selectedRestaurant.note || "尚無筆記。"}</p>
               </div>
             </div>
-            
             <div className="p-5 bg-white/80 backdrop-blur-xl border-t border-black/5 flex-shrink-0">
               {/* 🌟 查看地點按鈕改用極高質感的 LiquidGlassCard 套件 */}
               <LiquidGlassCard onClick={() => window.open(getFreeMapAppUrl(selectedRestaurant.name, selectedRestaurant.address), "_blank")} className="w-full flex items-center justify-center gap-2 py-4 bg-black/95 text-white font-bold rounded-2xl shadow-xl active:scale-[0.95]">
