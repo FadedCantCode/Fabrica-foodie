@@ -217,7 +217,6 @@ export default function App() {
 
   const [newRestName, setNewRestName] = useState("");
   const [newRestAddress, setNewRestAddress] = useState("");
-  // 🌟 修正手動新增：分類預填清空，避免無腦載入手搖茶攤
   const [newRestCategory, setNewRestCategory] = useState("");
   const [newRestNote, setNewRestNote] = useState("");
   const [newRestRecommender, setNewRestRecommender] = useState("");
@@ -282,6 +281,12 @@ export default function App() {
         vec3 color = mix(baseColor, waveColor, clamp(abs(distort) * 1.8, 0.0, 1.0)); gl_FragColor = vec4(color, 1.0);
     }
   `;
+
+  const isDuplicateRestaurant = (name) => {
+    if (!name) return false;
+    const target = name.replace(/\s+/g, "").toLowerCase();
+    return (restaurants || []).some(r => r.name && r.name.replace(/\s+/g, "").toLowerCase() === target);
+  };
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -620,7 +625,7 @@ export default function App() {
       setToastMessage(`⚠️ ${sharedItem.name} 已在您的口袋名單中！`); setTimeout(() => setToastMessage(""), 3000); clearSharedItem(); return;
     }
     
-    setToastMessage(`✨ 正在請 AI 撰寫專屬短評...`);
+    setToastMessage(`✨ 正在請 AI 撰寫專屬 short review...`);
     const cleanRecommender = sharedItem.recommendedBy.replace("@", "").trim();
     const smartCategory = getSmartTag(sharedItem.name, sharedItem.category);
     
@@ -639,20 +644,29 @@ export default function App() {
     setToastMessage(`🎉 成功將 ${sharedItem.name} 收藏至您的地圖！`); setTimeout(() => setToastMessage(""), 3000); clearSharedItem();
   };
 
-  // 🌟 修正手動儲存至地圖不關閉、無反應的問題：改成樂觀UI架構！
+  // 🌟 修正手動儲存至地圖不關閉、無反應的問題：改用樂觀UI與手動校驗，安全避開 sandbox iframe 的 HTML5 required bug！
   const handleAddRestaurant = async (e) => {
-    e.preventDefault(); if (!newRestName.trim()) return;
-    if (isDuplicateRestaurant(newRestName)) {
-      setToastMessage(`⚠️ ${newRestName} 已在您的口袋名單中！`); setTimeout(() => setToastMessage(""), 3000); return;
+    e.preventDefault(); 
+    
+    // 1. 防禦性手動驗證 (店名)，防止 iframerequired silent-block 錯誤
+    if (!newRestName || !newRestName.trim()) {
+      setToastMessage("⚠️ 請先輸入店名！");
+      setTimeout(() => setToastMessage(""), 3000);
+      return;
     }
 
-    // 🌟 修正 Bug 1 & 6：先取得 cleanRecommender 的宣告，確保順暢執行不報 ReferenceError！
-    const cleanRecommender = newRestRecommender.replace("@", "").trim();
+    if (isDuplicateRestaurant(newRestName)) {
+      setToastMessage(`⚠️ ${newRestName} 已在您的口袋名單中！`); 
+      setTimeout(() => setToastMessage(""), 3000); 
+      return;
+    }
 
-    // 🌟 瞬間關閉Modal，極致快速！
+    // 🌟 瞬間關閉Modal，優雅流暢！
     closeAddModal();
     setToastMessage(`✨ 正在收藏並撰寫專屬 AI 短評...`);
 
+    // 2. 宣告 cleanRecommender，避免 JavaScript 執行期 ReferenceError 崩潰
+    const cleanRecommender = newRestRecommender.replace("@", "").trim();
     const smartCategory = getSmartTag(newRestName, newRestCategory);
     const initialNote = "✨ Fabrica AI 正在為您撰寫專屬短評中，請稍候...";
     
@@ -674,10 +688,14 @@ export default function App() {
       }
     }
 
+    // 暫存店名與地址以作非同步 AI 連線，同時清空當前輸入
+    const tempName = newRestName;
+    const tempAddress = newRestAddress;
+
     setNewRestName(""); setNewRestAddress(""); setNewRestCategory(""); setNewRestRecommender(""); setNewRestNote("");
 
-    // 背景非同步生成 AI 評論並更新
-    generateAIReview(newRestName, newRestAddress).then(async (aiNote) => {
+    // 3. 背景非同步生成 AI 評論並回寫更新
+    generateAIReview(tempName, tempAddress).then(async (aiNote) => {
       const finalNote = aiNote || "暫無 AI 分析結果，系統已將其加入您的口袋名單。";
       if (firebaseUser?.uid === "local-temp-guest") {
         setRestaurants(prev => prev.map(item => item.id === savedDocId ? { ...item, note: finalNote } : item));
@@ -688,15 +706,15 @@ export default function App() {
           console.error("Error async updating AI review:", err);
         }
       }
-      setToastMessage(`🎉 AI 已經成功為 ${newRestName} 寫好美味筆記！`);
+      setToastMessage(`🎉 AI 已經成功為 ${tempName} 寫好美味筆記！`);
       setTimeout(() => setToastMessage(""), 3000);
     });
   };
 
   // 🌟 智慧宣告 categories
-  const categories = ["全部", ...new Set(restaurants.map(r => getSmartTag(r.name, r.category).split(" • ")[0]))];
+  const categories = ["全部", ...new Set((restaurants || []).map(r => getSmartTag(r.name, r.category).split(" • ")[0]))];
 
-  const filteredRestaurants = restaurants.filter(restaurant => {
+  const filteredRestaurants = (restaurants || []).filter(restaurant => {
     const name = restaurant.name || ""; const address = restaurant.address || ""; 
     const note = restaurant.note || ""; const category = getSmartTag(name, restaurant.category);
     const recommender = restaurant.recommendedBy || ""; 
@@ -952,7 +970,7 @@ export default function App() {
 
         ) : (
           // --- 登入後主檔案庫面板 ---
-          <div className={`w-full min-h-screen flex flex-col items-center transition-all duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isGlobalTransitioning ? 'opacity-0 translate-y-12 scale-[0.97] blur-md' : 'opacity-100 translate-y-0 scale-100 blur-0'}`}>
+          <div className="w-full min-h-screen flex flex-col items-center transition-all duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)]">
             {/* 🌟 修正：Header滿版橫跨網頁，內部精準置中對稱！ */}
             <header className="w-full sticky top-0 z-40 bg-white/40 backdrop-blur-2xl border-b border-white/30 px-6 py-4 shadow-[0_4px_30px_rgba(0,0,0,0.05)] transition-all flex justify-center">
               <div className="w-full max-w-md flex justify-between items-center">
@@ -1157,10 +1175,11 @@ export default function App() {
                 <label className="text-xs font-bold text-[#86868B] ml-1 uppercase tracking-wider">店名 *</label>
                 {/* 🌟 修正：店名包裹一層 relative，徹底解決下拉選單在不同解析度下偏左與未對齊的痛點 */}
                 <div className="relative w-full">
-                  <input required type="text" placeholder="例如：詹記麻辣火鍋" value={newRestName} onChange={(e) => { setNewRestName(e.target.value); setIsTypingName(true); }} className="w-full bg-black/5 text-sm font-bold rounded-xl py-3.5 px-4 border border-transparent focus:bg-white focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all shadow-inner" />
+                  {/* 🌟 修正：移除 required 屬性，防止沙盒 iframe 導致 silent-block！由 JS 前端手工驗證防禦 */}
+                  <input type="text" placeholder="例如：詹記麻辣火鍋" value={newRestName} onChange={(e) => { setNewRestName(e.target.value); setIsTypingName(true); }} className="w-full bg-black/5 text-sm font-bold rounded-xl py-3.5 px-4 border border-transparent focus:bg-white focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all shadow-inner" />
                   {isTypingName && (nameSuggestions.length > 0 || isSearchingPlaces) && (
-                    // 🌟 修正：設定寬度為 w-full 且內容置中 (text-center)，達到完美對齊！
-                    <div className="absolute top-full left-0 mt-1 w-full bg-white/95 backdrop-blur-xl rounded-xl shadow-2xl border border-black/10 overflow-hidden z-50 max-h-48 overflow-y-auto animate-fade-in-up">
+                    // 🌟 修正：設定寬度 w-full、文字置中 text-center，並使用全新的 animate-dropdown-in 替代原本帶有 translate(-50%) 的動畫！
+                    <div className="absolute top-full left-0 mt-1 w-full bg-white/95 backdrop-blur-xl rounded-xl shadow-2xl border border-black/10 overflow-hidden z-50 max-h-48 overflow-y-auto animate-dropdown-in">
                       {isSearchingPlaces ? (
                          <div className="p-3 text-xs text-center text-[#86868B] animate-pulse">搜尋地圖座標中...</div>
                       ) : (
@@ -1200,7 +1219,7 @@ export default function App() {
                 </div>
                 <textarea placeholder="寫下你想記住的餐點或特色，或是留白讓 Fabrica AI 幫你總結網路評價..." value={newRestNote} onChange={(e) => setNewRestNote(e.target.value)} className="w-full bg-black/5 text-sm font-bold rounded-xl py-3.5 px-4 border border-transparent focus:bg-white focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all min-h-[100px] resize-none shadow-inner" />
               </div>
-              <button type="submit" className="w-full bg-black/90 text-white font-bold py-4 rounded-xl mt-4 hover:bg-black active:scale-95 transition-all shadow-xl">儲存至地圖</button>
+              <button type="submit" className="w-full bg-black/90 text-white font-bold py-4 rounded-xl mt-4 hover:bg-black active:scale-[0.98] transition-all shadow-xl">儲存至地圖</button>
             </form>
           </div>
         </div>
@@ -1213,9 +1232,7 @@ export default function App() {
             <button onClick={() => setSelectedRestaurant(null)} className="absolute top-4 right-4 z-30 w-8 h-8 bg-black/40 backdrop-blur-md text-white rounded-full flex items-center justify-center hover:bg-black/60 transition-all active:scale-90">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
-            
-            {/* 電影級 Blur Vignette 視覺大作 */}
-            <BlurVignette blur="15px" className="h-56 w-full flex-shrink-0 bg-black/5">
+            <BlurVignette blur="8px" className="h-56 w-full flex-shrink-0 bg-black/5">
               <img src={getFoodImage(selectedRestaurant)} onError={handleImageError} className="w-full h-full object-cover" alt="food" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 z-10"></div>
               <div className="absolute bottom-5 left-5 right-5 z-20">
@@ -1223,7 +1240,6 @@ export default function App() {
                 <h2 className="text-2xl font-bold text-white leading-tight drop-shadow-lg">{selectedRestaurant.name}</h2>
               </div>
             </BlurVignette>
-            
             <div className="p-6 overflow-y-auto flex-1">
               <div className="flex items-start gap-2 text-xs font-medium text-[#555] mb-6 bg-black/5 p-3 rounded-xl border border-black/5">
                 <svg className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#0071E3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3" strokeWidth="2"/></svg>
@@ -1234,9 +1250,8 @@ export default function App() {
                 <p className="text-[14px] text-neutral-900 font-medium leading-loose break-words whitespace-pre-wrap pl-1">{selectedRestaurant.note || "尚無筆記。"}</p>
               </div>
             </div>
-            
             <div className="p-5 bg-white/80 backdrop-blur-xl border-t border-black/5 flex-shrink-0">
-              {/* 🌟 查看地點按鈕改用極高質感的 LiquidGlassCard 套件 */}
+              {/* 查看地點按鈕改用極高質感的 LiquidGlassCard 套件 */}
               <LiquidGlassCard onClick={() => window.open(getFreeMapAppUrl(selectedRestaurant.name, selectedRestaurant.address), "_blank")} className="w-full flex items-center justify-center gap-2 py-4 bg-black/95 text-white font-bold rounded-2xl shadow-xl active:scale-[0.95]">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
                 查看地點
@@ -1296,6 +1311,15 @@ export default function App() {
         @keyframes marquee-down { 0% { transform: translateX(-50%); } 100% { transform: translateX(0%); } }
         .animate-marquee-up { animation: marquee-up 12s linear infinite; }
         .animate-marquee-down { animation: marquee-down 12s linear infinite; }
+
+        /* 🌟 專屬下拉選單進場動畫：移除 translateX 的 -50%，完美防止向左偏移 cut off 的問題 */
+        @keyframes dropdown-in {
+          from { opacity: 0; transform: translateY(10px) scale(0.98); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .animate-dropdown-in {
+          animation: dropdown-in 0.25s cubic-bezier(0.2,0.8,0.2,1) forwards;
+        }
       `}</style>
     </div>
   );
