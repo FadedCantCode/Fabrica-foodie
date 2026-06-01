@@ -245,6 +245,7 @@ export default function App() {
   const [verificationCode, setVerificationCode] = useState("");
   const [verificationUsername, setVerificationUsername] = useState("");
   const [isWaitingVerification, setIsWaitingVerification] = useState(false);
+  const [proofUrl, setProofUrl] = useState("");
   
   const [mounted, setMounted] = useState(false); 
   const canvasContainerRef = useRef(null);
@@ -659,12 +660,12 @@ export default function App() {
     }, 800);
   };
 
-  const verifyThreadsProofUrl = async (cleanUsername, code, proofUrl) => {
-    setLoginError("Checking Threads proof...");
+  const verifyThreadsProofUrl = async (cleanUsername, code, _proofUrl) => {
+    setLoginError("正在透過 Threads API 驗證中...");
     const response = await fetch("/api/verify-threads-proof", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: cleanUsername, code, proofUrl })
+      body: JSON.stringify({ username: cleanUsername, code })
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok || !data.verified) {
@@ -687,28 +688,26 @@ export default function App() {
   const handleVerificationStart = async (e) => {
     e.preventDefault();
     const cleanUsername = inputUsername.replace("@", "").trim().toLowerCase();
-    if (!cleanUsername) { setLoginError("Please enter your Threads ID."); return; }
+    if (!cleanUsername) { setLoginError("請輸入您的 Threads 帳號。"); return; }
 
+    // 第二步：已有驗證碼，直接用 Threads API 掃描
     if (verificationCode && verificationUsername === cleanUsername) {
-      const proofUrl = typeof window !== "undefined" ? window.prompt("Paste the Threads post/comment URL that contains your verification code.") : "";
-      if (!proofUrl) {
-        setLoginError("Meta webhook is not available during app review. Paste a public Threads proof URL to finish verification.");
-        return;
-      }
       try {
-        await verifyThreadsProofUrl(cleanUsername, verificationCode, proofUrl.trim());
+        setLoginError("正在透過 Threads API 驗證中...");
+        await verifyThreadsProofUrl(cleanUsername, verificationCode, "");
       } catch (error) {
         console.error("Threads proof verification failed:", error);
-        setLoginError("Could not verify that URL. Make sure the post/comment contains @fabrica_tw verify FAB-xxxx and matches your Threads ID.");
+        setLoginError(error.message || "驗證失敗，請確認貼文是公開的，且包含 @fabrica_tw verify " + verificationCode);
       }
       return;
     }
 
+    // 第一步：產生驗證碼
     const code = createVerificationCode();
     setVerificationUsername(cleanUsername);
     setVerificationCode(code);
     setIsWaitingVerification(true);
-    setLoginError("Post or comment this on Threads: @fabrica_tw verify " + code + ". Then press the Threads button again and paste the proof URL.");
+    setLoginError("");
 
     if (typeof window !== 'undefined') {
       window.localStorage.setItem('fabrica_threads_verification', JSON.stringify({ username: cleanUsername, code }));
@@ -1240,12 +1239,13 @@ export default function App() {
                   {verificationCode && (
                     <div className="rounded-2xl border border-black/10 bg-white/75 p-4 text-left shadow-sm">
                       <p className="text-[11px] font-bold uppercase tracking-wider text-[#86868B]">Threads 驗證</p>
-                      <p className="mt-2 text-sm font-semibold leading-relaxed text-[#1D1D1F]">到 Threads 留言或發文：</p>
+                      <p className="mt-2 text-sm font-semibold leading-relaxed text-[#1D1D1F]">到 Threads 發文或留言（公開貼文）：</p>
                       <div className="mt-2 rounded-xl bg-black px-3 py-3 text-center font-mono text-sm font-bold text-white">
                         {FABRICA_THREADS_HANDLE} verify {verificationCode}
                       </div>
                       <p className="mt-2 text-xs font-medium leading-relaxed text-[#666]">
-                        驗證成功後會自動進入你的美食庫。之後標記 {FABRICA_THREADS_HANDLE} 的美食文會存到 @{verificationUsername || inputUsername}。
+                        發文後按下方按鈕，App 會自動透過 Threads API 掃描你的貼文完成驗證。<br/>
+                        之後標記 {FABRICA_THREADS_HANDLE} 的美食文會存到 @{verificationUsername || inputUsername}。
                       </p>
                     </div>
                   )}
@@ -1253,10 +1253,10 @@ export default function App() {
                   <div className="grid gap-3">
                     <button type="submit" className="group relative cursor-pointer w-full h-[56px] border border-[#D2D2D7] bg-white rounded-2xl overflow-hidden text-[#1D1D1F] font-semibold transition-all duration-300 shadow-sm hover:shadow-md active:scale-90 outline-none">
                       <div className="absolute inset-0 flex items-center justify-center translate-x-0 group-hover:translate-x-16 group-hover:opacity-0 transition-all duration-300 z-20 pointer-events-none select-none">
-                        {verificationCode ? "我已完成 Threads 標記" : "Threads 驗證登入"}
+                        {verificationCode ? "我已發文，點此驗證" : "Threads 驗證登入"}
                       </div>
                       <div className="absolute inset-0 flex gap-2 items-center justify-center text-white z-20 translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none select-none">
-                        <span className="font-semibold text-sm">{verificationCode ? "貼上驗證連結" : "產生驗證碼"}</span><svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                        <span className="font-semibold text-sm">{verificationCode ? "透過 API 驗證" : "產生驗證碼"}</span><svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
                       </div>
                       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-[#1D1D1F] scale-0 group-hover:scale-[35] transition-transform duration-500 ease-out z-10"></div>
                     </button>
