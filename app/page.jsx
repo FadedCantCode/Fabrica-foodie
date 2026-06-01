@@ -251,6 +251,7 @@ export default function App() {
   const [mounted, setMounted] = useState(false); 
   const canvasContainerRef = useRef(null);
   const hasSearchedRef = useRef(false);
+  const isAuthed = Boolean(firebaseUser);
   const getUserLibraryId = () => firebaseUser?.uid || "";
   const getCleanThreadsUsername = () => threadsUsername.replace("@", "").trim().toLowerCase();
 
@@ -405,7 +406,7 @@ export default function App() {
 
   // 🌟 實時監聽資料庫且加上強置 Error Callback 預防靜默錯誤
   useEffect(() => {
-    if (!firebaseUser || !isLoggedIn) return; 
+    if (!firebaseUser) return; 
     setIsLoading(true);
     const userLibraryId = getUserLibraryId();
     const unsubscribe = onSnapshot(
@@ -423,11 +424,11 @@ export default function App() {
       }
     );
     return () => unsubscribe();
-  }, [firebaseUser, isLoggedIn, threadsUsername]);
+  }, [firebaseUser, threadsUsername]);
 
   // 🌟 智慧探店三重備源引擎 (Overpass ➔ Nominatim ➔ Photon)
   useEffect(() => {
-    if (isLoggedIn && typeof window !== 'undefined' && navigator.geolocation && !hasSearchedRef.current) {
+    if (isAuthed && typeof window !== 'undefined' && navigator.geolocation && !hasSearchedRef.current) {
       hasSearchedRef.current = true;
       navigator.geolocation.getCurrentPosition((position) => {
         const { latitude, longitude } = position.coords;
@@ -438,7 +439,7 @@ export default function App() {
         setNearbyRecommendations(TAIWAN_TRENDY_RECS);
       });
     }
-  }, [isLoggedIn]);
+  }, [isAuthed]);
 
   const triggerUltimateNearbySearch = async (lat, lng) => {
     let results = [];
@@ -1112,7 +1113,7 @@ export default function App() {
     <div className="relative min-h-screen text-[#1D1D1F] tracking-tight font-sans antialiased overflow-x-hidden overflow-y-scroll bg-[#F4F4F6] touch-manipulation">
       
       {/* 🌟 登入後之 Blur Vignette + 原生 WebGL 彩色流體背景 */}
-      {(isLoggedIn || isGlobalTransitioning) && (
+      {(isAuthed || isGlobalTransitioning) && (
         <BlurVignette blur="35px" className="fixed inset-0 z-0 pointer-events-none transition-opacity duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)] opacity-100">
            <ColorfulBackground show={true} />
         </BlurVignette>
@@ -1124,7 +1125,7 @@ export default function App() {
       </div>
 
       {/* 登入前的黑白原生 3D 液態球體著色器背景 */}
-      {!isLoggedIn && (
+      {!isAuthed && (
         <div 
           ref={canvasContainerRef} 
           className={`fixed inset-0 z-0 w-screen h-screen pointer-events-auto transition-opacity duration-1000 ease-in-out ${isGlobalTransitioning ? 'opacity-0 invisible' : 'opacity-100 visible'}`} 
@@ -1132,9 +1133,9 @@ export default function App() {
       )}
 
       {/* ==================== 頁面容器 (🌟 修復：登入後取消 items-center 且置中 layout，完美解決卡片偏左與 Header 未整版問題！) ==================== */}
-      <div className={`relative z-10 w-full min-h-screen flex flex-col ${!isLoggedIn ? 'items-center justify-center' : 'items-center'}`}>
+      <div className={`relative z-10 w-full min-h-screen flex flex-col ${!isAuthed ? 'items-center justify-center' : 'items-center'}`}>
         
-        {!isLoggedIn ? (
+        {!isAuthed ? (
           // --- 登入畫面 ---
           <div className="relative w-full min-h-screen flex flex-row justify-between items-stretch">
             
@@ -1530,7 +1531,7 @@ export default function App() {
         </div>
       )}
 
-      {isLoggedIn && sharedItem && !isGlobalTransitioning && (
+      {isAuthed && sharedItem && !isGlobalTransitioning && (
         <div className="fixed inset-0 z-[140] flex items-center justify-center px-4 bg-black/60 backdrop-blur-md animate-fade-in">
           <div className="bg-white/95 backdrop-blur-3xl w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl relative scale-100 animate-bounce-in border border-white/50">
             <BlurVignette blur="15px" className="h-56 w-full relative">
