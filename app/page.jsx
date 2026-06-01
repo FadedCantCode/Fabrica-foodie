@@ -4,7 +4,9 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getAuth, 
-  signInAnonymously, 
+  GoogleAuthProvider,
+  signInWithPopup,
+  signOut,
   onAuthStateChanged 
 } from 'firebase/auth';
 import { 
@@ -32,6 +34,7 @@ const firebaseConfig = {
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
+const googleProvider = new GoogleAuthProvider();
 const db = getFirestore(app);
 const appId = 'fabrica-foodie-app'; 
 const FABRICA_THREADS_HANDLE = '@fabrica_tw';
@@ -235,6 +238,8 @@ export default function App() {
   const [mounted, setMounted] = useState(false); 
   const canvasContainerRef = useRef(null);
   const hasSearchedRef = useRef(false);
+  const getUserLibraryId = () => firebaseUser?.uid || "";
+  const getCleanThreadsUsername = () => threadsUsername.replace("@", "").trim().toLowerCase();
 
   // 🌟 原生 GPU 加速物理拖曳 Refs (全域精準追蹤偏移防滑手)
   const dragRef = useRef({ id: null, startX: 0, startY: 0, offsetX: 0, offsetY: 0, el: null, hoveredIndex: -1, isDragging: false, isLongPressed: false });
@@ -326,38 +331,30 @@ export default function App() {
   }, [mounted, isLoggedIn]);
 
   useEffect(() => {
-    const initAuth = async () => { try { await signInAnonymously(auth); } catch (err) { setFirebaseUser({ uid: "local-temp-guest", isAnonymous: true }); } };
-    initAuth(); const unsubscribe = onAuthStateChanged(auth, (user) => { if (user) setFirebaseUser(user); }); return () => unsubscribe();
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setFirebaseUser(user || null);
+      if (user) {
+        const savedThreadsUsername = typeof window !== 'undefined' ? window.localStorage.getItem('fabrica_threads_username') : "";
+        const fallbackName = user.displayName || user.email?.split("@")[0] || "Google User";
+        setThreadsUsername(savedThreadsUsername ? `@${savedThreadsUsername}` : fallbackName);
+        setInputUsername(savedThreadsUsername || "");
+        setIsLoggedIn(true);
+      } else {
+        setIsLoggedIn(false);
+        setThreadsUsername("");
+      }
+    });
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const savedVerification = window.localStorage.getItem('fabrica_threads_verification');
-    const savedSession = window.localStorage.getItem('fabrica_threads_user');
-
-    if (savedSession) {
-      setThreadsUsername(`@${savedSession}`);
-      setInputUsername(savedSession);
-      setIsLoggedIn(true);
-      return;
-    }
-
-    if (savedVerification) {
-      try {
-        const parsed = JSON.parse(savedVerification);
-        if (parsed?.username && parsed?.code) {
-          setInputUsername(parsed.username);
-          setVerificationUsername(parsed.username);
-          setVerificationCode(parsed.code);
-          setIsWaitingVerification(true);
-        }
-      } catch (err) {
-        window.localStorage.removeItem('fabrica_threads_verification');
-      }
-    }
+    const savedThreadsUsername = window.localStorage.getItem('fabrica_threads_username');
+    if (savedThreadsUsername) setInputUsername(savedThreadsUsername);
   }, []);
 
   useEffect(() => {
+    return;
     if (!firebaseUser || !verificationUsername || !verificationCode || !isWaitingVerification) return;
     const cleanUsername = verificationUsername.replace("@", "").trim().toLowerCase();
     const unsubscribe = onSnapshot(
@@ -389,11 +386,11 @@ export default function App() {
 
   // 🌟 實時監聽資料庫且加上強置 Error Callback 預防靜默錯誤
   useEffect(() => {
-    if (!firebaseUser || !isLoggedIn || !threadsUsername || firebaseUser.uid === "local-temp-guest") return; 
+    if (!firebaseUser || !isLoggedIn) return; 
     setIsLoading(true);
-    const cleanUsername = threadsUsername.replace("@", "").trim().toLowerCase();
+    const userLibraryId = getUserLibraryId();
     const unsubscribe = onSnapshot(
-      collection(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants'), 
+      collection(db, 'artifacts', appId, 'users', userLibraryId, 'restaurants'), 
       (snapshot) => {
         const list = []; snapshot.forEach((doc) => list.push({ id: doc.id, ...doc.data() }));
         const sortedList = list.sort((a, b) => (b.savedAt?.seconds || 0) - (a.savedAt?.seconds || 0));
@@ -579,6 +576,35 @@ export default function App() {
     }, 2200);
   };
 
+  const handleGoogleSignIn = (e) => {
+    e.preventDefault();
+    const cleanUsername = inputUsername.replace("@", "").trim().toLowerCase();
+    if (cleanUsername && typeof window !== 'undefined') {
+      window.localStorage.setItem('fabrica_threads_username', cleanUsername);
+      setThreadsUsername(`@${cleanUsername}`);
+    }
+    setVerificationCode("");
+    setIsWaitingVerification(false);
+    setLoginError("");
+    signInWithPopup(auth, googleProvider).catch((err) => {
+      console.error("Google sign-in failed:", err);
+      setLoginError("Google 登入失敗，請再試一次。");
+    });
+  };
+
+  const handleGoogleLogout = () => {
+    setIsGlobalTransitioning(true);
+    setTimeout(() => {
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem('fabrica_threads_username');
+      }
+      signOut(auth).catch((err) => console.error("Sign out failed:", err));
+      setIsLoggedIn(false); setThreadsUsername(""); setInputUsername(""); setRestaurants([]);
+      setNearbyRecommendations([]); setDismissedRecommendationIds([]); hasSearchedRef.current = false;
+      setIsGlobalTransitioning(false);
+    }, 800);
+  };
+
   const handleVerificationStart = (e) => {
     e.preventDefault();
     const cleanUsername = inputUsername.replace("@", "").trim().toLowerCase();
@@ -617,8 +643,8 @@ export default function App() {
       if (firebaseUser?.uid === "local-temp-guest") { setRestaurants(prev => prev.filter(r => r.id !== id)); } 
       else {
         try {
-          const cleanUsername = threadsUsername.replace("@", "").trim().toLowerCase();
-          await deleteDoc(doc(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants', id)); 
+          const userLibraryId = getUserLibraryId();
+          await deleteDoc(doc(db, 'artifacts', appId, 'users', userLibraryId, 'restaurants', id)); 
         } catch (err) { console.error("Delete error:", err); }
       }
       setDeletingIds(prev => prev.filter(delId => delId !== id));
@@ -640,7 +666,7 @@ export default function App() {
     
     // 1. 瞬間先加入 Firebase / 本地名單，實現零等待樂觀加入！
     let savedDocId = null;
-    const cleanUsername = threadsUsername.replace("@", "").trim().toLowerCase();
+    const userLibraryId = getUserLibraryId();
     
     if (firebaseUser?.uid === "local-temp-guest") {
       savedDocId = Math.random().toString();
@@ -648,7 +674,7 @@ export default function App() {
       setRestaurants(prev => [mockDoc, ...prev]);
     } else {
       try {
-        const docRef = await addDoc(collection(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants'), { 
+        const docRef = await addDoc(collection(db, 'artifacts', appId, 'users', userLibraryId, 'restaurants'), { 
           name: rec.name, address: rec.address, category: smartCategory, note: initialNote, recommendedBy: "系統探索", savedAt: serverTimestamp() 
         });
         savedDocId = docRef.id;
@@ -666,7 +692,7 @@ export default function App() {
         setRestaurants(prev => prev.map(item => item.id === savedDocId ? { ...item, note: finalNote } : item));
       } else if (savedDocId) {
         try {
-          await updateDoc(doc(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants', savedDocId), { note: finalNote });
+          await updateDoc(doc(db, 'artifacts', appId, 'users', userLibraryId, 'restaurants', savedDocId), { note: finalNote });
         } catch (err) { console.error("Error async updating AI Review:", err); }
       }
       setToastMessage(`🎉 AI 已經成功為 ${rec.name} 寫好美味筆記！`);
@@ -741,7 +767,8 @@ export default function App() {
         return;
       }
 
-      const cleanUsername = threadsUsername.replace("@", "").trim().toLowerCase();
+      const userLibraryId = getUserLibraryId();
+      const cleanUsername = getCleanThreadsUsername() || firebaseUser?.email || "google-user";
       const sourceUrl = rawText.match(/https?:\/\/\S+/)?.[0] || "";
       const newDoc = {
         name: aiResult.name || "待確認美食",
@@ -761,7 +788,7 @@ export default function App() {
       if (firebaseUser?.uid === "local-temp-guest") {
         setRestaurants(prev => [{ id: Math.random().toString(), ...newDoc, savedAt: { seconds: Math.floor(Date.now() / 1000) } }, ...prev]);
       } else {
-        await addDoc(collection(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants'), newDoc);
+        await addDoc(collection(db, 'artifacts', appId, 'users', userLibraryId, 'restaurants'), newDoc);
       }
 
       setImportText("");
@@ -795,8 +822,8 @@ export default function App() {
       setRestaurants(prev => [mockDoc, ...prev]);
     } else {
       try {
-        const cleanUsername = threadsUsername.replace("@", "").trim().toLowerCase();
-        await addDoc(collection(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants'), { name: sharedItem.name, address: sharedItem.address, category: smartCategory, note: finalNote, recommendedBy: cleanRecommender, savedAt: serverTimestamp() });
+        const userLibraryId = getUserLibraryId();
+        await addDoc(collection(db, 'artifacts', appId, 'users', userLibraryId, 'restaurants'), { name: sharedItem.name, address: sharedItem.address, category: smartCategory, note: finalNote, recommendedBy: cleanRecommender, savedAt: serverTimestamp() });
       } catch (err) { console.error("Error adding shared document:", err); }
     }
     setToastMessage(`🎉 成功將 ${sharedItem.name} 收藏至您的地圖！`); setTimeout(() => setToastMessage(""), 3000); clearSharedItem();
@@ -829,7 +856,7 @@ export default function App() {
     const initialNote = "✨ Fabrica AI 正在為您撰寫專屬短評中，請稍候...";
     
     let savedDocId = null;
-    const cleanUsername = threadsUsername.replace("@", "").trim().toLowerCase();
+    const userLibraryId = getUserLibraryId();
 
     if (firebaseUser?.uid === "local-temp-guest") {
       savedDocId = Math.random().toString();
@@ -837,7 +864,7 @@ export default function App() {
       setRestaurants(prev => [mockDoc, ...prev]);
     } else {
       try {
-        const docRef = await addDoc(collection(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants'), {
+        const docRef = await addDoc(collection(db, 'artifacts', appId, 'users', userLibraryId, 'restaurants'), {
           name: newRestName, address: newRestAddress || "僅提供店名定位", category: smartCategory, note: initialNote, recommendedBy: cleanRecommender, savedAt: serverTimestamp()
         });
         savedDocId = docRef.id;
@@ -859,7 +886,7 @@ export default function App() {
         setRestaurants(prev => prev.map(item => item.id === savedDocId ? { ...item, note: finalNote } : item));
       } else if (savedDocId) {
         try {
-          await updateDoc(doc(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants', savedDocId), { note: finalNote });
+          await updateDoc(doc(db, 'artifacts', appId, 'users', userLibraryId, 'restaurants', savedDocId), { note: finalNote });
         } catch (err) {
           console.error("Error async updating AI review:", err);
         }
@@ -1101,7 +1128,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <form onSubmit={handleVerificationStart} className="space-y-5 bg-white/45 backdrop-blur-xl border border-white/60 p-6 rounded-[32px] shadow-[0_20px_40px_rgba(0,0,0,0.03)] hover:shadow-lg transition-all duration-300">
+                <form onSubmit={handleGoogleSignIn} className="space-y-5 bg-white/45 backdrop-blur-xl border border-white/60 p-6 rounded-[32px] shadow-[0_20px_40px_rgba(0,0,0,0.03)] hover:shadow-lg transition-all duration-300">
                   <div className="space-y-3">
                     <div className="relative flex items-center w-full group">
                       <span className="absolute left-5 top-1/2 -translate-y-1/2 text-base font-semibold text-[#86868B] select-none pointer-events-none group-focus-within:text-black transition-colors">@</span>
@@ -1159,7 +1186,7 @@ export default function App() {
                   </div>
                   <h1 className="text-lg font-bold tracking-tight text-black mt-0.5">{threadsUsername}</h1>
                 </div>
-                <button onClick={handleLogout} className="text-xs font-semibold text-[#555555] hover:text-black hover:bg-white/60 bg-white/40 backdrop-blur-md border border-white/50 px-3.5 py-1.5 rounded-full transition-all duration-300 shadow-sm active:scale-90">登出</button>
+                <button onClick={handleGoogleLogout} className="text-xs font-semibold text-[#555555] hover:text-black hover:bg-white/60 bg-white/40 backdrop-blur-md border border-white/50 px-3.5 py-1.5 rounded-full transition-all duration-300 shadow-sm active:scale-90">登出</button>
               </div>
             </header>
 
