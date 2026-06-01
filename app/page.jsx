@@ -207,6 +207,7 @@ export default function App() {
   const [firebaseUser, setFirebaseUser] = useState(null);
   const [threadsUsername, setThreadsUsername] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [authMode, setAuthMode] = useState("threads");
   
   const [restaurants, setRestaurants] = useState([]);
   const [displayRestaurants, setDisplayRestaurants] = useState([]); // 用於顯示與拖曳排序
@@ -248,7 +249,11 @@ export default function App() {
   const [mounted, setMounted] = useState(false); 
   const canvasContainerRef = useRef(null);
   const hasSearchedRef = useRef(false);
-  const getUserLibraryId = () => firebaseUser?.uid || "";
+  const getUserLibraryId = () => {
+    if (firebaseUser?.uid) return firebaseUser.uid;
+    const cleanUsername = getCleanThreadsUsername();
+    return cleanUsername ? `threads_${cleanUsername}` : "";
+  };
   const getCleanThreadsUsername = () => threadsUsername.replace("@", "").trim().toLowerCase();
 
   // 🌟 原生 GPU 加速物理拖曳 Refs (全域精準追蹤偏移防滑手)
@@ -343,11 +348,19 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setFirebaseUser(user || null);
+      const savedThreadsUsername = typeof window !== 'undefined' ? window.localStorage.getItem('fabrica_threads_username') : "";
+      const savedAuthMode = typeof window !== 'undefined' ? window.localStorage.getItem('fabrica_auth_mode') : "";
+
       if (user) {
-        const savedThreadsUsername = typeof window !== 'undefined' ? window.localStorage.getItem('fabrica_threads_username') : "";
         const fallbackName = user.displayName || user.email?.split("@")[0] || "Google User";
         setThreadsUsername(savedThreadsUsername ? `@${savedThreadsUsername}` : fallbackName);
         setInputUsername(savedThreadsUsername || "");
+        setAuthMode(savedThreadsUsername ? "google_threads" : "google");
+        setIsLoggedIn(savedAuthMode === "google" || savedAuthMode === "google_threads" || !!savedThreadsUsername);
+      } else if (savedAuthMode === "threads" && savedThreadsUsername) {
+        setAuthMode("threads");
+        setThreadsUsername(`@${savedThreadsUsername}`);
+        setInputUsername(savedThreadsUsername);
         setIsLoggedIn(true);
       } else {
         setIsLoggedIn(false);
@@ -364,8 +377,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    return;
-    if (!firebaseUser || !verificationUsername || !verificationCode || !isWaitingVerification) return;
+    if (!verificationUsername || !verificationCode || !isWaitingVerification) return;
     const cleanUsername = verificationUsername.replace("@", "").trim().toLowerCase();
     const unsubscribe = onSnapshot(
       doc(db, 'artifacts', appId, 'verifiedUsers', cleanUsername),
@@ -373,9 +385,11 @@ export default function App() {
         const data = snapshot.data();
         if (data?.verified && data?.verificationCode === verificationCode) {
           if (typeof window !== 'undefined') {
-            window.localStorage.setItem('fabrica_threads_user', cleanUsername);
+            window.localStorage.setItem('fabrica_auth_mode', firebaseUser ? 'google_threads' : 'threads');
+            window.localStorage.setItem('fabrica_threads_username', cleanUsername);
             window.localStorage.removeItem('fabrica_threads_verification');
           }
+          setAuthMode(firebaseUser ? "google_threads" : "threads");
           setThreadsUsername(`@${cleanUsername}`);
           setInputUsername(cleanUsername);
           setIsLoggedIn(true);
@@ -396,7 +410,7 @@ export default function App() {
 
   // 🌟 實時監聽資料庫且加上強置 Error Callback 預防靜默錯誤
   useEffect(() => {
-    if (!firebaseUser || !isLoggedIn) return; 
+    if (!isLoggedIn || !getUserLibraryId()) return; 
     setIsLoading(true);
     const userLibraryId = getUserLibraryId();
     const unsubscribe = onSnapshot(
@@ -588,11 +602,10 @@ export default function App() {
 
   const handleGoogleSignIn = (e) => {
     e.preventDefault();
-    const cleanUsername = inputUsername.replace("@", "").trim().toLowerCase();
-    if (cleanUsername && typeof window !== 'undefined') {
-      window.localStorage.setItem('fabrica_threads_username', cleanUsername);
-      setThreadsUsername(`@${cleanUsername}`);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('fabrica_auth_mode', 'google');
     }
+    setAuthMode("google");
     setVerificationCode("");
     setIsWaitingVerification(false);
     setLoginError("");
@@ -606,6 +619,7 @@ export default function App() {
     setIsGlobalTransitioning(true);
     setTimeout(() => {
       if (typeof window !== 'undefined') {
+        window.localStorage.removeItem('fabrica_auth_mode');
         window.localStorage.removeItem('fabrica_threads_username');
       }
       signOut(auth).catch((err) => console.error("Sign out failed:", err));
@@ -631,11 +645,22 @@ export default function App() {
     }
   };
 
+  const handleBindThreadsAfterGoogle = (e) => {
+    e.preventDefault();
+    if (!firebaseUser) {
+      setLoginError("請先用 Google 登入後再綁定 Threads。");
+      return;
+    }
+    handleVerificationStart(e);
+  };
+
   const handleLogout = () => {
     setIsGlobalTransitioning(true);
     setTimeout(() => {
       if (typeof window !== 'undefined') {
+        window.localStorage.removeItem('fabrica_auth_mode');
         window.localStorage.removeItem('fabrica_threads_user');
+        window.localStorage.removeItem('fabrica_threads_username');
         window.localStorage.removeItem('fabrica_threads_verification');
       }
       setIsLoggedIn(false); setThreadsUsername(""); setInputUsername(""); setRestaurants([]); 
@@ -1144,7 +1169,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <form onSubmit={handleGoogleSignIn} className="space-y-5 bg-white/45 backdrop-blur-xl border border-white/60 p-6 rounded-[32px] shadow-[0_20px_40px_rgba(0,0,0,0.03)] hover:shadow-lg transition-all duration-300">
+                <form onSubmit={handleVerificationStart} className="space-y-5 bg-white/45 backdrop-blur-xl border border-white/60 p-6 rounded-[32px] shadow-[0_20px_40px_rgba(0,0,0,0.03)] hover:shadow-lg transition-all duration-300">
                   <div className="space-y-3">
                     <div className="relative flex items-center w-full group">
                       <span className="absolute left-5 top-1/2 -translate-y-1/2 text-base font-semibold text-[#86868B] select-none pointer-events-none group-focus-within:text-black transition-colors">@</span>
@@ -1164,12 +1189,11 @@ export default function App() {
                     </div>
                   )}
                   {loginError && <p className="text-xs font-bold text-[#FF3B30]">{loginError}</p>}
-                  <button type="submit" className="group relative cursor-pointer w-full h-[56px] border border-[#D2D2D7] bg-white rounded-2xl overflow-hidden text-[#1D1D1F] font-semibold transition-all duration-300 shadow-sm hover:shadow-md active:scale-90 outline-none">
-                    <div className="absolute inset-0 flex items-center justify-center translate-x-0 group-hover:translate-x-16 group-hover:opacity-0 transition-all duration-300 z-20 pointer-events-none select-none">進入美食檔案</div>
-                    <div className="absolute inset-0 flex gap-2 items-center justify-center text-white z-20 translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none select-none">
-                      <span className="font-semibold text-sm">進入美食檔案</span><svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
-                    </div>
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-[#1D1D1F] scale-0 group-hover:scale-[35] transition-transform duration-500 ease-out z-10"></div>
+                  <button type="submit" className="w-full h-[56px] rounded-2xl bg-black text-white font-bold transition-all duration-300 shadow-sm hover:shadow-md active:scale-95">
+                    產生 Threads 驗證碼
+                  </button>
+                  <button type="button" onClick={handleGoogleSignIn} className="w-full h-[56px] rounded-2xl border border-[#D2D2D7] bg-white text-[#1D1D1F] font-bold transition-all duration-300 shadow-sm hover:shadow-md active:scale-95">
+                    使用 Google 登入
                   </button>
                 </form>
               </div>
@@ -1208,6 +1232,27 @@ export default function App() {
 
             {/* 🌟 修正：餐廳卡片列與主面板寬度完全設定在 max-w-md 並在網頁端對稱置中！ */}
             <main className="w-full max-w-md px-4 mt-6 space-y-6 relative z-10">
+              {firebaseUser && !getCleanThreadsUsername() && (
+                <form onSubmit={handleBindThreadsAfterGoogle} className="space-y-3 rounded-2xl border border-black/10 bg-white/60 p-4 shadow-sm backdrop-blur-xl">
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-[#86868B]">Bind Threads</p>
+                    <h2 className="mt-1 text-sm font-bold text-black">綁定 Threads ID</h2>
+                  </div>
+                  <div className="relative flex items-center w-full group">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-[#86868B]">@</span>
+                    <input type="text" placeholder="threads_id" value={inputUsername} onChange={(e) => setInputUsername(e.target.value.replace("@", ""))} className="w-full bg-white/80 text-sm font-bold rounded-xl py-3 pl-9 pr-4 border border-transparent focus:bg-white focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all shadow-inner" />
+                  </div>
+                  {verificationCode && (
+                    <div className="rounded-xl bg-black px-3 py-3 text-center font-mono text-xs font-bold text-white">
+                      {FABRICA_THREADS_HANDLE} verify {verificationCode}
+                    </div>
+                  )}
+                  <button type="submit" className="w-full rounded-xl bg-black py-3 text-sm font-bold text-white active:scale-[0.98] transition-all">
+                    產生綁定驗證碼
+                  </button>
+                </form>
+              )}
+
               
               {/* 🌟 手動新增口袋名單按鈕 (LiquidGlassCard 套件) */}
               <LiquidGlassCard onClick={() => setShowAddModal(true)} className="w-full py-4 text-sm font-bold text-[#1D1D1F] flex items-center justify-center gap-2 shadow-sm border border-white/50 bg-white/30 hover:scale-[1.01]">
