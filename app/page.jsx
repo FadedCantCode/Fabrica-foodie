@@ -202,6 +202,7 @@ export default function App() {
   const [selectedCategory, setSelectedCategory] = useState("全部");
   const [isLoading, setIsLoading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [isClosingModal, setIsClosingModal] = useState(false); 
   const [isGlobalTransitioning, setIsGlobalTransitioning] = useState(false); 
   const [deletingIds, setDeletingIds] = useState([]); 
@@ -223,6 +224,8 @@ export default function App() {
   const [newRestCategory, setNewRestCategory] = useState("");
   const [newRestNote, setNewRestNote] = useState("");
   const [newRestRecommender, setNewRestRecommender] = useState("");
+  const [importText, setImportText] = useState("");
+  const [isImportingThread, setIsImportingThread] = useState(false);
   const [inputUsername, setInputUsername] = useState("");
   const [loginError, setLoginError] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
@@ -712,6 +715,68 @@ export default function App() {
   };
 
   // 🌟 收下好友推薦並生成 AI 評價
+  const handleImportThreadText = async (e) => {
+    e.preventDefault();
+    const rawText = importText.trim();
+    if (!rawText) {
+      setToastMessage("請貼上 Threads 文字、心得或連結。");
+      setTimeout(() => setToastMessage(""), 3000);
+      return;
+    }
+
+    setIsImportingThread(true);
+    try {
+      const response = await fetch('/api/analyze-food', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: rawText })
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Import failed');
+
+      const aiResult = result.data || {};
+      if (isDuplicateRestaurant(aiResult.name)) {
+        setToastMessage(`⚠️ ${aiResult.name} 已在您的口袋名單中！`);
+        setTimeout(() => setToastMessage(""), 3000);
+        return;
+      }
+
+      const cleanUsername = threadsUsername.replace("@", "").trim().toLowerCase();
+      const sourceUrl = rawText.match(/https?:\/\/\S+/)?.[0] || "";
+      const newDoc = {
+        name: aiResult.name || "待確認美食",
+        address: aiResult.address || "",
+        areaHint: aiResult.areaHint || "",
+        category: aiResult.category || "美食收藏",
+        note: aiResult.aiNote || "已從 Threads 貼文匯入，等待補充店家資訊。",
+        confidence: Math.max(0, Math.min(1, Number(aiResult.confidence || 0))),
+        placeStatus: aiResult.address ? "needs_review" : "unverified",
+        source: "manual_threads_import",
+        sourceText: rawText,
+        threadsUrl: sourceUrl,
+        recommendedBy: cleanUsername,
+        savedAt: serverTimestamp()
+      };
+
+      if (firebaseUser?.uid === "local-temp-guest") {
+        setRestaurants(prev => [{ id: Math.random().toString(), ...newDoc, savedAt: { seconds: Math.floor(Date.now() / 1000) } }, ...prev]);
+      } else {
+        await addDoc(collection(db, 'artifacts', appId, 'users', cleanUsername, 'restaurants'), newDoc);
+      }
+
+      setImportText("");
+      setShowImportModal(false);
+      setToastMessage(`已匯入 ${newDoc.name} 到你的美食庫。`);
+      setTimeout(() => setToastMessage(""), 3000);
+    } catch (err) {
+      console.error("Thread import failed:", err);
+      setToastMessage("匯入失敗，請稍後再試或先手動新增。");
+      setTimeout(() => setToastMessage(""), 3000);
+    } finally {
+      setIsImportingThread(false);
+    }
+  };
+
   const handleAcceptShared = async () => {
     if (!sharedItem) return;
     if (isDuplicateRestaurant(sharedItem.name)) {
@@ -1107,6 +1172,11 @@ export default function App() {
                 手動新增口袋名單
               </LiquidGlassCard>
 
+              <LiquidGlassCard onClick={() => setShowImportModal(true)} className="w-full py-4 text-sm font-bold text-white flex items-center justify-center gap-2 shadow-sm border border-black/10 bg-black/90 hover:scale-[1.01]">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                貼上 Threads 匯入
+              </LiquidGlassCard>
+
               <section className="space-y-4">
                 <div className="relative flex items-center w-full group">
                   <svg className="w-4 h-4 text-[#86868B] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none select-none group-focus-within:text-black transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
@@ -1267,6 +1337,36 @@ export default function App() {
       {/* ========================================== */}
       {/* 🌟 彈出式視窗 (Modals) */}
       {/* ========================================== */}
+
+      {showImportModal && (
+        <div className="fixed inset-0 z-[125] flex items-end sm:items-center justify-center px-0 sm:px-4 pb-0 sm:pb-10 transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)]">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isImportingThread && setShowImportModal(false)} />
+          <div className="relative w-full max-w-md bg-white/95 backdrop-blur-2xl rounded-t-[32px] sm:rounded-[32px] p-6 sm:p-8 shadow-2xl border border-white/50 max-h-[90vh] overflow-y-auto">
+            <div className="w-12 h-1.5 bg-[#D2D2D7] rounded-full mx-auto mb-6 sm:hidden" />
+            <div className="flex justify-between items-center mb-5">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-[#86868B]">Threads Import</p>
+                <h2 className="text-xl font-bold text-black tracking-tight">貼文匯入美食庫</h2>
+              </div>
+              <button type="button" disabled={isImportingThread} onClick={() => setShowImportModal(false)} className="w-8 h-8 flex items-center justify-center bg-black/5 hover:bg-black/10 rounded-full text-[#555] transition-all active:scale-90 disabled:opacity-40"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"/></svg></button>
+            </div>
+            <form onSubmit={handleImportThreadText} className="space-y-4">
+              <textarea
+                value={importText}
+                onChange={(e) => setImportText(e.target.value)}
+                placeholder="貼上 Threads 貼文文字、心得、店名，或貼文連結。例：台北中山這家布丁咖啡超值得收藏..."
+                className="w-full bg-black/5 text-sm font-bold rounded-xl py-3.5 px-4 border border-transparent focus:bg-white focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all min-h-[180px] resize-none shadow-inner"
+              />
+              <p className="text-xs font-medium leading-relaxed text-[#666]">
+                Meta App 還沒 Live 前，可以先用這個匯入流程測產品。系統會先保留原文，地址與店家狀態標成待確認。
+              </p>
+              <button type="submit" disabled={isImportingThread} className="w-full bg-black/90 text-white font-bold py-4 rounded-xl mt-4 hover:bg-black active:scale-[0.98] transition-all shadow-xl disabled:opacity-60">
+                {isImportingThread ? "分析並匯入中..." : "分析並存進美食庫"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       {showAddModal && (
         <div className={`fixed inset-0 z-[120] flex items-end sm:items-center justify-center px-0 sm:px-4 pb-0 sm:pb-10 transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isClosingModal ? 'opacity-0' : 'opacity-100'}`}>
