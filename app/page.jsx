@@ -34,6 +34,9 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'fabrica-foodie-app'; 
+const FABRICA_THREADS_HANDLE = '@fabrica_tw';
+
+const createVerificationCode = () => `FAB-${Math.floor(1000 + Math.random() * 9000)}`;
 
 // ==========================================
 // 🗺️ 輔助函數、AI 與智慧標籤
@@ -222,6 +225,9 @@ export default function App() {
   const [newRestRecommender, setNewRestRecommender] = useState("");
   const [inputUsername, setInputUsername] = useState("");
   const [loginError, setLoginError] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
+  const [verificationUsername, setVerificationUsername] = useState("");
+  const [isWaitingVerification, setIsWaitingVerification] = useState(false);
   
   const [mounted, setMounted] = useState(false); 
   const canvasContainerRef = useRef(null);
@@ -320,6 +326,63 @@ export default function App() {
     const initAuth = async () => { try { await signInAnonymously(auth); } catch (err) { setFirebaseUser({ uid: "local-temp-guest", isAnonymous: true }); } };
     initAuth(); const unsubscribe = onAuthStateChanged(auth, (user) => { if (user) setFirebaseUser(user); }); return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const savedVerification = window.localStorage.getItem('fabrica_threads_verification');
+    const savedSession = window.localStorage.getItem('fabrica_threads_user');
+
+    if (savedSession) {
+      setThreadsUsername(`@${savedSession}`);
+      setInputUsername(savedSession);
+      setIsLoggedIn(true);
+      return;
+    }
+
+    if (savedVerification) {
+      try {
+        const parsed = JSON.parse(savedVerification);
+        if (parsed?.username && parsed?.code) {
+          setInputUsername(parsed.username);
+          setVerificationUsername(parsed.username);
+          setVerificationCode(parsed.code);
+          setIsWaitingVerification(true);
+        }
+      } catch (err) {
+        window.localStorage.removeItem('fabrica_threads_verification');
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!firebaseUser || !verificationUsername || !verificationCode || !isWaitingVerification) return;
+    const cleanUsername = verificationUsername.replace("@", "").trim().toLowerCase();
+    const unsubscribe = onSnapshot(
+      doc(db, 'artifacts', appId, 'verifiedUsers', cleanUsername),
+      (snapshot) => {
+        const data = snapshot.data();
+        if (data?.verified && data?.verificationCode === verificationCode) {
+          if (typeof window !== 'undefined') {
+            window.localStorage.setItem('fabrica_threads_user', cleanUsername);
+            window.localStorage.removeItem('fabrica_threads_verification');
+          }
+          setThreadsUsername(`@${cleanUsername}`);
+          setInputUsername(cleanUsername);
+          setIsLoggedIn(true);
+          setIsWaitingVerification(false);
+          setLoginError("");
+          setToastMessage("Threads 身份驗證成功，已進入你的美食庫。");
+          setTimeout(() => setToastMessage(""), 3000);
+        }
+      },
+      (error) => {
+        console.error("Verification listener error:", error);
+        setLoginError("暫時無法確認驗證狀態，請稍後再試。");
+      }
+    );
+
+    return () => unsubscribe();
+  }, [firebaseUser, verificationUsername, verificationCode, isWaitingVerification]);
 
   // 🌟 實時監聽資料庫且加上強置 Error Callback 預防靜默錯誤
   useEffect(() => {
@@ -513,10 +576,31 @@ export default function App() {
     }, 2200);
   };
 
+  const handleVerificationStart = (e) => {
+    e.preventDefault();
+    const cleanUsername = inputUsername.replace("@", "").trim().toLowerCase();
+    if (!cleanUsername) { setLoginError("請輸入您的 Threads ID"); return; }
+
+    const code = createVerificationCode();
+    setVerificationUsername(cleanUsername);
+    setVerificationCode(code);
+    setIsWaitingVerification(true);
+    setLoginError("");
+
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('fabrica_threads_verification', JSON.stringify({ username: cleanUsername, code }));
+    }
+  };
+
   const handleLogout = () => {
     setIsGlobalTransitioning(true);
     setTimeout(() => {
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem('fabrica_threads_user');
+        window.localStorage.removeItem('fabrica_threads_verification');
+      }
       setIsLoggedIn(false); setThreadsUsername(""); setInputUsername(""); setRestaurants([]); 
+      setVerificationCode(""); setVerificationUsername(""); setIsWaitingVerification(false);
       setNearbyRecommendations([]); setDismissedRecommendationIds([]); hasSearchedRef.current = false; 
       setIsGlobalTransitioning(false);
     }, 1200);
@@ -591,6 +675,7 @@ export default function App() {
 
   // 🌟 高防錯的圖片載入失敗機制
   const getFoodImage = (restaurant) => {
+    if (restaurant?.sourceImageUrl) return restaurant.sourceImageUrl;
     const name = restaurant?.name || "";
     const images = [
       "https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=800&auto=format&fit=crop",
@@ -951,13 +1036,26 @@ export default function App() {
                   </div>
                 </div>
 
-                <form onSubmit={handleLogin} className="space-y-5 bg-white/45 backdrop-blur-xl border border-white/60 p-6 rounded-[32px] shadow-[0_20px_40px_rgba(0,0,0,0.03)] hover:shadow-lg transition-all duration-300">
+                <form onSubmit={handleVerificationStart} className="space-y-5 bg-white/45 backdrop-blur-xl border border-white/60 p-6 rounded-[32px] shadow-[0_20px_40px_rgba(0,0,0,0.03)] hover:shadow-lg transition-all duration-300">
                   <div className="space-y-3">
                     <div className="relative flex items-center w-full group">
                       <span className="absolute left-5 top-1/2 -translate-y-1/2 text-base font-semibold text-[#86868B] select-none pointer-events-none group-focus-within:text-black transition-colors">@</span>
                       <input type="text" placeholder="輸入您的 Threads 帳號" value={inputUsername} onChange={(e) => setInputUsername(e.target.value.replace("@", ""))} className="w-full bg-white/80 text-base font-medium rounded-2xl py-4.5 pl-12 pr-5 border border-[#D2D2D7] focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all duration-300 placeholder-[#86868B]/70 shadow-[0_2px_8px_rgba(0,0,0,0.01)]" />
                     </div>
                   </div>
+                  {verificationCode && (
+                    <div className="rounded-2xl border border-black/10 bg-white/75 p-4 text-left shadow-sm">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-[#86868B]">Threads 驗證</p>
+                      <p className="mt-2 text-sm font-semibold leading-relaxed text-[#1D1D1F]">到 Threads 留言或發文：</p>
+                      <div className="mt-2 rounded-xl bg-black px-3 py-3 text-center font-mono text-sm font-bold text-white">
+                        {FABRICA_THREADS_HANDLE} verify {verificationCode}
+                      </div>
+                      <p className="mt-2 text-xs font-medium leading-relaxed text-[#666]">
+                        驗證成功後會自動進入你的美食庫。之後標記 {FABRICA_THREADS_HANDLE} 的美食文會存到 @{verificationUsername || inputUsername}。
+                      </p>
+                    </div>
+                  )}
+                  {loginError && <p className="text-xs font-bold text-[#FF3B30]">{loginError}</p>}
                   <button type="submit" className="group relative cursor-pointer w-full h-[56px] border border-[#D2D2D7] bg-white rounded-2xl overflow-hidden text-[#1D1D1F] font-semibold transition-all duration-300 shadow-sm hover:shadow-md active:scale-90 outline-none">
                     <div className="absolute inset-0 flex items-center justify-center translate-x-0 group-hover:translate-x-16 group-hover:opacity-0 transition-all duration-300 z-20 pointer-events-none select-none">進入美食檔案</div>
                     <div className="absolute inset-0 flex gap-2 items-center justify-center text-white z-20 translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none select-none">
