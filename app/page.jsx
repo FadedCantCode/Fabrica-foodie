@@ -6,6 +6,8 @@ import {
   getAuth, 
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut,
   onAuthStateChanged 
 } from 'firebase/auth';
@@ -371,6 +373,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    getRedirectResult(auth).catch((err) => {
+      if (!err) return;
+      console.error("Google redirect result failed:", err);
+      setLoginError(getGoogleAuthErrorMessage(err));
+    });
+  }, []);
+
+  useEffect(() => {
     if (typeof window === 'undefined') return;
     const savedThreadsUsername = window.localStorage.getItem('fabrica_threads_username');
     if (savedThreadsUsername) setInputUsername(savedThreadsUsername);
@@ -378,12 +388,19 @@ export default function App() {
 
   useEffect(() => {
     if (!verificationUsername || !verificationCode || !isWaitingVerification) return;
-    const cleanUsername = verificationUsername.replace("@", "").trim().toLowerCase();
-    const unsubscribe = onSnapshot(
-      doc(db, 'artifacts', appId, 'verifiedUsers', cleanUsername),
-      (snapshot) => {
-        const data = snapshot.data();
-        if (data?.verified && data?.verificationCode === verificationCode) {
+    let cancelled = false;
+    let timerId;
+
+    const checkVerification = async () => {
+      try {
+        const params = new URLSearchParams({ username: verificationUsername, code: verificationCode });
+        const response = await fetch(`/api/check-verification?${params.toString()}`);
+        const data = await response.json().catch(() => ({}));
+
+        if (cancelled) return;
+
+        if (response.ok && data.verified) {
+          const cleanUsername = verificationUsername.replace("@", "").trim().toLowerCase();
           if (typeof window !== 'undefined') {
             window.localStorage.setItem('fabrica_auth_mode', firebaseUser ? 'google_threads' : 'threads');
             window.localStorage.setItem('fabrica_threads_username', cleanUsername);
@@ -395,17 +412,24 @@ export default function App() {
           setIsLoggedIn(true);
           setIsWaitingVerification(false);
           setLoginError("");
-          setToastMessage("Threads 身份驗證成功，已進入你的美食庫。");
+          setToastMessage("Threads ?????????????");
           setTimeout(() => setToastMessage(""), 3000);
+          return;
         }
-      },
-      (error) => {
-        console.error("Verification listener error:", error);
-        setLoginError("暫時無法確認驗證狀態，請稍後再試。");
-      }
-    );
 
-    return () => unsubscribe();
+        timerId = window.setTimeout(checkVerification, 3000);
+      } catch (error) {
+        console.error("Verification check failed:", error);
+        if (!cancelled) timerId = window.setTimeout(checkVerification, 5000);
+      }
+    };
+
+    checkVerification();
+
+    return () => {
+      cancelled = true;
+      if (timerId) window.clearTimeout(timerId);
+    };
   }, [firebaseUser, verificationUsername, verificationCode, isWaitingVerification]);
 
   // 🌟 實時監聽資料庫且加上強置 Error Callback 預防靜默錯誤
@@ -591,16 +615,19 @@ export default function App() {
   };
 
   const handleLogin = (e) => {
-    e.preventDefault();
-    if (!inputUsername.trim()) { setLoginError("請輸入您的 Threads ID"); return; }
-    setIsGlobalTransitioning(true);
-    setTimeout(() => {
-      let formatted = inputUsername.trim(); if (!formatted.startsWith("@")) formatted = "@" + formatted;
-      setThreadsUsername(formatted); setIsLoggedIn(true); setLoginError(""); setIsGlobalTransitioning(false);
-    }, 2200);
+    handleVerificationStart(e);
   };
 
-  const handleGoogleSignIn = (e) => {
+  const getGoogleAuthErrorMessage = (error) => {
+    const code = error?.code || "";
+    if (code.includes("unauthorized-domain")) return "Google ??????? Firebase Authentication ??????? Authorized domains?";
+    if (code.includes("invalid-api-key")) return "Google ??????????? NEXT_PUBLIC_FIREBASE_API_KEY?";
+    if (code.includes("popup-blocked")) return "????????????????????";
+    if (code.includes("popup-closed-by-user")) return "???? Google ?????";
+    return "Google ???????????";
+  };
+
+  const handleGoogleSignIn = async (e) => {
     e.preventDefault();
     if (typeof window !== 'undefined') {
       window.localStorage.setItem('fabrica_auth_mode', 'google');
@@ -609,10 +636,21 @@ export default function App() {
     setVerificationCode("");
     setIsWaitingVerification(false);
     setLoginError("");
-    signInWithPopup(auth, googleProvider).catch((err) => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (err) {
       console.error("Google sign-in failed:", err);
-      setLoginError("Google 登入失敗，請再試一次。");
-    });
+      const message = getGoogleAuthErrorMessage(err);
+      setLoginError(message);
+      if (err?.code && !err.code.includes("popup-closed-by-user")) {
+        try {
+          await signInWithRedirect(auth, googleProvider);
+        } catch (redirectErr) {
+          console.error("Google redirect sign-in failed:", redirectErr);
+          setLoginError(getGoogleAuthErrorMessage(redirectErr));
+        }
+      }
+    }
   };
 
   const handleGoogleLogout = () => {
