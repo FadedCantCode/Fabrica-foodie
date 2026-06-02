@@ -2,79 +2,58 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Base ── */
+/* ── Base ─────────────────────────────────────────────────────────────────── */
 body {
   background-color: #F2F2F7;
   color: #1C1C1E;
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ── Scrollbar hide ── */
+/* ── Scrollbar ────────────────────────────────────────────────────────────── */
 .no-scrollbar::-webkit-scrollbar,
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
-}
+.scrollbar-hide::-webkit-scrollbar { display: none; }
 .no-scrollbar,
-.scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
-/* ── Custom easing utilities (not in Tailwind core) ── */
-.ease-apple        { transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1); }
-.ease-apple-spring { transition-timing-function: cubic-bezier(0.25, 1, 0.5, 1); }
-
-/* ── scale-108 (used in RestaurantCards hover) ── */
-.group-hover\:scale-108:hover,
-.hover\:scale-108:hover { transform: scale(1.08); }
-
-/* ── Active scale utilities ── */
-.active\:scale-\[0\.95\]:active { transform: scale(0.95); }
-.active\:scale-\[0\.96\]:active { transform: scale(0.96); }
-.active\:scale-\[0\.98\]:active { transform: scale(0.98); }
-
-/* ── duration-380 ── */
-.duration-380 { transition-duration: 380ms; }
-
-/* ── Animations (backup for any that don't compile via Tailwind) ── */
+/* ── Keyframes ────────────────────────────────────────────────────────────── */
 @keyframes fade-in {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
 @keyframes fade-in-up {
   from { opacity: 0; transform: translate(-50%, 18px) scale(0.96); }
-  to   { opacity: 1; transform: translate(-50%, 0)    scale(1); }
+  to   { opacity: 1; transform: translate(-50%, 0)    scale(1);    }
 }
 @keyframes bounce-in {
   0%   { opacity: 0; transform: scale(0.88) translateY(14px); }
   60%  { opacity: 1; transform: scale(1.03) translateY(-3px); }
-  100% { opacity: 1; transform: scale(1)    translateY(0); }
+  100% { opacity: 1; transform: scale(1)    translateY(0);    }
 }
 @keyframes slide-up {
   from { opacity: 0; transform: translateY(36px) scale(0.97); }
-  to   { opacity: 1; transform: translateY(0)    scale(1); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
 }
 @keyframes slide-down-out {
-  from { opacity: 1; transform: translateY(0)    scale(1); }
+  from { opacity: 1; transform: translateY(0)    scale(1);    }
   to   { opacity: 0; transform: translateY(40px) scale(0.96); }
 }
 @keyframes marquee-up {
-  0%   { transform: translateX(0%); }
+  0%   { transform: translateX(0%);   }
   100% { transform: translateX(-50%); }
 }
 @keyframes marquee-down {
   0%   { transform: translateX(-50%); }
-  100% { transform: translateX(0%); }
+  100% { transform: translateX(0%);   }
 }
 @keyframes dropdown-in {
   from { opacity: 0; transform: translateY(8px) scale(0.97); }
-  to   { opacity: 1; transform: translateY(0)   scale(1); }
+  to   { opacity: 1; transform: translateY(0)   scale(1);    }
 }
 @keyframes ripple {
   0%   { transform: scale(0);   opacity: 0.55; }
-  100% { transform: scale(4.5); opacity: 0; }
+  100% { transform: scale(4.5); opacity: 0;    }
 }
 @keyframes success-pop {
   0%   { transform: scale(0);    opacity: 0; }
@@ -83,25 +62,28 @@ body {
 }
 @keyframes check-draw {
   from { stroke-dashoffset: 30; }
-  to   { stroke-dashoffset: 0; }
+  to   { stroke-dashoffset: 0;  }
 }
 @keyframes shake {
-  0%,100% { transform: translateX(0); }
+  0%,100% { transform: translateX(0);   }
   20%     { transform: translateX(-6px); }
-  40%     { transform: translateX(6px); }
+  40%     { transform: translateX(6px);  }
   60%     { transform: translateX(-4px); }
-  80%     { transform: translateX(4px); }
+  80%     { transform: translateX(4px);  }
 }
 @keyframes pulse-badge {
-  0%,100% { opacity: 1; }
+  0%,100% { opacity: 1;   }
   50%     { opacity: 0.6; }
 }
 @keyframes card-appear {
   from { opacity: 0; transform: translateY(18px) scale(0.97); }
-  to   { opacity: 1; transform: translateY(0)    scale(1); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
-/* ── Animation classes (guaranteed to work regardless of Tailwind purge) ── */
+/* ── Animation classes ────────────────────────────────────────────────────── */
 .animate-fade-in        { animation: fade-in        0.45s cubic-bezier(0.2,0.8,0.2,1) both; }
 .animate-fade-in-up     { animation: fade-in-up     0.45s cubic-bezier(0.2,0.8,0.2,1) both; }
 .animate-bounce-in      { animation: bounce-in      0.6s  cubic-bezier(0.2,0.8,0.2,1) both; }
