@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { FieldValue, getAdminDb } from '../../../lib/firebaseAdmin';
+import { getAuth } from "firebase-admin/auth";
 
 export const dynamic = 'force-dynamic';
 
@@ -33,7 +34,6 @@ async function fetchThreadsProfileHtml(username) {
         'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8',
         'Cache-Control': 'no-cache',
       },
-      // Next.js: always fetch fresh
       cache: 'no-store',
     });
 
@@ -56,8 +56,8 @@ async function fetchThreadsProfileHtml(username) {
  *
  * - uid is the Firebase UID when the user is already signed in with Google.
  *   When provided, the verified Threads username gets bound to that Google account.
- * - When uid is omitted, the record is written under a `threads_<username>` library
- *   so the pure-Threads login path can still read it.
+ * - When uid is omitted, a Firebase Custom Token is generated so the frontend
+ *   can call signInWithCustomToken() and get a real Auth session.
  */
 export async function POST(request) {
   try {
@@ -78,7 +78,6 @@ export async function POST(request) {
     const { html, status } = await fetchThreadsProfileHtml(cleanUsername);
 
     if (!html) {
-      // Meta blocked us or the account doesn't exist
       if (status === 404) {
         return NextResponse.json({
           success: false,
@@ -103,7 +102,6 @@ export async function POST(request) {
     );
 
     if (!hasMention || !hasCode) {
-      // Give the user a targeted hint
       if (!hasMention && !hasCode) {
         return NextResponse.json({
           success: false,
@@ -126,7 +124,6 @@ export async function POST(request) {
     const db = getAdminDb();
     const now = FieldValue.serverTimestamp();
 
-    // Always write the canonical verifiedUsers record (used by check-verification polling)
     await db
       .collection('artifacts')
       .doc(appId)
@@ -144,7 +141,6 @@ export async function POST(request) {
         { merge: true }
       );
 
-    // If a Google UID was supplied, bind the Threads username to that user doc
     if (uid) {
       await db
         .collection('artifacts')
@@ -161,7 +157,6 @@ export async function POST(request) {
         );
     }
 
-    // Write the username→uid mapping so webhook writes land in the right library
     await db
       .collection('artifacts')
       .doc(appId)
@@ -172,10 +167,27 @@ export async function POST(request) {
         { merge: true }
       );
 
+    // ── Step 4: 產生 Custom Token（只有純 Threads 登入才需要）────────────────
+    // Google 登入用戶已有 uid，不需要 custom token
+    let customToken = null;
+    if (!uid) {
+      const threadsFirebaseUid = `threads_${cleanUsername}`;
+      try {
+        customToken = await getAuth().createCustomToken(threadsFirebaseUid, {
+          threadsUsername: cleanUsername,
+          isThreadsUser: true,
+        });
+      } catch (tokenErr) {
+        console.error('[verify-crawler] createCustomToken failed:', tokenErr);
+        // token 產生失敗不影響驗證成功，前端會用舊的 localStorage 方式處理
+      }
+    }
+
     return NextResponse.json({
       success: true,
       message: `🎉 驗證成功！@${cleanUsername} 已綁定至您的帳號。`,
       username: cleanUsername,
+      customToken, // null 表示 Google 登入，前端不需處理
     });
   } catch (err) {
     console.error('[verify-crawler] error:', err);
