@@ -3,116 +3,70 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as THREE from 'three';
 
-// ─── Global animation styles ──────────────────────────────────────────────────
-export const GlobalStyles = () => (
-  <style>{`
-    .scrollbar-hide::-webkit-scrollbar { display: none; }
-    .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+// ─── SlideButton — 主要 CTA 按鈕，文字滑出 + 圓形填充滑入 ───────────────────
+export const SlideButton = ({
+  children, onClick, className,
+  type = "button", disabled = false, dark = false,
+}) => (
+  <button
+    type={type}
+    disabled={disabled}
+    onClick={disabled ? undefined : onClick}
+    className={`
+      group relative cursor-pointer overflow-hidden
+      w-full rounded-2xl font-semibold select-none
+      transition-all duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)]
+      active:scale-[0.96]
+      disabled:opacity-40 disabled:cursor-not-allowed
+      ${dark
+        ? 'bg-black text-white border border-white/10 shadow-lg'
+        : 'bg-white text-[#1D1D1F] border border-[#D2D2D7] shadow-sm hover:shadow-md'
+      }
+      ${className}
+    `}
+  >
+    {/* Original text — slides up and fades out */}
+    <span className="
+      absolute inset-0 flex items-center justify-center gap-2
+      transition-all duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)]
+      translate-y-0 opacity-100
+      group-hover:-translate-y-full group-hover:opacity-0
+    ">
+      {children}
+    </span>
 
-    @keyframes fade-in {
-      from { opacity: 0; }
-      to   { opacity: 1; }
-    }
-    .animate-fade-in { animation: fade-in 0.45s cubic-bezier(0.2,0.8,0.2,1) both; }
+    {/* Slide-in text with arrow — slides up from bottom */}
+    <span className={`
+      absolute inset-0 flex items-center justify-center gap-2
+      transition-all duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)]
+      translate-y-full opacity-0
+      group-hover:translate-y-0 group-hover:opacity-100
+      z-20
+      ${dark ? 'text-black' : 'text-white'}
+    `}>
+      {children}
+      <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+      </svg>
+    </span>
 
-    @keyframes fade-in-up {
-      from { opacity: 0; transform: translate(-50%, 18px) scale(0.96); }
-      to   { opacity: 1; transform: translate(-50%, 0)    scale(1);    }
-    }
-    .animate-fade-in-up { animation: fade-in-up 0.45s cubic-bezier(0.2,0.8,0.2,1) both; }
-
-    @keyframes bounce-in {
-      0%   { opacity: 0; transform: scale(0.88) translateY(14px); }
-      60%  { opacity: 1; transform: scale(1.03) translateY(-3px); }
-      100% { opacity: 1; transform: scale(1)    translateY(0);    }
-    }
-    .animate-bounce-in { animation: bounce-in 0.6s cubic-bezier(0.2,0.8,0.2,1) both; }
-
-    @keyframes slide-up {
-      from { opacity: 0; transform: translateY(36px) scale(0.97); }
-      to   { opacity: 1; transform: translateY(0)    scale(1);    }
-    }
-    .animate-slide-up { animation: slide-up 0.42s cubic-bezier(0.2,0.8,0.2,1) both; }
-
-    @keyframes slide-down-out {
-      from { opacity: 1; transform: translateY(0)    scale(1);    }
-      to   { opacity: 0; transform: translateY(40px) scale(0.96); }
-    }
-    .animate-slide-down-out { animation: slide-down-out 0.35s cubic-bezier(0.4,0,1,1) both; }
-
-    @keyframes marquee-up   { 0% { transform: translateX(0%);   } 100% { transform: translateX(-50%); } }
-    @keyframes marquee-down { 0% { transform: translateX(-50%); } 100% { transform: translateX(0%);   } }
-    .animate-marquee-up   { animation: marquee-up   12s linear infinite; }
-    .animate-marquee-down { animation: marquee-down 12s linear infinite; }
-
-    @keyframes dropdown-in {
-      from { opacity: 0; transform: translateY(8px)  scale(0.97); }
-      to   { opacity: 1; transform: translateY(0)    scale(1);    }
-    }
-    .animate-dropdown-in { animation: dropdown-in 0.22s cubic-bezier(0.2,0.8,0.2,1) both; }
-
-    /* Ripple — spawned as an element, then fades out */
-    @keyframes ripple {
-      0%   { transform: scale(0);   opacity: 0.55; }
-      100% { transform: scale(4.5); opacity: 0;    }
-    }
-    .animate-ripple { animation: ripple 0.55s cubic-bezier(0.2,0.8,0.2,1) forwards; }
-
-    /* Success check circle */
-    @keyframes success-pop {
-      0%   { transform: scale(0);    opacity: 0; }
-      55%  { transform: scale(1.22); opacity: 1; }
-      100% { transform: scale(1);    opacity: 1; }
-    }
-    .animate-success-pop { animation: success-pop 0.5s cubic-bezier(0.2,0.8,0.2,1) both; }
-
-    @keyframes check-draw {
-      from { stroke-dashoffset: 30; }
-      to   { stroke-dashoffset: 0;  }
-    }
-    .animate-check-path {
-      stroke-dasharray: 30;
-      stroke-dashoffset: 30;
-      animation: check-draw 0.38s 0.18s cubic-bezier(0.2,0.8,0.2,1) forwards;
-    }
-
-    /* Error shake */
-    @keyframes shake {
-      0%,100% { transform: translateX(0);  }
-      20%     { transform: translateX(-6px);}
-      40%     { transform: translateX(6px); }
-      60%     { transform: translateX(-4px);}
-      80%     { transform: translateX(4px); }
-    }
-    .animate-shake { animation: shake 0.4s cubic-bezier(0.2,0.8,0.2,1); }
-
-    /* Subtle badge pulse */
-    @keyframes pulse-badge {
-      0%,100% { opacity: 1;   }
-      50%     { opacity: 0.6; }
-    }
-    .animate-pulse-badge { animation: pulse-badge 2.2s ease-in-out infinite; }
-
-    /* Card stagger appear */
-    @keyframes card-appear {
-      from { opacity: 0; transform: translateY(18px) scale(0.97); }
-      to   { opacity: 1; transform: translateY(0)    scale(1);    }
-    }
-    .animate-card-appear { animation: card-appear 0.48s cubic-bezier(0.2,0.8,0.2,1) both; }
-
-    /* Category pill press feedback */
-    .pill-press:active { transform: scale(0.93); }
-  `}</style>
+    {/* Circle fill expanding on hover */}
+    <span className={`
+      absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
+      h-8 w-8 rounded-full z-10
+      scale-0 group-hover:scale-[35]
+      transition-transform duration-500 ease-out pointer-events-none
+      ${dark ? 'bg-white' : 'bg-[#1D1D1F]'}
+    `} />
+  </button>
 );
 
-// ─── AppleButton ──────────────────────────────────────────────────────────────
-// Every interactive tap gets a ripple + scale-down
+// ─── AppleButton — 小按鈕用，ripple + scale ───────────────────────────────────
 export const AppleButton = ({
   children, onClick, className,
   type = "button", disabled = false, dark = false,
 }) => {
   const [ripples, setRipples] = useState([]);
-
   const handleClick = (e) => {
     if (disabled) return;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -121,7 +75,6 @@ export const AppleButton = ({
     setTimeout(() => setRipples(prev => prev.filter(r => r.id !== id)), 600);
     onClick?.(e);
   };
-
   return (
     <button
       type={type}
@@ -136,8 +89,7 @@ export const AppleButton = ({
       `}
     >
       {ripples.map(r => (
-        <span
-          key={r.id}
+        <span key={r.id}
           className={`absolute rounded-full animate-ripple pointer-events-none ${dark ? 'bg-white/25' : 'bg-black/10'}`}
           style={{ left: r.x - 40, top: r.y - 40, width: 80, height: 80 }}
         />
@@ -168,12 +120,8 @@ export const LiquidGlassCard = ({ children, className, onClick, disabled }) => (
 // ─── SuccessCheck ─────────────────────────────────────────────────────────────
 export const SuccessCheck = () => (
   <div className="w-16 h-16 rounded-full bg-[#34C759] flex items-center justify-center animate-success-pop shadow-[0_0_30px_rgba(52,199,89,0.45)]">
-    <svg
-      className="w-8 h-8 text-white"
-      fill="none" stroke="currentColor"
-      viewBox="0 0 24 24"
-      strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
-    >
+    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+      strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
       <path d="M5 13l4 4L19 7" className="animate-check-path" />
     </svg>
   </div>
@@ -212,13 +160,12 @@ export const GooeyLoader = () => (
 export const BlurVignette = ({ children, className, blur = '35px' }) => (
   <div className={`relative ${className}`}>
     {children}
-    <div
-      className="absolute inset-0 pointer-events-none z-10"
+    <div className="absolute inset-0 pointer-events-none z-10"
       style={{
-        boxShadow:        `inset 0 0 150px 65px rgba(0,0,0,0.96)`,
-        backdropFilter:   `blur(${blur})`,
-        maskImage:        `radial-gradient(circle at center, transparent 25%, black 90%)`,
-        WebkitMaskImage:  `radial-gradient(circle at center, transparent 25%, black 90%)`,
+        boxShadow:       `inset 0 0 150px 65px rgba(0,0,0,0.96)`,
+        backdropFilter:  `blur(${blur})`,
+        maskImage:       `radial-gradient(circle at center, transparent 25%, black 90%)`,
+        WebkitMaskImage: `radial-gradient(circle at center, transparent 25%, black 90%)`,
       }}
     />
   </div>
@@ -246,8 +193,8 @@ export const StepPips = ({ currentStep }) => {
           <div className="flex flex-col items-center gap-1">
             <div className={`
               w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold
-              transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)]
-              ${i < stepIndex  ? "bg-[#34C759] text-white scale-100"
+              transition-all duration-500
+              ${i < stepIndex  ? "bg-[#34C759] text-white"
               : i === stepIndex ? "bg-black text-white scale-110 shadow-[0_0_12px_rgba(0,0,0,0.18)]"
               :                   "bg-black/10 text-[#86868B]"}
             `}>
@@ -260,7 +207,7 @@ export const StepPips = ({ currentStep }) => {
             </span>
           </div>
           {i < steps.length - 1 && (
-            <div className={`h-px w-8 mb-4 transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${i < stepIndex ? "bg-[#34C759]" : "bg-black/10"}`} />
+            <div className={`h-px w-8 mb-4 transition-all duration-500 ${i < stepIndex ? "bg-[#34C759]" : "bg-black/10"}`} />
           )}
         </React.Fragment>
       ))}
@@ -271,7 +218,7 @@ export const StepPips = ({ currentStep }) => {
 // ─── Toast ────────────────────────────────────────────────────────────────────
 export const Toast = ({ message, type = "success" }) => {
   if (!message) return null;
-  const bg     = { success: "bg-black/80",       error: "bg-[#FF3B30]/85", info: "bg-black/70"   };
+  const bg     = { success: "bg-black/80", error: "bg-[#FF3B30]/85", info: "bg-black/70" };
   const iconBg = { success: "bg-[#34C759] shadow-[0_0_10px_rgba(52,199,89,0.5)]", error: "bg-white/30", info: "bg-white/20" };
   const Icon   = {
     success: <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg>,
@@ -293,27 +240,23 @@ export const Toast = ({ message, type = "success" }) => {
 // ─── ModalSheet ───────────────────────────────────────────────────────────────
 export const ModalSheet = ({ show, onClose, children, zIndex = 120, disableClose = false }) => {
   const [closing, setClosing] = useState(false);
-
   const handleClose = () => {
     if (disableClose) return;
     setClosing(true);
     setTimeout(() => { setClosing(false); onClose(); }, 360);
   };
-
   if (!show) return null;
-
   return (
-    <div className={`fixed inset-0 z-[${zIndex}] flex items-end sm:items-center justify-center px-0 sm:px-4 pb-0 sm:pb-10 animate-fade-in`}>
+    <div className={`fixed inset-0 flex items-end sm:items-center justify-center px-0 sm:px-4 pb-0 sm:pb-10 animate-fade-in`}
+      style={{ zIndex }}>
       <div className="absolute inset-0 bg-black/45 backdrop-blur-sm" onClick={handleClose} />
       <div className={`
         relative w-full max-w-md bg-white/95 backdrop-blur-2xl
         rounded-t-[32px] sm:rounded-[32px]
         shadow-[0_20px_60px_rgba(0,0,0,0.22)] border border-white/50
         max-h-[92vh] overflow-y-auto
-        transition-all duration-380 ease-[cubic-bezier(0.2,0.8,0.2,1)]
         ${closing ? 'animate-slide-down-out' : 'animate-slide-up'}
       `}>
-        {/* Drag handle (mobile) */}
         <div className="w-12 h-1.5 bg-[#D2D2D7] rounded-full mx-auto mt-4 mb-2 sm:hidden" />
         {children}
       </div>
@@ -324,7 +267,6 @@ export const ModalSheet = ({ show, onClose, children, zIndex = 120, disableClose
 // ─── ColorfulBackground (Three.js) ───────────────────────────────────────────
 export const ColorfulBackground = ({ show }) => {
   const containerRef = useRef(null);
-
   useEffect(() => {
     if (!containerRef.current) return;
     const container = containerRef.current;
@@ -334,7 +276,6 @@ export const ColorfulBackground = ({ show }) => {
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     container.appendChild(renderer.domElement);
-
     const uniforms = {
       u_time:       { value: 0 },
       u_resolution: { value: new THREE.Vector2(container.clientWidth, container.clientHeight) },
@@ -372,38 +313,21 @@ export const ColorfulBackground = ({ show }) => {
         }
       `,
     });
-
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
     scene.add(mesh);
-
     let rafId;
-    const animate = (t) => {
-      uniforms.u_time.value = t * 0.001;
-      renderer.render(scene, camera);
-      rafId = requestAnimationFrame(animate);
-    };
+    const animate = (t) => { uniforms.u_time.value = t * 0.001; renderer.render(scene, camera); rafId = requestAnimationFrame(animate); };
     animate(0);
-
-    const onResize = () => {
-      if (!container) return;
-      renderer.setSize(container.clientWidth, container.clientHeight);
-      uniforms.u_resolution.value.set(container.clientWidth, container.clientHeight);
-    };
+    const onResize = () => { if (!container) return; renderer.setSize(container.clientWidth, container.clientHeight); uniforms.u_resolution.value.set(container.clientWidth, container.clientHeight); };
     window.addEventListener('resize', onResize);
-
-    return () => {
-      window.removeEventListener('resize', onResize);
-      cancelAnimationFrame(rafId);
-      if (container && renderer.domElement) container.removeChild(renderer.domElement);
-      material.dispose();
-      renderer.dispose();
-    };
+    return () => { window.removeEventListener('resize', onResize); cancelAnimationFrame(rafId); if (container && renderer.domElement) container.removeChild(renderer.domElement); material.dispose(); renderer.dispose(); };
   }, []);
-
   return (
-    <div
-      ref={containerRef}
-      className={`fixed inset-0 z-0 pointer-events-none transition-opacity duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${show ? 'opacity-100' : 'opacity-0'}`}
+    <div ref={containerRef}
+      className={`fixed inset-0 z-0 pointer-events-none transition-opacity duration-1000 ${show ? 'opacity-100' : 'opacity-0'}`}
     />
   );
 };
+
+// ─── GlobalStyles — 注入所有動畫（CDN Tailwind 無法編譯的部分）────────────────
+export const GlobalStyles = () => null; // 動畫已移到 layout.jsx 的 <style> 裡
