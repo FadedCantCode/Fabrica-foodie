@@ -116,6 +116,12 @@ export function useAuth() {
         setIsGoogleAuthPending(false);
         setLoginError("");
 
+        // ── Clear auth_mode so the else-if branch never fires again ──────────
+        // This prevents the "正在完成 Google 登入" loop after successful login
+        if (typeof window !== 'undefined') {
+          window.localStorage.removeItem('fabrica_auth_mode');
+        }
+
         // If Threads user, resolve masterUid async WITHOUT blocking isLoggedIn
         if (isThreadsUser && cleanUsername) {
           // Set masterUid to temporary value so Firestore listener can start
@@ -245,7 +251,11 @@ export function useAuth() {
     setIsGoogleAuthPending(true);
     try {
       await signInWithPopup(auth, googleProvider);
-      // onAuthStateChanged fires automatically
+      // onAuthStateChanged fires automatically and handles setIsLoggedIn
+      // Clear auth_mode here too so the pending state doesn't persist
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem('fabrica_auth_mode');
+      }
       if (mountedRef.current) setIsGoogleAuthPending(false);
     } catch (popupErr) {
       if (popupErr?.code === 'auth/popup-blocked') {
