@@ -5,7 +5,7 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getAuth, 
   GoogleAuthProvider,
-  signInWithPopup, // 修改這裡，改用 Popup
+  signInWithPopup, 
   signOut,
   onAuthStateChanged 
 } from 'firebase/auth';
@@ -629,20 +629,22 @@ export default function App() {
     return code ? `Google login failed: ${code}` : "Google login failed. Please try again.";
   };
 
- const handleGoogleLogin = async () => {
+const handleGoogleLogin = async () => {
   const auth = getAuth(app);
   const provider = new GoogleAuthProvider();
   
-  // 選擇性：強制每次都跳出帳號選擇器
+  // 加入這個設定，強制每次登入都跳出帳號選擇器，避免卡在預設帳號
   provider.setCustomParameters({
     prompt: 'select_account'
   });
 
   try {
+    // 改用 Popup（彈窗登入），完美避免因跳轉頁面造成的狀態遺失問題
     const result = await signInWithPopup(auth, provider);
-    const user = result.user;
-    console.log("登入成功:", user);
-    // 如果你原本有在登入成功後設定 state（例如 setUser(user)），請加在這邊
+    console.log("Google 登入成功:", result.user);
+    
+    // 註：只要您原本程式碼中的 useEffect 內有設定 onAuthStateChanged，
+    // 這裡登入成功後，使用者的狀態（user state）就會自動更新，不需要額外處理。
   } catch (error) {
     console.error("Google 登入失敗:", error);
   }
