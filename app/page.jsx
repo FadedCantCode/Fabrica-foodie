@@ -4,24 +4,24 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import * as THREE from 'three';
 
 // ── Lib ───────────────────────────────────────────────────────────────────────
-import { auth, db, APP_ID } from './lib/firebase';
+import { auth, db, APP_ID } from '../lib/firebase';
 import {
   getSmartTag, generateAIReview, extractThreadsAuthor,
   getMasterUid, getFoodImage, getFreeMapAppUrl,
-} from './lib/helpers';
+} from '../lib/helpers';
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
-import { useAuth, useRestaurants, useDrag, useNearby, useToast } from './hooks';
+import { useAuth, useRestaurants, useDrag, useNearby, useToast } from '../hooks';
 
 // ── Components ────────────────────────────────────────────────────────────────
 import {
   GlobalStyles, AppleButton, LiquidGlassCard,
   BlurVignette, ColorfulBackground, GooeyLoader,
   Toast, ModalSheet,
-} from './components/ui';
-import LoginPage from './components/LoginPage';
-import BindModal from './components/BindModal';
-import { RestaurantCard, RecommendationCard, RestaurantDetailModal } from './components/RestaurantCards';
+} from '../components/ui';
+import LoginPage from '../components/LoginPage';
+import BindModal from '../components/BindModal';
+import { RestaurantCard, RecommendationCard, RestaurantDetailModal } from '../components/RestaurantCards';
 
 // ── Firebase imports for food actions ────────────────────────────────────────
 import { addDoc, updateDoc, deleteDoc, doc, collection, serverTimestamp } from 'firebase/firestore';
