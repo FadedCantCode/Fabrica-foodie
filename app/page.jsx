@@ -78,29 +78,20 @@ const getSmartTag = (name, currentCategory = "") => {
   if (n.includes("拉麵") || n.includes("日式") || n.includes("壽司") || n.includes("丼") || n.includes("居酒屋") || n.includes("食堂")) return "日式料理";
   if (n.includes("便當") || n.includes("飯") || n.includes("麵") || n.includes("小吃") || n.includes("排骨")) return "台式小吃 • 便當";
   if (n.includes("燒肉") || n.includes("烤") || n.includes("串燒") || n.includes("乾杯") || n.includes("屋馬")) return "燒肉串燒";
-  
   if (currentCategory && currentCategory !== "美食餐廳" && currentCategory !== "在地美食") return currentCategory.replace(" • ", " • ").trim();
   return "精選美食";
 };
 
-// 🌟 共用 AI 評論生成引擎 (已優化 Prompt，防止斷句，且支援背景非同步回寫)
 const generateAIReview = async (name, address) => {
   try {
     const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
     if (!apiKey) return null;
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-   const payload = { 
-      contents: [{ 
-        parts: [{ 
-          // 💡 關鍵字加上「請搜尋」，引導它去查資料
-          text: `請搜尋台灣的這間餐廳：${name} ${address} 的最新網路資訊。請根據搜尋結果，產出完整的商家分析報告。` 
-        }] 
-      }], 
-      // 🌟 關鍵魔法：開啟 Google Search 聯網功能！
+    const payload = { 
+      contents: [{ parts: [{ text: `請搜尋台灣的這間餐廳：${name} ${address} 的最新網路資訊。請根據搜尋結果，產出完整的商家分析報告。` }] }], 
       tools: [{ googleSearch: {} }], 
-      systemInstruction: { 
-        parts: [{ 
-          text:"你是一個高端美食顧問 Fabrica。請用 50-80 字精煉總結這家餐廳的真實網路評價、特色招牌菜色。請務必確保語意完整、順利結尾，絕不可話講一半。語氣要專業、具質感，不需加上 Markdown 標籤，直接給出純文字結果請為這家餐廳產出一份專業、具質感的「AI 美食商家分析資訊」。 請務必包含以下 5 個段落，並使用清晰的標題排版：1. 【餐廳簡介與特色】：精煉總結這家餐廳的定位與真實網路評價。2. 【詳細資訊與營業時間】：提供地址與預設常規營業時間（請務必加註：實際營業時間以店家公告為主）。3. 【熱銷招牌菜色】：列出 3-5 項來店必點推薦。4. 【近期優惠與活動建議】：若無確切資訊，請根據該餐廳類型推測常見的優惠活動，並加註（實際優惠詳情依現場為主）。5. 【綜合評價分析】：客觀列出主要的優點與可能的小缺點。請確保語意完整、順利結尾，絕不可話講一半，語氣要專業且具說服力，整體產出字數控制在50-80字。禁止產出奇怪符號，並確保閱讀性。" }] } };
+      systemInstruction: { parts: [{ text:"你是一個高端美食顧問 Fabrica。請用 50-80 字精煉總結這家餐廳的真實網路評價、特色招牌菜色。請務必確保語意完整、順利結尾，絕不可話講一半。語氣要專業、具質感，不需加上 Markdown 標籤，直接給出純文字結果。" }] }
+    };
     const res = await fetch(geminiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const data = await res.json();
     if (data.error) return null;
@@ -119,7 +110,6 @@ const VerticalMarquee = ({ direction = "up", text = "WELCOME TO FOODIE" }) => {
   return (
     <div className="relative w-16 h-screen overflow-hidden flex justify-center items-center select-none bg-black/[0.02]">
       <div className="absolute w-[400vh] flex items-center justify-center rotate-90">
-         {/* 🌟 跑馬燈字體調校為純黑色 */}
          <div className={`flex gap-16 whitespace-nowrap text-black font-black text-4xl md:text-5xl tracking-[0.3em] will-change-transform ${animationClass}`}>
            {marqueeItems.map((item, index) => <span key={index}>{item}</span>)}
          </div>
@@ -128,7 +118,6 @@ const VerticalMarquee = ({ direction = "up", text = "WELCOME TO FOODIE" }) => {
   );
 };
 
-// 🌟 Liquid Glass 反光擬物毛玻璃材質
 const LiquidGlassCard = ({ children, className, onClick }) => {
   return (
     <div 
@@ -142,7 +131,6 @@ const LiquidGlassCard = ({ children, className, onClick }) => {
   );
 };
 
-// 🌟 增強版 Blur Vignette (電影級邊緣磨砂與超強暗角漸層遮罩)
 const BlurVignette = ({ children, className, blur = '35px' }) => {
   return (
     <div className={`relative ${className}`}>
@@ -175,7 +163,6 @@ const GooeyLoader = () => (
   </div>
 );
 
-// 🌈 WebGL 高品質無色系 Shader 背景 (登入後渲染)
 const ColorfulBackground = ({ show }) => {
   const containerRef = useRef(null);
   useEffect(() => {
@@ -228,7 +215,7 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   
   const [restaurants, setRestaurants] = useState([]);
-  const [displayRestaurants, setDisplayRestaurants] = useState([]); // 用於顯示與拖曳排序
+  const [displayRestaurants, setDisplayRestaurants] = useState([]);
   
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("全部");
@@ -248,7 +235,6 @@ export default function App() {
   const [isTypingName, setIsTypingName] = useState(false);
   const [isSearchingPlaces, setIsSearchingPlaces] = useState(false);
   const [selectedRestaurant, setSelectedRestaurant] = useState(null);
-
   const [animatingRecId, setAnimatingRecId] = useState(null);
 
   const [newRestName, setNewRestName] = useState("");
@@ -258,17 +244,19 @@ export default function App() {
   const [newRestRecommender, setNewRestRecommender] = useState("");
   const [importText, setImportText] = useState("");
   const [isImportingThread, setIsImportingThread] = useState(false);
+
+  // ── Auth state ────────────────────────────────────────────────────────────
   const [inputUsername, setInputUsername] = useState("");
   const [loginError, setLoginError] = useState("");
-  const [isGoogleAuthPending, setIsGoogleAuthPending] = useState(false);
+  // 'idle' | 'code_shown' | 'verifying' | 'done'
+  const [loginStep, setLoginStep] = useState("idle");
   const [verificationCode, setVerificationCode] = useState("");
-  const [verificationUsername, setVerificationUsername] = useState("");
-  const [isWaitingVerification, setIsWaitingVerification] = useState(false);
-  const [proofUrl, setProofUrl] = useState("");
+  const [isGoogleAuthPending, setIsGoogleAuthPending] = useState(false);
   
   const [mounted, setMounted] = useState(false); 
   const canvasContainerRef = useRef(null);
   const hasSearchedRef = useRef(false);
+
   const getUserLibraryId = () => {
     if (firebaseUser?.uid) return firebaseUser.uid;
     const cleanUsername = getCleanThreadsUsername();
@@ -276,21 +264,11 @@ export default function App() {
   };
   const getCleanThreadsUsername = () => threadsUsername.replace("@", "").trim().toLowerCase();
 
-  // 🌟 原生 GPU 加速物理拖曳 Refs (全域精準追蹤偏移防滑手)
   const dragRef = useRef({ id: null, startX: 0, startY: 0, offsetX: 0, offsetY: 0, el: null, hoveredIndex: -1, isDragging: false, isLongPressed: false });
-  const [draggingId, setDraggingId] = useState(null); // 用於控制 z-index 與透明度
+  const [draggingId, setDraggingId] = useState(null);
   const pressTimer = useRef(null);
+  const [dragState, setDragState] = useState({ draggingId: null, startIndex: -1, hoveredIndex: -1, dx: 0, dy: 0 });
 
-  // 🌟 物理拖動位置與排列的 React State (全新 3D 彈性推動效果)
-  const [dragState, setDragState] = useState({
-    draggingId: null,
-    startIndex: -1,
-    hoveredIndex: -1,
-    dx: 0,
-    dy: 0
-  });
-
-  // 🌟 全台神級備用資料庫
   const TAIWAN_TRENDY_RECS = [
     { id: "fallback-1", name: "詹記麻辣火鍋", address: "台北市大安區和平東路三段60號", category: "火鍋專賣", note: "📍 台北極致傳奇麻辣鍋，鴨血豆腐堪稱美味天花板，絕對必吃。" },
     { id: "fallback-2", name: "五之神製作所", address: "台北市信義區忠孝東路四段553巷6弄6號", category: "日式料理", note: "📍 超濃厚蝦沾麵名店，濃郁蝦湯搭配特色配菜，排隊不間斷。" },
@@ -350,18 +328,15 @@ export default function App() {
     const uniforms = { u_time: { value: 0 }, u_intensity: { value: 0.25 }, u_noiseScale: { value: 1.5 }, u_noiseSpeed: { value: 0.8 } };
     const material = new THREE.ShaderMaterial({ vertexShader: vertexShaderLogin, fragmentShader: fragmentShaderLogin, uniforms, transparent: true });
     const mesh = new THREE.Mesh(new THREE.SphereGeometry(2, 64, 64), material); mesh.position.set(0, 0, -1); mesh.scale.setScalar(2.4); scene.add(mesh);
-
     const mouse = { x: 0, y: 0 }; const targetPosition = new THREE.Vector3(0, 0, -1); const currentPosition = new THREE.Vector3(0, 0, -1);
     const handleMouseMove = (event) => { mouse.x = (event.clientX / window.innerWidth) * 2 - 1; mouse.y = -(event.clientY / window.innerHeight) * 2 + 1; }; window.addEventListener('mousemove', handleMouseMove);
     const handleResize = () => { if (!container) return; camera.aspect = container.clientWidth / container.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(container.clientWidth, container.clientHeight); }; window.addEventListener('resize', handleResize);
-
     let animationId; const clock = new THREE.Clock();
     const animate = () => {
       const elapsed = clock.getElapsedTime(); uniforms.u_time.value = 0.25 * elapsed; uniforms.u_noiseScale.value = Math.sin(elapsed * 0.1) * 0.5 + 1.2;
       targetPosition.set(mouse.x * 1.2, mouse.y * 1.2, -1); currentPosition.lerp(targetPosition, 0.05); mesh.position.copy(currentPosition);
       renderer.render(scene, camera); animationId = requestAnimationFrame(animate);
     }; animate();
-
     return () => { window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('resize', handleResize); cancelAnimationFrame(animationId); if (container && renderer.domElement) container.removeChild(renderer.domElement); material.dispose(); renderer.dispose(); };
   }, [mounted, isLoggedIn]);
 
@@ -369,14 +344,10 @@ export default function App() {
     if (typeof window !== 'undefined' && window.localStorage.getItem('fabrica_auth_mode') === 'google' && !auth.currentUser) {
       setIsGoogleAuthPending(true);
     }
-
     const completeGoogleRedirect = async () => {
       try {
         const result = await consumeGoogleRedirectResult();
-        if (result?.user) {
-          setLoginError("");
-          setIsGoogleAuthPending(false);
-        }
+        if (result?.user) { setLoginError(""); setIsGoogleAuthPending(false); }
       } catch (err) {
         if (!err) return;
         console.error("Google redirect result failed:", err);
@@ -384,7 +355,6 @@ export default function App() {
         setLoginError(getGoogleAuthErrorMessage(err));
       }
     };
-
     completeGoogleRedirect();
 
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -411,7 +381,6 @@ export default function App() {
         setThreadsUsername("");
       }
     });
-
     return () => unsubscribe();
   }, []);
 
@@ -421,51 +390,7 @@ export default function App() {
     if (savedThreadsUsername) setInputUsername(savedThreadsUsername);
   }, []);
 
-  useEffect(() => {
-    if (!verificationUsername || !verificationCode || !isWaitingVerification) return;
-    let cancelled = false;
-    let timerId;
-
-    const finishVerification = (cleanUsername) => {
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem('fabrica_auth_mode', firebaseUser ? 'google_threads' : 'threads');
-        window.localStorage.setItem('fabrica_threads_username', cleanUsername);
-        window.localStorage.removeItem('fabrica_threads_verification');
-      }
-      setThreadsUsername(`@${cleanUsername}`);
-      setInputUsername(cleanUsername);
-      setIsLoggedIn(true);
-      setIsWaitingVerification(false);
-      setLoginError("");
-      setToastMessage("Threads verification complete.");
-      setTimeout(() => setToastMessage(""), 3000);
-    };
-
-    const checkVerification = async () => {
-      try {
-        const params = new URLSearchParams({ username: verificationUsername, code: verificationCode });
-        const response = await fetch(`/api/check-verification?${params.toString()}`);
-        const data = await response.json().catch(() => ({}));
-        if (cancelled) return;
-        if (response.ok && data.verified) {
-          finishVerification(verificationUsername.replace("@", "").trim().toLowerCase());
-          return;
-        }
-        timerId = window.setTimeout(checkVerification, 3000);
-      } catch (error) {
-        console.error("Verification check failed:", error);
-        if (!cancelled) timerId = window.setTimeout(checkVerification, 5000);
-      }
-    };
-
-    checkVerification();
-    return () => {
-      cancelled = true;
-      if (timerId) window.clearTimeout(timerId);
-    };
-  }, [firebaseUser, verificationUsername, verificationCode, isWaitingVerification]);
-
-  // 🌟 實時監聽資料庫且加上強置 Error Callback 預防靜默錯誤
+  // Firestore listener
   useEffect(() => {
     if (!isLoggedIn || !getUserLibraryId()) return;
     setIsLoading(true);
@@ -487,7 +412,6 @@ export default function App() {
     return () => unsubscribe();
   }, [firebaseUser, isLoggedIn, threadsUsername]);
 
-  // 🌟 智慧探店三重備源引擎 (Overpass ➔ Nominatim ➔ Photon)
   useEffect(() => {
     if (isLoggedIn && typeof window !== 'undefined' && navigator.geolocation && !hasSearchedRef.current) {
       hasSearchedRef.current = true;
@@ -495,121 +419,45 @@ export default function App() {
         const { latitude, longitude } = position.coords;
         setUserLocation({ lat: latitude, lng: longitude });
         triggerUltimateNearbySearch(latitude, longitude);
-      }, (err) => {
-        console.warn("Geolocation denied, loading fallback recommendations.");
-        setNearbyRecommendations(TAIWAN_TRENDY_RECS);
-      });
+      }, () => { setNearbyRecommendations(TAIWAN_TRENDY_RECS); });
     }
   }, [isLoggedIn]);
 
   const triggerUltimateNearbySearch = async (lat, lng) => {
     let results = [];
-
-    // 1. 核心高速 Overpass 引擎 (半徑 5 公里全搜)
     try {
-      const query = `
-        [out:json][timeout:10];
-        (
-          node["amenity"~"restaurant|cafe|fast_food|ice_cream"](around:5000, ${lat}, ${lng});
-          way["amenity"~"restaurant|cafe|fast_food|ice_cream"](around:5000, ${lat}, ${lng});
-          node["shop"~"bakery|beverages|pastry"](around:5000, ${lat}, ${lng});
-        );
-        out center 12;
-      `;
+      const query = `[out:json][timeout:10];(node["amenity"~"restaurant|cafe|fast_food|ice_cream"](around:5000, ${lat}, ${lng});way["amenity"~"restaurant|cafe|fast_food|ice_cream"](around:5000, ${lat}, ${lng});node["shop"~"bakery|beverages|pastry"](around:5000, ${lat}, ${lng}););out center 12;`;
       const response = await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: query });
       const data = await response.json();
-
-      if (data && data.elements && data.elements.length > 0) {
+      if (data?.elements?.length > 0) {
         results = data.elements.map((el) => {
-          const tags = el.tags || {};
-          const name = tags.name || tags['name:zh'];
-          if (!name || name.includes("歇業") || name.includes("停業") || name.includes("closed")) return null;
-          const rawCategory = tags.amenity || tags.shop || "在地美食";
-          return {
-            id: el.id.toString(), name: name,
-            address: tags['addr:street'] ? `${tags['addr:city'] || ''}${tags['addr:street']}${tags['addr:housenumber'] || ''}` : "點擊查看地圖定位",
-            category: getSmartTag(name, rawCategory),
-            note: "📍 透過智慧地理雷達探測到的精選店家。"
-          };
+          const tags = el.tags || {}; const name = tags.name || tags['name:zh'];
+          if (!name || name.includes("歇業") || name.includes("停業")) return null;
+          return { id: el.id.toString(), name, address: tags['addr:street'] ? `${tags['addr:city'] || ''}${tags['addr:street']}${tags['addr:housenumber'] || ''}` : "點擊查看地圖定位", category: getSmartTag(name, tags.amenity || tags.shop || "在地美食"), note: "📍 透過智慧地理雷達探測到的精選店家。" };
         }).filter(Boolean);
       }
-    } catch (err) { 
-      console.warn("Overpass API failed, falling back to Nominatim...", err);
-    }
+    } catch (err) { console.warn("Overpass failed", err); }
 
-    // 2. Nominatim 智慧型地理篩選引擎
     if (results.length === 0) {
       try {
-        console.log("Nominatim georadar starting...");
         const lonDelta = 0.02; const latDelta = 0.02;
-        const urlRestaurant = `https://nominatim.openstreetmap.org/search?amenity=restaurant&format=json&addressdetails=1&limit=6&viewbox=${lng - lonDelta},${lat + latDelta},${lng + lonDelta},${lat - latDelta}&bounded=1`;
-        const urlCafe = `https://nominatim.openstreetmap.org/search?amenity=cafe&format=json&addressdetails=1&limit=4&viewbox=${lng - lonDelta},${lat + latDelta},${lng + lonDelta},${lat - latDelta}&bounded=1`;
-        
         const [resRest, resCafe] = await Promise.all([
-          fetch(urlRestaurant, { headers: { 'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8' } }),
-          fetch(urlCafe, { headers: { 'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8' } })
+          fetch(`https://nominatim.openstreetmap.org/search?amenity=restaurant&format=json&addressdetails=1&limit=6&viewbox=${lng-lonDelta},${lat+latDelta},${lng+lonDelta},${lat-latDelta}&bounded=1`, { headers: { 'Accept-Language': 'zh-TW,zh;q=0.9' } }),
+          fetch(`https://nominatim.openstreetmap.org/search?amenity=cafe&format=json&addressdetails=1&limit=4&viewbox=${lng-lonDelta},${lat+latDelta},${lng+lonDelta},${lat-latDelta}&bounded=1`, { headers: { 'Accept-Language': 'zh-TW,zh;q=0.9' } })
         ]);
-        
         const dataRest = await resRest.json(); const dataCafe = await resCafe.json();
-        const mergedData = [...(Array.isArray(dataRest) ? dataRest : []), ...(Array.isArray(dataCafe) ? dataCafe : [])];
-        
-        if (mergedData.length > 0) {
-          results = mergedData.map(place => {
+        const merged = [...(Array.isArray(dataRest) ? dataRest : []), ...(Array.isArray(dataCafe) ? dataCafe : [])];
+        if (merged.length > 0) {
+          results = merged.map(place => {
             const name = place.name || place.display_name.split(',')[0].trim();
-            if (!name || name === "餐廳" || name === "咖啡廳" || name === "美食" || name.includes("歇業") || name.includes("停業")) return null;
-            
-            let address = place.display_name || "臺灣";
-            const addrParts = place.display_name.split(',');
-            if (addrParts.length > 3) address = addrParts.slice(0, 3).join(',').trim();
-
-            return {
-              id: place.place_id.toString(), name: name, address: address,
-              category: getSmartTag(name, place.type === "cafe" ? "咖啡甜點" : "精選美食"),
-              note: "📍 透過智慧地理雷達探測到的精選店家。"
-            };
+            if (!name || name === "餐廳" || name === "咖啡廳") return null;
+            return { id: place.place_id.toString(), name, address: place.display_name.split(',').slice(0,3).join(',').trim(), category: getSmartTag(name, place.type === "cafe" ? "咖啡甜點" : "精選美食"), note: "📍 透過智慧地理雷達探測到的精選店家。" };
           }).filter(Boolean);
         }
-      } catch (err) { console.error("Nominatim fallback failed:", err); }
+      } catch (err) { console.error("Nominatim failed", err); }
     }
 
-    // 🌟 3. Photon 全球極速地理搜尋備份引擎 (第三重極限備援防護)
-    if (results.length === 0) {
-      try {
-        console.log("Launching Phase 3 Photon Geocoder...");
-        const photonUrl = `https://photon.komoot.io/api/?q=restaurant&lat=${lat}&lon=${lng}&limit=8`;
-        const resPhoton = await fetch(photonUrl);
-        const dataPhoton = await resPhoton.json();
-        
-        if (dataPhoton && dataPhoton.features && dataPhoton.features.length > 0) {
-          results = dataPhoton.features.map(f => {
-            const props = f.properties;
-            const name = props.name;
-            if (!name || name.includes("歇業") || name.includes("closed") || name.includes("停業")) return null;
-            
-            const city = props.city || "";
-            const street = props.street || "";
-            const housenumber = props.housenumber || "";
-            const address = `${city}${street}${housenumber}` || "點擊查看地圖定位";
-            
-            return {
-              id: props.osm_id?.toString() || Math.random().toString(),
-              name: name,
-              address: address,
-              category: getSmartTag(name, "精選美食"),
-              note: "📍 透過智慧地理雷達探測到的精選店家。"
-            };
-          }).filter(Boolean);
-        }
-      } catch (err) {
-        console.error("Photon Geocoder fallback failed:", err);
-      }
-    }
-
-    if (results.length > 0) {
-      setNearbyRecommendations(results);
-    } else {
-      setNearbyRecommendations(TAIWAN_TRENDY_RECS);
-    }
+    setNearbyRecommendations(results.length > 0 ? results : TAIWAN_TRENDY_RECS);
   };
 
   useEffect(() => {
@@ -620,10 +468,10 @@ export default function App() {
       try {
         let url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(newRestName)}&format=json&addressdetails=1&limit=5&countrycodes=tw`;
         if (userLocation) {
-          const lonDelta = 0.05; const latDelta = 0.05;
-          url += `&viewbox=${userLocation.lng - lonDelta},${userLocation.lat + latDelta},${userLocation.lng + lonDelta},${userLocation.lat - latDelta}&bounded=0`;
+          const d = 0.05;
+          url += `&viewbox=${userLocation.lng-d},${userLocation.lat+d},${userLocation.lng+d},${userLocation.lat-d}&bounded=0`;
         }
-        const response = await fetch(url, { headers: { 'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8' }, signal: controller.signal });
+        const response = await fetch(url, { headers: { 'Accept-Language': 'zh-TW,zh;q=0.9' }, signal: controller.signal });
         const data = await response.json();
         setNameSuggestions(data || []);
       } catch (err) {
@@ -633,63 +481,105 @@ export default function App() {
       }
     };
     const timer = setTimeout(fetchPlaces, 800);
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
+    return () => { clearTimeout(timer); controller.abort(); };
   }, [newRestName, isTypingName, userLocation]);
 
   const handleSelectSuggestion = (place) => {
     const displayNameArray = place.display_name.split(',');
     const name = place.name || displayNameArray[0].trim();
     setNewRestName(name); setNewRestAddress(place.display_name || "");
-    let rawCategory = place.type === "cafe" ? "咖啡廳" : place.type === "fast_food" ? "速食餐飲" : place.type === "bakery" ? "烘焙坊" : place.type === "beverages" ? "飲料店" : "餐廳";
+    let rawCategory = place.type === "cafe" ? "咖啡廳" : place.type === "fast_food" ? "速食餐飲" : place.type === "bakery" ? "烘焙坊" : "餐廳";
     setNewRestCategory(getSmartTag(name, rawCategory)); setIsTypingName(false); setNameSuggestions([]);
   };
 
-  const handleLogin = (e) => {
+  // ── Auth handlers ─────────────────────────────────────────────────────────
+
+  // Step 1: generate code
+  const handleGenerateCode = (e) => {
     e.preventDefault();
-    if (!inputUsername.trim()) { setLoginError("請輸入您的 Threads ID"); return; }
-    setIsGlobalTransitioning(true);
-    setTimeout(() => {
-      let formatted = inputUsername.trim(); if (!formatted.startsWith("@")) formatted = "@" + formatted;
-      setThreadsUsername(formatted); setIsLoggedIn(true); setLoginError(""); setIsGlobalTransitioning(false);
-    }, 2200);
+    const clean = inputUsername.replace("@", "").trim().toLowerCase();
+    if (!clean) { setLoginError("請輸入您的 Threads 帳號"); return; }
+    const code = createVerificationCode();
+    setVerificationCode(code);
+    setLoginError("");
+    setLoginStep("code_shown");
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("fabrica_threads_verification", JSON.stringify({ username: clean, code }));
+    }
+  };
+
+  // Step 2: call verify-crawler
+  const handleVerifyCrawler = async (e) => {
+    e.preventDefault();
+    const clean = inputUsername.replace("@", "").trim().toLowerCase();
+    if (!clean || !verificationCode) return;
+    setLoginStep("verifying");
+    setLoginError("");
+    try {
+      const res = await fetch("/api/verify-crawler", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: clean, expectedCode: verificationCode, uid: firebaseUser?.uid ?? null }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.success) {
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem("fabrica_auth_mode", firebaseUser ? "google_threads" : "threads");
+          window.localStorage.setItem("fabrica_threads_username", clean);
+          window.localStorage.removeItem("fabrica_threads_verification");
+        }
+        setThreadsUsername(`@${clean}`);
+        setInputUsername(clean);
+        setLoginStep("done");
+        setLoginError("");
+        setIsGlobalTransitioning(true);
+        setTimeout(() => { setIsLoggedIn(true); setIsGlobalTransitioning(false); }, 800);
+      } else {
+        setLoginStep("code_shown");
+        setLoginError(data.message || "驗證失敗，請稍後再試。");
+      }
+    } catch (err) {
+      console.error("[verify-crawler] client error:", err);
+      setLoginStep("code_shown");
+      setLoginError("網路錯誤，請確認連線後再試。");
+    }
+  };
+
+  // Reset login
+  const handleResetLogin = () => {
+    setLoginStep("idle");
+    setVerificationCode("");
+    setLoginError("");
+    setInputUsername("");
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem("fabrica_threads_verification");
+    }
   };
 
   const getGoogleAuthErrorMessage = (error) => {
     const code = error?.code || "";
-    if (code.includes("unauthorized-domain")) return `Google login failed (${code}). Add this Vercel domain in Firebase Authentication > Settings > Authorized domains.`;
-    if (code.includes("invalid-api-key")) return `Google login failed (${code}). Check NEXT_PUBLIC_FIREBASE_API_KEY in Vercel.`;
-    if (code.includes("popup-blocked")) return "Browser blocked the auth popup. This build uses redirect sign-in; please try again.";
+    if (code.includes("unauthorized-domain")) return `Google login failed (${code}). Add this domain in Firebase Authentication > Authorized domains.`;
+    if (code.includes("invalid-api-key")) return `Google login failed (${code}). Check NEXT_PUBLIC_FIREBASE_API_KEY.`;
+    if (code.includes("popup-blocked")) return "Browser blocked the auth popup. Please try again.";
     if (code.includes("popup-closed-by-user")) return "Google login was cancelled.";
     return code ? `Google login failed: ${code}` : "Google login failed. Please try again.";
   };
 
   const handleGoogleSignIn = async (e) => {
     e.preventDefault();
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem('fabrica_auth_mode', 'google');
-    }
-    setVerificationCode("");
-    setIsWaitingVerification(false);
-    setLoginError("Opening Google sign-in...");
+    if (typeof window !== 'undefined') window.localStorage.setItem('fabrica_auth_mode', 'google');
+    setLoginError("");
     setIsGoogleAuthPending(true);
     try {
       try {
         await signInWithPopup(auth, googleProvider);
-        setLoginError("");
         setIsGoogleAuthPending(false);
       } catch (popupErr) {
-        if (popupErr?.code === 'auth/popup-blocked') {
-          await signInWithRedirect(auth, googleProvider);
-          return;
-        }
+        if (popupErr?.code === 'auth/popup-blocked') { await signInWithRedirect(auth, googleProvider); return; }
         throw popupErr;
       }
     } catch (err) {
       setIsGoogleAuthPending(false);
-      console.error("Google sign-in failed:", err);
       setLoginError(getGoogleAuthErrorMessage(err));
     }
   };
@@ -697,86 +587,13 @@ export default function App() {
   const handleGoogleLogout = () => {
     setIsGlobalTransitioning(true);
     setTimeout(() => {
-      if (typeof window !== 'undefined') {
-        window.localStorage.removeItem('fabrica_auth_mode');
-        window.localStorage.removeItem('fabrica_threads_username');
-      }
-      signOut(auth).catch((err) => console.error("Sign out failed:", err));
-      setIsGoogleAuthPending(false);
-      setIsLoggedIn(false); setThreadsUsername(""); setInputUsername(""); setRestaurants([]);
+      if (typeof window !== 'undefined') { window.localStorage.removeItem('fabrica_auth_mode'); window.localStorage.removeItem('fabrica_threads_username'); }
+      signOut(auth).catch(console.error);
+      setIsGoogleAuthPending(false); setIsLoggedIn(false); setThreadsUsername(""); setInputUsername(""); setRestaurants([]);
       setNearbyRecommendations([]); setDismissedRecommendationIds([]); hasSearchedRef.current = false;
+      setLoginStep("idle"); setVerificationCode(""); setLoginError("");
       setIsGlobalTransitioning(false);
     }, 800);
-  };
-
-  const verifyThreadsProofUrl = async (cleanUsername, code, _proofUrl) => {
-    setLoginError("正在透過 Threads API 驗證中...");
-    const response = await fetch("/api/verify-threads-proof", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: cleanUsername, code })
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok || !data.verified) {
-      throw new Error(data.error || "Threads proof verification failed");
-    }
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem('fabrica_auth_mode', firebaseUser ? 'google_threads' : 'threads');
-      window.localStorage.setItem('fabrica_threads_username', cleanUsername);
-      window.localStorage.removeItem('fabrica_threads_verification');
-    }
-    setThreadsUsername(`@${cleanUsername}`);
-    setInputUsername(cleanUsername);
-    setIsLoggedIn(true);
-    setIsWaitingVerification(false);
-    setLoginError("");
-    setToastMessage("Threads verification complete.");
-    setTimeout(() => setToastMessage(""), 3000);
-  };
-
-  const handleVerificationStart = async (e) => {
-    e.preventDefault();
-    const cleanUsername = inputUsername.replace("@", "").trim().toLowerCase();
-    if (!cleanUsername) { setLoginError("請輸入您的 Threads 帳號。"); return; }
-
-    // 第二步：已有驗證碼，直接用 Threads API 掃描
-    if (verificationCode && verificationUsername === cleanUsername) {
-      try {
-        setLoginError("正在透過 Threads API 驗證中...");
-        await verifyThreadsProofUrl(cleanUsername, verificationCode, "");
-      } catch (error) {
-        console.error("Threads proof verification failed:", error);
-        setLoginError(error.message || "驗證失敗，請確認貼文是公開的，且包含 @fabrica_tw verify " + verificationCode);
-      }
-      return;
-    }
-
-    // 第一步：產生驗證碼
-    const code = createVerificationCode();
-    setVerificationUsername(cleanUsername);
-    setVerificationCode(code);
-    setIsWaitingVerification(true);
-    setLoginError("");
-
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem('fabrica_threads_verification', JSON.stringify({ username: cleanUsername, code }));
-    }
-  };
-
-  const handleLogout = () => {
-    setIsGlobalTransitioning(true);
-    setTimeout(() => {
-      if (typeof window !== 'undefined') {
-        window.localStorage.removeItem('fabrica_auth_mode');
-        window.localStorage.removeItem('fabrica_threads_user');
-        window.localStorage.removeItem('fabrica_threads_username');
-        window.localStorage.removeItem('fabrica_threads_verification');
-      }
-      setIsLoggedIn(false); setThreadsUsername(""); setInputUsername(""); setRestaurants([]); 
-      setVerificationCode(""); setVerificationUsername(""); setIsWaitingVerification(false);
-      setNearbyRecommendations([]); setDismissedRecommendationIds([]); hasSearchedRef.current = false; 
-      setIsGlobalTransitioning(false);
-    }, 1200);
   };
 
   const closeAddModal = () => { setIsClosingModal(true); setTimeout(() => { setShowAddModal(false); setIsClosingModal(false); }, 400); };
@@ -784,69 +601,40 @@ export default function App() {
   const handleDeleteRestaurant = async (id) => {
     setDeletingIds(prev => [...prev, id]);
     setTimeout(async () => {
-      if (firebaseUser?.uid === "local-temp-guest") { setRestaurants(prev => prev.filter(r => r.id !== id)); } 
-      else {
-        try {
-          const userLibraryId = getUserLibraryId();
-          await deleteDoc(doc(db, 'artifacts', appId, 'users', userLibraryId, 'restaurants', id)); 
-        } catch (err) { console.error("Delete error:", err); }
-      }
+      try {
+        const userLibraryId = getUserLibraryId();
+        await deleteDoc(doc(db, 'artifacts', appId, 'users', userLibraryId, 'restaurants', id)); 
+      } catch (err) { console.error("Delete error:", err); }
       setDeletingIds(prev => prev.filter(delId => delId !== id));
     }, 400); 
   };
 
-  // 🌟 自動實體化：樂觀UI加速加入，AI簡評在背景補上！
   const saveRecommendationWithAnimation = async (rec) => {
-    if (isDuplicateRestaurant(rec.name)) {
-      setToastMessage(`⚠️ ${rec.name} 已在您的口袋名單中！`); setTimeout(() => setToastMessage(""), 3000); return;
-    }
-    
+    if (isDuplicateRestaurant(rec.name)) { setToastMessage(`⚠️ ${rec.name} 已在您的口袋名單中！`); setTimeout(() => setToastMessage(""), 3000); return; }
     setAnimatingRecId(rec.id);
     if (typeof window !== 'undefined' && navigator.vibrate) navigator.vibrate(40);
     setToastMessage(`✨ 正在收藏並撰寫專屬 AI 短評...`);
-
     const smartCategory = getSmartTag(rec.name, rec.category);
     const initialNote = "✨ Fabrica AI 正在為您撰寫專屬短評中，請稍候...";
-    
-    // 1. 瞬間先加入 Firebase / 本地名單，實現零等待樂觀加入！
     let savedDocId = null;
     const userLibraryId = getUserLibraryId();
-    
-    if (firebaseUser?.uid === "local-temp-guest") {
-      savedDocId = Math.random().toString();
-      const mockDoc = { id: savedDocId, name: rec.name, address: rec.address, category: smartCategory, note: initialNote, recommendedBy: "系統探索", savedAt: { seconds: Math.floor(Date.now() / 1000) } };
-      setRestaurants(prev => [mockDoc, ...prev]);
-    } else {
-      try {
-        const docRef = await addDoc(collection(db, 'artifacts', appId, 'users', userLibraryId, 'restaurants'), { 
-          name: rec.name, address: rec.address, category: smartCategory, note: initialNote, recommendedBy: "系統探索", savedAt: serverTimestamp() 
-        });
-        savedDocId = docRef.id;
-      } catch (err) { console.error("Error saving auto-recommendation:", err); }
-    }
-    
+    try {
+      const docRef = await addDoc(collection(db, 'artifacts', appId, 'users', userLibraryId, 'restaurants'), { name: rec.name, address: rec.address, category: smartCategory, note: initialNote, recommendedBy: "系統探索", savedAt: serverTimestamp() });
+      savedDocId = docRef.id;
+    } catch (err) { console.error("Error saving:", err); }
     setDismissedRecommendationIds(prev => [...prev, rec.id]);
     setAnimatingRecId(null);
-
-    // 2. 非同步背景請求 AI 短評，結束後完美無感回寫！
     generateAIReview(rec.name, rec.address).then(async (aiNote) => {
       const finalNote = aiNote || rec.note;
-      
-      if (firebaseUser?.uid === "local-temp-guest") {
-        setRestaurants(prev => prev.map(item => item.id === savedDocId ? { ...item, note: finalNote } : item));
-      } else if (savedDocId) {
-        try {
-          await updateDoc(doc(db, 'artifacts', appId, 'users', userLibraryId, 'restaurants', savedDocId), { note: finalNote });
-        } catch (err) { console.error("Error async updating AI Review:", err); }
+      if (savedDocId) {
+        try { await updateDoc(doc(db, 'artifacts', appId, 'users', userLibraryId, 'restaurants', savedDocId), { note: finalNote }); } catch (err) { console.error(err); }
       }
-      setToastMessage(`🎉 AI 已經成功為 ${rec.name} 寫好美味筆記！`);
-      setTimeout(() => setToastMessage(""), 3000);
+      setToastMessage(`🎉 AI 已經成功為 ${rec.name} 寫好美味筆記！`); setTimeout(() => setToastMessage(""), 3000);
     });
   };
 
   const dismissRecommendation = (id) => setDismissedRecommendationIds(prev => [...prev, id]);
 
-  // 🌟 高防錯的圖片載入失敗機制
   const getFoodImage = (restaurant) => {
     if (restaurant?.sourceImageUrl) return restaurant.sourceImageUrl;
     const name = restaurant?.name || "";
@@ -856,16 +644,12 @@ export default function App() {
       "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?q=80&w=800&auto=format&fit=crop",
       "https://images.unsplash.com/photo-1414235077428-338988692309?q=80&w=800&auto=format&fit=crop",
       "https://images.unsplash.com/photo-1498654896293-37aacf113fd9?q=80&w=800&auto=format&fit=crop",
-      "https://images.unsplash.com/photo-1525648199074-cee30ba79a4a?q=80&w=800&auto=format&fit=crop" 
+      "https://images.unsplash.com/photo-1525648199074-cee30ba79a4a?q=80&w=800&auto=format&fit=crop"
     ];
     let sum = 0; for (let i = 0; i < name.length; i++) sum += name.charCodeAt(i);
     return images[sum % images.length];
   };
-
-  const handleImageError = (e) => {
-    e.target.onerror = null;
-    e.target.src = "https://images.unsplash.com/photo-1414235077428-338988692309?q=80&w=800&auto=format&fit=crop"; 
-  };
+  const handleImageError = (e) => { e.target.onerror = null; e.target.src = "https://images.unsplash.com/photo-1414235077428-338988692309?q=80&w=800&auto=format&fit=crop"; };
 
   const handleShare = async (restaurant) => {
     const url = new URL(window.location.href);
@@ -884,390 +668,178 @@ export default function App() {
     }
   };
 
-  // 🌟 收下好友推薦並生成 AI 評價
   const handleImportThreadText = async (e) => {
     e.preventDefault();
     const rawText = importText.trim();
-    if (!rawText) {
-      setToastMessage("請貼上 Threads 文字、心得或連結。");
-      setTimeout(() => setToastMessage(""), 3000);
-      return;
-    }
-
+    if (!rawText) { setToastMessage("請貼上 Threads 文字、心得或連結。"); setTimeout(() => setToastMessage(""), 3000); return; }
     setIsImportingThread(true);
     try {
-      const response = await fetch('/api/analyze-food', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: rawText })
-      });
+      const response = await fetch('/api/analyze-food', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: rawText }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Import failed');
-
       const aiResult = result.data || {};
-      if (isDuplicateRestaurant(aiResult.name)) {
-        setToastMessage(`⚠️ ${aiResult.name} 已在您的口袋名單中！`);
-        setTimeout(() => setToastMessage(""), 3000);
-        return;
-      }
-
+      if (isDuplicateRestaurant(aiResult.name)) { setToastMessage(`⚠️ ${aiResult.name} 已在您的口袋名單中！`); setTimeout(() => setToastMessage(""), 3000); return; }
       const userLibraryId = getUserLibraryId();
       const sourceUrl = rawText.match(/https?:\/\/\S+/)?.[0] || "";
       const sourceAuthor = extractThreadsAuthor(sourceUrl);
       const cleanUsername = sourceAuthor || getCleanThreadsUsername() || firebaseUser?.email || "google-user";
-      const newDoc = {
-        name: aiResult.name || "待確認美食",
-        address: aiResult.address || "",
-        areaHint: aiResult.areaHint || "",
-        category: aiResult.category || "美食收藏",
-        note: aiResult.aiNote || "已從 Threads 貼文匯入，等待補充店家資訊。",
-        mainOffer: aiResult.mainOffer || "未確認",
-        reputationSummary: aiResult.reputationSummary || "未確認",
-        currentPromotions: aiResult.currentPromotions || "未確認",
-        businessHours: aiResult.businessHours || "未確認",
-        confidence: Math.max(0, Math.min(1, Number(aiResult.confidence || 0))),
-        placeStatus: aiResult.address ? "needs_review" : "unverified",
-        source: "manual_threads_import",
-        sourceText: rawText,
-        threadsUrl: sourceUrl,
-        sourceAuthor,
-        recommendedBy: cleanUsername,
-        savedAt: serverTimestamp()
-      };
-
-      if (firebaseUser?.uid === "local-temp-guest") {
-        setRestaurants(prev => [{ id: Math.random().toString(), ...newDoc, savedAt: { seconds: Math.floor(Date.now() / 1000) } }, ...prev]);
-      } else {
-        await addDoc(collection(db, 'artifacts', appId, 'users', userLibraryId, 'restaurants'), newDoc);
-      }
-
-      setImportText("");
-      setShowImportModal(false);
-      setToastMessage(`已匯入 ${newDoc.name} 到你的美食庫。`);
-      setTimeout(() => setToastMessage(""), 3000);
-    } catch (err) {
-      console.error("Thread import failed:", err);
-      setToastMessage("匯入失敗，請稍後再試或先手動新增。");
-      setTimeout(() => setToastMessage(""), 3000);
-    } finally {
-      setIsImportingThread(false);
-    }
+      const newDoc = { name: aiResult.name || "待確認美食", address: aiResult.address || "", areaHint: aiResult.areaHint || "", category: aiResult.category || "美食收藏", note: aiResult.aiNote || "已從 Threads 貼文匯入，等待補充店家資訊。", mainOffer: aiResult.mainOffer || "未確認", reputationSummary: aiResult.reputationSummary || "未確認", currentPromotions: aiResult.currentPromotions || "未確認", businessHours: aiResult.businessHours || "未確認", confidence: Math.max(0, Math.min(1, Number(aiResult.confidence || 0))), placeStatus: aiResult.address ? "needs_review" : "unverified", source: "manual_threads_import", sourceText: rawText, threadsUrl: sourceUrl, sourceAuthor, recommendedBy: cleanUsername, savedAt: serverTimestamp() };
+      await addDoc(collection(db, 'artifacts', appId, 'users', userLibraryId, 'restaurants'), newDoc);
+      setImportText(""); setShowImportModal(false);
+      setToastMessage(`已匯入 ${newDoc.name} 到你的美食庫。`); setTimeout(() => setToastMessage(""), 3000);
+    } catch (err) { console.error("Thread import failed:", err); setToastMessage("匯入失敗，請稍後再試或先手動新增。"); setTimeout(() => setToastMessage(""), 3000); }
+    finally { setIsImportingThread(false); }
   };
 
-  const handleAcceptShared = async () => {
-    if (!sharedItem) return;
-    if (isDuplicateRestaurant(sharedItem.name)) {
-      setToastMessage(`⚠️ ${sharedItem.name} 已在您的口袋名單中！`); setTimeout(() => setToastMessage(""), 3000); clearSharedItem(); return;
-    }
-    
-    setToastMessage(`✨ 正在請 AI 撰寫專屬 short review...`);
-    const cleanRecommender = sharedItem.recommendedBy.replace("@", "").trim();
-    const smartCategory = getSmartTag(sharedItem.name, sharedItem.category);
-    
-    const aiNote = await generateAIReview(sharedItem.name, sharedItem.address);
-    const finalNote = aiNote || sharedItem.note;
-
-    if (firebaseUser?.uid === "local-temp-guest") {
-      const mockDoc = { id: Math.random().toString(), name: sharedItem.name, address: sharedItem.address, category: smartCategory, note: finalNote, recommendedBy: cleanRecommender, savedAt: { seconds: Math.floor(Date.now() / 1000) } };
-      setRestaurants(prev => [mockDoc, ...prev]);
-    } else {
-      try {
-        const userLibraryId = getUserLibraryId();
-        await addDoc(collection(db, 'artifacts', appId, 'users', userLibraryId, 'restaurants'), { name: sharedItem.name, address: sharedItem.address, category: smartCategory, note: finalNote, recommendedBy: cleanRecommender, savedAt: serverTimestamp() });
-      } catch (err) { console.error("Error adding shared document:", err); }
-    }
-    setToastMessage(`🎉 成功將 ${sharedItem.name} 收藏至您的地圖！`); setTimeout(() => setToastMessage(""), 3000); clearSharedItem();
-  };
-
-  // 🌟 修正手動儲存至地圖不關閉、無反應的問題：改用樂觀UI與手動校驗，安全避開 sandbox iframe 的 HTML5 required bug！
   const handleAddRestaurant = async (e) => {
     e.preventDefault(); 
-    
-    // 1. 防禦性手動驗證 (店名)，防止 iframerequired silent-block 錯誤
-    if (!newRestName || !newRestName.trim()) {
-      setToastMessage("⚠️ 請先輸入店名！");
-      setTimeout(() => setToastMessage(""), 3000);
-      return;
-    }
-
-    if (isDuplicateRestaurant(newRestName)) {
-      setToastMessage(`⚠️ ${newRestName} 已在您的口袋名單中！`); 
-      setTimeout(() => setToastMessage(""), 3000); 
-      return;
-    }
-
-    // 🌟 瞬間關閉Modal，優雅流暢！
+    if (!newRestName || !newRestName.trim()) { setToastMessage("⚠️ 請先輸入店名！"); setTimeout(() => setToastMessage(""), 3000); return; }
+    if (isDuplicateRestaurant(newRestName)) { setToastMessage(`⚠️ ${newRestName} 已在您的口袋名單中！`); setTimeout(() => setToastMessage(""), 3000); return; }
     closeAddModal();
     setToastMessage(`✨ 正在收藏並撰寫專屬 AI 短評...`);
-
-    // 2. 宣告 cleanRecommender，避免 JavaScript 執行期 ReferenceError 崩潰
     const cleanRecommender = newRestRecommender.replace("@", "").trim();
     const smartCategory = getSmartTag(newRestName, newRestCategory);
     const initialNote = "✨ Fabrica AI 正在為您撰寫專屬短評中，請稍候...";
-    
     let savedDocId = null;
     const userLibraryId = getUserLibraryId();
-
-    if (firebaseUser?.uid === "local-temp-guest") {
-      savedDocId = Math.random().toString();
-      const mockDoc = { id: savedDocId, name: newRestName, address: newRestAddress || "僅提供店名定位", category: smartCategory, note: initialNote, recommendedBy: cleanRecommender, savedAt: { seconds: Math.floor(Date.now() / 1000) } };
-      setRestaurants(prev => [mockDoc, ...prev]);
-    } else {
-      try {
-        const docRef = await addDoc(collection(db, 'artifacts', appId, 'users', userLibraryId, 'restaurants'), {
-          name: newRestName, address: newRestAddress || "僅提供店名定位", category: smartCategory, note: initialNote, recommendedBy: cleanRecommender, savedAt: serverTimestamp()
-        });
-        savedDocId = docRef.id;
-      } catch (err) { 
-        console.error("Error adding document:", err); 
-      }
-    }
-
-    // 暫存店名與地址以作非同步 AI 連線，同時清空當前輸入
-    const tempName = newRestName;
-    const tempAddress = newRestAddress;
-
+    try {
+      const docRef = await addDoc(collection(db, 'artifacts', appId, 'users', userLibraryId, 'restaurants'), { name: newRestName, address: newRestAddress || "僅提供店名定位", category: smartCategory, note: initialNote, recommendedBy: cleanRecommender, savedAt: serverTimestamp() });
+      savedDocId = docRef.id;
+    } catch (err) { console.error("Error adding document:", err); }
+    const tempName = newRestName; const tempAddress = newRestAddress;
     setNewRestName(""); setNewRestAddress(""); setNewRestCategory(""); setNewRestRecommender(""); setNewRestNote("");
-
-    // 3. 背景非同步生成 AI 評論並回寫更新
     generateAIReview(tempName, tempAddress).then(async (aiNote) => {
       const finalNote = aiNote || "暫無 AI 分析結果，系統已將其加入您的口袋名單。";
-      if (firebaseUser?.uid === "local-temp-guest") {
-        setRestaurants(prev => prev.map(item => item.id === savedDocId ? { ...item, note: finalNote } : item));
-      } else if (savedDocId) {
-        try {
-          await updateDoc(doc(db, 'artifacts', appId, 'users', userLibraryId, 'restaurants', savedDocId), { note: finalNote });
-        } catch (err) {
-          console.error("Error async updating AI review:", err);
-        }
+      if (savedDocId) {
+        try { await updateDoc(doc(db, 'artifacts', appId, 'users', userLibraryId, 'restaurants', savedDocId), { note: finalNote }); } catch (err) { console.error(err); }
       }
-      setToastMessage(`🎉 AI 已經成功為 ${tempName} 寫好美味筆記！`);
-      setTimeout(() => setToastMessage(""), 3000);
+      setToastMessage(`🎉 AI 已經成功為 ${tempName} 寫好美味筆記！`); setTimeout(() => setToastMessage(""), 3000);
     });
   };
 
-  // 🌟 智慧宣告 categories
-  const categories = ["全部", ...new Set((restaurants || []).map(r => getSmartTag(r.name, r.category).split(" • ")[0]))];
+  const categories = useMemo(() => ["全部", ...new Set((restaurants || []).map(r => getSmartTag(r.name, r.category).split(" • ")[0]))], [restaurants]);
 
   const filteredRestaurants = useMemo(() => (restaurants || []).filter(restaurant => {
-    const name = restaurant.name || ""; const address = restaurant.address || ""; 
-    const note = restaurant.note || ""; const category = getSmartTag(name, restaurant.category);
-    const recommender = restaurant.recommendedBy || ""; 
-    const q = searchQuery.toLowerCase();
+    const name = restaurant.name || ""; const address = restaurant.address || ""; const note = restaurant.note || ""; const category = getSmartTag(name, restaurant.category); const recommender = restaurant.recommendedBy || ""; const q = searchQuery.toLowerCase();
     const matchesSearch = name.toLowerCase().includes(q) || address.toLowerCase().includes(q) || note.toLowerCase().includes(q) || recommender.toLowerCase().includes(q.replace("@", "")); 
     const matchesCategory = selectedCategory === "全部" || category.startsWith(selectedCategory);
     return matchesSearch && matchesCategory;
   }), [restaurants, searchQuery, selectedCategory]);
 
-  useEffect(() => {
-    setDisplayRestaurants(filteredRestaurants);
-  }, [filteredRestaurants]);
+  useEffect(() => { setDisplayRestaurants(filteredRestaurants); }, [filteredRestaurants]);
 
-  const activeRecommendations = useMemo(
-    () => nearbyRecommendations.filter(rec => !dismissedRecommendationIds.includes(rec.id)),
-    [nearbyRecommendations, dismissedRecommendationIds]
-  );
+  const activeRecommendations = useMemo(() => nearbyRecommendations.filter(rec => !dismissedRecommendationIds.includes(rec.id)), [nearbyRecommendations, dismissedRecommendationIds]);
 
-  // ==========================================
-  // 🚀 全域級 Window 指標追蹤物理拖曳系統 (零漂移，60FPS，支援手機長按，且完美支援點擊)
-  // ==========================================
+  // ── Drag and drop ─────────────────────────────────────────────────────────
   const handlePointerDown = (e, restaurant, index) => {
     if (e.target.closest("button") || e.target.closest("a")) return;
-    
     e.preventDefault();
-    const cardEl = e.currentTarget;
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const pointerId = e.pointerId;
-    const rect = cardEl.getBoundingClientRect();
-    
-    // 🌟 鎖定最初偏移，徹底消滅漂移與過度偏差問題
-    const offsetX = startX - rect.left;
-    const offsetY = startY - rect.top;
-
+    const cardEl = e.currentTarget; const startX = e.clientX; const startY = e.clientY; const pointerId = e.pointerId;
+    const rect = cardEl.getBoundingClientRect(); const offsetX = startX - rect.left; const offsetY = startY - rect.top;
     if (pressTimer.current) clearTimeout(pressTimer.current);
-
-    dragRef.current = {
-      id: restaurant.id,
-      startX: startX,
-      startY: startY,
-      offsetX: offsetX,
-      offsetY: offsetY,
-      el: cardEl,
-      hoveredIndex: index,
-      isDragging: false,
-      isLongPressed: false
-    };
-
+    dragRef.current = { id: restaurant.id, startX, startY, offsetX, offsetY, el: cardEl, hoveredIndex: index, isDragging: false, isLongPressed: false };
     const startDrag = () => {
-      dragRef.current.isDragging = true;
-      dragRef.current.isLongPressed = true;
+      dragRef.current.isDragging = true; dragRef.current.isLongPressed = true;
       cardEl.setPointerCapture(pointerId);
-      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(40); // 物理回饋震動
-      
-      cardEl.style.transition = 'none';
-      cardEl.style.zIndex = "100";
-      cardEl.style.boxShadow = "0 35px 70px rgba(0,0,0,0.35)";
-      document.body.style.userSelect = 'none'; 
-      
-      setDragState({
-        draggingId: restaurant.id,
-        startIndex: index,
-        hoveredIndex: index,
-        dx: 0,
-        dy: 0
-      });
+      if (navigator.vibrate) navigator.vibrate(40);
+      cardEl.style.transition = 'none'; cardEl.style.zIndex = "100"; cardEl.style.boxShadow = "0 35px 70px rgba(0,0,0,0.35)";
+      document.body.style.userSelect = 'none';
+      setDragState({ draggingId: restaurant.id, startIndex: index, hoveredIndex: index, dx: 0, dy: 0 });
       setDraggingId(restaurant.id);
     };
-
-    // 🌟 手機觸控版必須「長按 300 毫秒」才啟用拖拽，滑鼠點擊則在 Move 中觸發！
-    if (e.pointerType === 'touch') {
-      pressTimer.current = setTimeout(() => {
-        startDrag();
-      }, 300);
-    } else {
-      // 電腦版點擊事件由 Move 控制，滑動才判定為 Drag 
-    }
-
+    if (e.pointerType === 'touch') { pressTimer.current = setTimeout(startDrag, 300); }
     const handleGlobalPointerMove = (moveEvent) => {
-      const dx = moveEvent.clientX - startX;
-      const dy = moveEvent.clientY - startY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-
-      // 如果還未觸發拖曳，但在電腦上移動大於 8px，或在手機長按前移動大於 15px
-      if (!dragRef.current.isDragging) {
-        if (e.pointerType === 'touch') {
-          if (dist > 15) {
-            if (pressTimer.current) clearTimeout(pressTimer.current);
-          }
-        } else {
-          if (dist > 8) {
-            startDrag();
-          }
-        }
-        return;
-      }
-
-      moveEvent.preventDefault(); 
-      if (dragRef.current.id === null || !dragRef.current.el) return;
-
-      // 60FPS 硬體加速：完美的跟隨與帶有物理加速度的頃斜角
+      const dx = moveEvent.clientX - startX; const dy = moveEvent.clientY - startY; const dist = Math.sqrt(dx*dx + dy*dy);
+      if (!dragRef.current.isDragging) { if (e.pointerType === 'touch') { if (dist > 15 && pressTimer.current) clearTimeout(pressTimer.current); } else { if (dist > 8) startDrag(); } return; }
+      moveEvent.preventDefault();
+      if (!dragRef.current.el) return;
       dragRef.current.el.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(1.05) rotate(${dx * 0.04}deg)`;
-
-      // 穿透自身以正確捕捉碰撞目標
       dragRef.current.el.style.pointerEvents = 'none';
       const elements = document.elementsFromPoint(moveEvent.clientX, moveEvent.clientY);
       dragRef.current.el.style.pointerEvents = 'auto';
-
       const dropTarget = elements.find(el => el.hasAttribute('data-sort-index') && el.getAttribute('data-restaurant-id') !== dragRef.current.id);
-
       if (dropTarget) {
         const targetIdx = parseInt(dropTarget.getAttribute('data-sort-index'), 10);
         if (!isNaN(targetIdx) && targetIdx !== dragRef.current.hoveredIndex) {
-          if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(15); 
-          
-          // 🌟 核心修正：動態對齊起點，防止DOM重排造成的拖拽卡頓偏移
-          const cardHeight = dragRef.current.el.offsetHeight + 16; // 16px 爲 gap
-          const shift = (targetIdx - dragRef.current.hoveredIndex) * cardHeight;
-          dragRef.current.startY += shift;
-          dragRef.current.hoveredIndex = targetIdx;
-          
-          setDragState(prev => ({
-            ...prev,
-            hoveredIndex: targetIdx
-          }));
-
-          setDisplayRestaurants(prev => {
-            const arr = [...prev];
-            const oldIdx = arr.findIndex(r => r.id === dragRef.current.id);
-            if (oldIdx !== -1) {
-               const item = arr.splice(oldIdx, 1)[0];
-               arr.splice(targetIdx, 0, item);
-            }
-            return arr;
-          });
+          if (navigator.vibrate) navigator.vibrate(15);
+          const cardHeight = dragRef.current.el.offsetHeight + 16; const shift = (targetIdx - dragRef.current.hoveredIndex) * cardHeight;
+          dragRef.current.startY += shift; dragRef.current.hoveredIndex = targetIdx;
+          setDragState(prev => ({ ...prev, hoveredIndex: targetIdx }));
+          setDisplayRestaurants(prev => { const arr = [...prev]; const oldIdx = arr.findIndex(r => r.id === dragRef.current.id); if (oldIdx !== -1) { const item = arr.splice(oldIdx, 1)[0]; arr.splice(targetIdx, 0, item); } return arr; });
         }
       }
     };
-
     const handleGlobalPointerUp = (upEvent) => {
       if (pressTimer.current) clearTimeout(pressTimer.current);
-
-      const dx = upEvent.clientX - startX;
-      const dy = upEvent.clientY - startY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      
-      // 🌟 點擊與拖動精準解耦：位移極小判定為輕觸，100% 成功點開 Modal！
-      if (!dragRef.current.isDragging && dist < 8) {
-        setSelectedRestaurant(restaurant);
-      } else if (dragRef.current.isDragging) {
-        if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(20); // 放下震動
-      }
-
+      const dx = upEvent.clientX - startX; const dy = upEvent.clientY - startY; const dist = Math.sqrt(dx*dx + dy*dy);
+      if (!dragRef.current.isDragging && dist < 8) { setSelectedRestaurant(restaurant); }
       if (dragRef.current.el) {
-        // 萬物皆有動畫：完美的 3D 彈簧物理曲線 (Spring Motion)
         dragRef.current.el.style.transition = 'transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.4s ease';
         dragRef.current.el.style.transform = 'translate3d(0,0,0) scale(1) rotate(0deg)';
-        dragRef.current.el.style.zIndex = "1";
-        dragRef.current.el.style.boxShadow = "none";
+        dragRef.current.el.style.zIndex = "1"; dragRef.current.el.style.boxShadow = "none";
       }
-
       document.body.style.userSelect = 'auto';
       dragRef.current = { id: null, startX: 0, startY: 0, offsetX: 0, offsetY: 0, el: null, hoveredIndex: -1, isDragging: false, isLongPressed: false };
-      setDragState({ draggingId: null, startIndex: -1, hoveredIndex: -1, dx: 0, dy: 0 });
-      setDraggingId(null);
-
-      window.removeEventListener('pointermove', handleGlobalPointerMove);
-      window.removeEventListener('pointerup', handleGlobalPointerUp);
-      window.removeEventListener('pointercancel', handleGlobalPointerUp);
+      setDragState({ draggingId: null, startIndex: -1, hoveredIndex: -1, dx: 0, dy: 0 }); setDraggingId(null);
+      window.removeEventListener('pointermove', handleGlobalPointerMove); window.removeEventListener('pointerup', handleGlobalPointerUp); window.removeEventListener('pointercancel', handleGlobalPointerUp);
     };
-
     window.addEventListener('pointermove', handleGlobalPointerMove, { passive: false });
-    window.addEventListener('pointerup', handleGlobalPointerUp);
-    window.addEventListener('pointercancel', handleGlobalPointerUp);
+    window.addEventListener('pointerup', handleGlobalPointerUp); window.addEventListener('pointercancel', handleGlobalPointerUp);
+  };
+
+  // ── Step pip helper ───────────────────────────────────────────────────────
+  const renderStepPips = () => {
+    const steps = ["輸入帳號", "發文驗證", "確認身分"];
+    const stepIndex = loginStep === "idle" ? 0 : loginStep === "code_shown" ? 1 : 2;
+    return (
+      <div className="flex items-center justify-center gap-2 mb-5">
+        {steps.map((label, i) => (
+          <React.Fragment key={label}>
+            <div className="flex flex-col items-center gap-1">
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all duration-300 ${i < stepIndex ? "bg-[#34C759] text-white" : i === stepIndex ? "bg-black text-white scale-110" : "bg-black/10 text-[#86868B]"}`}>
+                {i < stepIndex
+                  ? <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg>
+                  : i + 1}
+              </div>
+              <span className={`text-[9px] font-semibold transition-colors ${i === stepIndex ? "text-black" : "text-[#86868B]"}`}>{label}</span>
+            </div>
+            {i < steps.length - 1 && <div className={`h-px w-8 mb-4 transition-all duration-300 ${i < stepIndex ? "bg-[#34C759]" : "bg-black/10"}`} />}
+          </React.Fragment>
+        ))}
+      </div>
+    );
   };
 
   return (
     <div className="relative min-h-screen text-[#1D1D1F] tracking-tight font-sans antialiased overflow-x-hidden overflow-y-scroll bg-[#F4F4F6] touch-manipulation">
       
-      {/* 🌟 登入後之 Blur Vignette + 原生 WebGL 彩色流體背景 */}
       {(isLoggedIn || isGlobalTransitioning) && (
         <BlurVignette blur="35px" className="fixed inset-0 z-0 pointer-events-none transition-opacity duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)] opacity-100">
            <ColorfulBackground show={true} />
         </BlurVignette>
       )}
 
-      {/* 🌟 頂級果凍 Loader 全局轉場覆蓋層 */}
       <div className={`fixed inset-0 z-[100] flex flex-col items-center justify-center bg-white/40 backdrop-blur-3xl transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isGlobalTransitioning ? 'opacity-100 visible' : 'opacity-0 invisible'}`}>
         <GooeyLoader />
       </div>
 
-      {/* 登入前的黑白原生 3D 液態球體著色器背景 */}
       {!isLoggedIn && (
-        <div 
-          ref={canvasContainerRef} 
-          className={`fixed inset-0 z-0 w-screen h-screen pointer-events-auto transition-opacity duration-1000 ease-in-out ${isGlobalTransitioning ? 'opacity-0 invisible' : 'opacity-100 visible'}`} 
-        />
+        <div ref={canvasContainerRef} className={`fixed inset-0 z-0 w-screen h-screen pointer-events-auto transition-opacity duration-1000 ease-in-out ${isGlobalTransitioning ? 'opacity-0 invisible' : 'opacity-100 visible'}`} />
       )}
 
-      {/* ==================== 頁面容器 (🌟 修復：登入後取消 items-center 且置中 layout，完美解決卡片偏左與 Header 未整版問題！) ==================== */}
       <div className={`relative z-10 w-full min-h-screen flex flex-col ${!isLoggedIn ? 'items-center justify-center' : 'items-center'}`}>
         
         {!isLoggedIn ? (
-          // --- 登入畫面 ---
           <div className="relative w-full min-h-screen flex flex-row justify-between items-stretch">
-            
-            {/* ⬅️ 左側跑馬燈 */}
             <div className="hidden md:flex flex-row justify-center gap-6 w-32 border-r border-black/5 bg-white/5 backdrop-blur-sm relative z-20">
               <VerticalMarquee direction="up" text="WELCOME TO FOODIE BETA TEST" />
               <VerticalMarquee direction="down" text="EXPLORE SHARE COLLECT" />
             </div>
 
-            {/* 居中主登入卡片 */}
             <div className={`flex-1 flex flex-col justify-between px-6 py-10 max-w-sm mx-auto transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isGlobalTransitioning ? 'opacity-0 scale-[0.98] blur-md translate-y-4' : 'opacity-100 scale-100 blur-0 translate-y-0'} relative z-30`}>
               <div className="flex-1 flex flex-col justify-center space-y-10 py-8 pointer-events-auto">
                 <div className="text-center space-y-5 animate-bounce-in">
-                  <div className="w-16 h-16 bg-black rounded-[20px] mx-auto flex items-center justify-center shadow-[0_10px_25px_rgba(0,0,0,0.15)] transform hover:scale-110 active:scale-90 transition-all duration-300 cursor-pointer">
+                  <div className="w-16 h-16 bg-black rounded-[20px] mx-auto flex items-center justify-center shadow-[0_10px_25px_rgba(0,0,0,0.15)]">
                     <svg className="w-8 h-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3" strokeWidth="1.5"/></svg>
                   </div>
                   <div className="space-y-2">
@@ -1278,46 +850,81 @@ export default function App() {
                   </div>
                 </div>
 
-                <form onSubmit={handleVerificationStart} className="space-y-5 bg-white/45 backdrop-blur-xl border border-white/60 p-6 rounded-[32px] shadow-[0_20px_40px_rgba(0,0,0,0.03)] hover:shadow-lg transition-all duration-300">
-                  <div className="space-y-3">
-                    <div className="relative flex items-center w-full group">
-                      <span className="absolute left-5 top-1/2 -translate-y-1/2 text-base font-semibold text-[#86868B] select-none pointer-events-none group-focus-within:text-black transition-colors">@</span>
-                      <input type="text" placeholder="輸入您的 Threads 帳號" value={inputUsername} onChange={(e) => setInputUsername(e.target.value.replace("@", ""))} className="w-full bg-white/80 text-base font-medium rounded-2xl py-4.5 pl-12 pr-5 border border-[#D2D2D7] focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all duration-300 placeholder-[#86868B]/70 shadow-[0_2px_8px_rgba(0,0,0,0.01)]" />
-                    </div>
+                {/* ── LOGIN FORM ── */}
+                <div className="space-y-0">
+                  {renderStepPips()}
+
+                  <div className="space-y-5 bg-white/45 backdrop-blur-xl border border-white/60 p-6 rounded-[32px] shadow-[0_20px_40px_rgba(0,0,0,0.03)]">
+
+                    {/* Step 0: enter username */}
+                    {loginStep === "idle" && (
+                      <form onSubmit={handleGenerateCode} className="space-y-4">
+                        <div className="relative flex items-center w-full group">
+                          <span className="absolute left-5 top-1/2 -translate-y-1/2 text-base font-semibold text-[#86868B] select-none pointer-events-none group-focus-within:text-black transition-colors">@</span>
+                          <input type="text" placeholder="輸入您的 Threads 帳號" value={inputUsername} onChange={(e) => setInputUsername(e.target.value.replace("@", ""))} className="w-full bg-white/80 text-base font-medium rounded-2xl py-4 pl-12 pr-5 border border-[#D2D2D7] focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all placeholder-[#86868B]/70" />
+                        </div>
+                        {loginError && <p className="text-xs font-bold text-[#FF3B30]">{loginError}</p>}
+                        <button type="submit" className="w-full h-[52px] bg-black text-white font-semibold rounded-2xl hover:bg-[#1D1D1F] active:scale-95 transition-all">
+                          產生驗證碼
+                        </button>
+                      </form>
+                    )}
+
+                    {/* Step 1: show code, user posts to Threads */}
+                    {loginStep === "code_shown" && (
+                      <form onSubmit={handleVerifyCrawler} className="space-y-4">
+                        <div className="rounded-2xl border border-black/10 bg-white/80 p-4 space-y-3">
+                          <p className="text-[11px] font-bold uppercase tracking-wider text-[#86868B]">到 Threads 發布以下公開貼文</p>
+                          <div className="rounded-xl bg-black px-4 py-3 font-mono text-sm font-bold text-white text-center select-all tracking-wide">
+                            {FABRICA_THREADS_HANDLE} verify {verificationCode}
+                          </div>
+                          <p className="text-xs text-[#666] leading-relaxed font-medium">
+                            複製上方文字，到 Threads 發文（需設為<strong>公開貼文</strong>）。<br/>
+                            發文後回到這裡點「我已發文」。
+                          </p>
+                        </div>
+                        <button type="button" onClick={() => navigator.clipboard?.writeText(`${FABRICA_THREADS_HANDLE} verify ${verificationCode}`)} className="w-full h-10 rounded-xl border border-black/10 bg-white/60 text-xs font-bold text-[#555] hover:bg-white transition-all active:scale-95">
+                          複製驗證文字
+                        </button>
+                        {loginError && <p className="text-xs font-bold text-[#FF3B30] whitespace-pre-line">{loginError}</p>}
+                        <button type="submit" className="w-full h-[52px] bg-black text-white font-semibold rounded-2xl hover:bg-[#1D1D1F] active:scale-95 transition-all">
+                          我已發文，驗證身分 →
+                        </button>
+                        <button type="button" onClick={handleResetLogin} className="w-full text-xs font-semibold text-[#86868B] hover:text-black py-2 transition-colors">
+                          ← 重新輸入帳號
+                        </button>
+                      </form>
+                    )}
+
+                    {/* Step 2: verifying spinner */}
+                    {loginStep === "verifying" && (
+                      <div className="flex flex-col items-center gap-4 py-8">
+                        <div className="w-10 h-10 rounded-full border-2 border-black border-t-transparent animate-spin" />
+                        <div className="text-center space-y-1">
+                          <p className="text-sm font-bold text-black">正在確認身分中...</p>
+                          <p className="text-xs text-[#86868B] font-medium">系統正在讀取 @{inputUsername.replace("@", "")} 的公開頁面</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Google divider — hidden while verifying */}
+                    {loginStep !== "verifying" && loginStep !== "done" && (
+                      <>
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1 h-px bg-black/10" />
+                          <span className="text-[10px] font-bold text-[#86868B] uppercase tracking-wider">或</span>
+                          <div className="flex-1 h-px bg-black/10" />
+                        </div>
+                        {isGoogleAuthPending && <p className="text-xs font-bold text-[#007AFF] text-center">正在完成 Google 登入...</p>}
+                        <button type="button" onClick={handleGoogleSignIn} className="w-full h-[52px] rounded-2xl border border-black/10 bg-black text-white text-sm font-semibold transition-all hover:bg-[#1D1D1F] active:scale-95">
+                          使用 Google 登入
+                        </button>
+                      </>
+                    )}
                   </div>
-                  {verificationCode && (
-                    <div className="rounded-2xl border border-black/10 bg-white/75 p-4 text-left shadow-sm">
-                      <p className="text-[11px] font-bold uppercase tracking-wider text-[#86868B]">Threads 驗證</p>
-                      <p className="mt-2 text-sm font-semibold leading-relaxed text-[#1D1D1F]">到 Threads 發文或留言（公開貼文）：</p>
-                      <div className="mt-2 rounded-xl bg-black px-3 py-3 text-center font-mono text-sm font-bold text-white">
-                        {FABRICA_THREADS_HANDLE} verify {verificationCode}
-                      </div>
-                      <p className="mt-2 text-xs font-medium leading-relaxed text-[#666]">
-                        發文後按下方按鈕，App 會自動透過 Threads API 掃描你的貼文完成驗證。<br/>
-                        之後標記 {FABRICA_THREADS_HANDLE} 的美食文會存到 @{verificationUsername || inputUsername}。
-                      </p>
-                    </div>
-                  )}
-                  {isGoogleAuthPending && !loginError && (
-                    <p className="text-xs font-bold text-[#007AFF]">正在完成 Google 登入...</p>
-                  )}
-                  {loginError && <p className="text-xs font-bold text-[#FF3B30]">{loginError}</p>}
-                  <div className="grid gap-3">
-                    <button type="submit" className="group relative cursor-pointer w-full h-[56px] border border-[#D2D2D7] bg-white rounded-2xl overflow-hidden text-[#1D1D1F] font-semibold transition-all duration-300 shadow-sm hover:shadow-md active:scale-90 outline-none">
-                      <div className="absolute inset-0 flex items-center justify-center translate-x-0 group-hover:translate-x-16 group-hover:opacity-0 transition-all duration-300 z-20 pointer-events-none select-none">
-                        {verificationCode ? "我已發文，點此驗證" : "Threads 驗證登入"}
-                      </div>
-                      <div className="absolute inset-0 flex gap-2 items-center justify-center text-white z-20 translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none select-none">
-                        <span className="font-semibold text-sm">{verificationCode ? "透過 API 驗證" : "產生驗證碼"}</span><svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
-                      </div>
-                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-[#1D1D1F] scale-0 group-hover:scale-[35] transition-transform duration-500 ease-out z-10"></div>
-                    </button>
-                    <button type="button" onClick={handleGoogleSignIn} className="w-full h-[52px] rounded-2xl border border-black/10 bg-black text-white text-sm font-semibold shadow-sm transition-all duration-300 hover:bg-[#1D1D1F] active:scale-95">
-                      使用 Google 登入
-                    </button>
-                  </div>
-                </form>
+                </div>
               </div>
+
               <footer className="text-center text-xs text-[#86868B] pt-4 pointer-events-none">
                 <p className="font-semibold text-[#1D1D1F]/40">© Fabrica</p>
               </footer>
@@ -1327,23 +934,17 @@ export default function App() {
               <VerticalMarquee direction="down" text="EXPLORE SHARE COLLECT" />
               <VerticalMarquee direction="up" text="WELCOME TO FOODIE BETA TEST" />
             </div>
-
           </div>
 
         ) : (
-          // --- 登入後主檔案庫面板 ---
+          // --- 登入後主面板 ---
           <div className="w-full min-h-screen flex flex-col items-center transition-all duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)]">
-            {/* 🌟 修正：Header滿版橫跨網頁，內部精準置中對稱！ */}
             <header className="w-full sticky top-0 z-40 bg-white/40 backdrop-blur-2xl border-b border-white/30 px-6 py-4 shadow-[0_4px_30px_rgba(0,0,0,0.05)] transition-all flex justify-center">
               <div className="w-full max-w-md flex justify-between items-center">
                 <div className="flex flex-col animate-bounce-in">
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] font-bold tracking-wider text-[#555555] uppercase">FABRICA MAPS</span>
-                    {firebaseUser?.uid === "local-temp-guest" ? (
-                      <span className="inline-flex items-center text-[9px] font-semibold text-[#FF9500] bg-[#FF9500]/10 px-2 py-0.5 rounded-md"><span className="w-1 h-1 bg-[#FF9500] rounded-full mr-1 animate-pulse" /> 本地暫存</span>
-                    ) : (
-                      <span className="inline-flex items-center text-[9px] font-semibold text-[#34C759] bg-[#34C759]/20 px-2 py-0.5 rounded-md backdrop-blur-sm"><span className="w-1 h-1 bg-[#34C759] rounded-full mr-1" /> 雲端連線</span>
-                    )}
+                    <span className="inline-flex items-center text-[9px] font-semibold text-[#34C759] bg-[#34C759]/20 px-2 py-0.5 rounded-md backdrop-blur-sm"><span className="w-1 h-1 bg-[#34C759] rounded-full mr-1" /> 雲端連線</span>
                   </div>
                   <h1 className="text-lg font-bold tracking-tight text-black mt-0.5">{threadsUsername}</h1>
                 </div>
@@ -1351,10 +952,8 @@ export default function App() {
               </div>
             </header>
 
-            {/* 🌟 修正：餐廳卡片列與主面板寬度完全設定在 max-w-md 並在網頁端對稱置中！ */}
             <main className="w-full max-w-md px-4 mt-6 space-y-6 relative z-10">
               
-              {/* 🌟 手動新增口袋名單按鈕 (LiquidGlassCard 套件) */}
               <LiquidGlassCard onClick={() => setShowAddModal(true)} className="w-full py-4 text-sm font-bold text-[#1D1D1F] flex items-center justify-center gap-2 shadow-sm border border-white/50 bg-white/30 hover:scale-[1.01]">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4"/></svg>
                 手動新增口袋名單
@@ -1367,17 +966,12 @@ export default function App() {
 
               <section className="space-y-4">
                 <div className="relative flex items-center w-full group">
-                  <svg className="w-4 h-4 text-[#86868B] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none select-none group-focus-within:text-black transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+                  <svg className="w-4 h-4 text-[#86868B] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
                   <input type="text" placeholder="搜尋餐廳、地址或推薦人..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-white/60 backdrop-blur-xl text-sm font-medium rounded-2xl py-3 pl-10 pr-4 border border-white/50 focus:bg-white/90 focus:ring-2 focus:ring-black/10 outline-none transition-all duration-300 shadow-sm placeholder-[#86868B]" />
                 </div>
-                
-                {/* 🌟 類別篩選選單 (LiquidGlassCard 套件) */}
                 <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4">
                   {categories.map(cat => (
-                    <LiquidGlassCard 
-                      key={cat} onClick={() => setSelectedCategory(cat)} 
-                      className={`flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-300 ${selectedCategory === cat ? 'bg-black/90 text-white shadow-md border-transparent scale-[1.03]' : 'bg-white/40 text-[#555] border-white/45 hover:bg-white/70 hover:text-black'}`}
-                    >
+                    <LiquidGlassCard key={cat} onClick={() => setSelectedCategory(cat)} className={`flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-300 ${selectedCategory === cat ? 'bg-black/90 text-white shadow-md border-transparent scale-[1.03]' : 'bg-white/40 text-[#555] border-white/45 hover:bg-white/70 hover:text-black'}`}>
                       {cat}
                     </LiquidGlassCard>
                   ))}
@@ -1385,10 +979,9 @@ export default function App() {
                 </div>
               </section>
 
-              {/* 附近推薦區域 (真實圖資整合且完美修復橫向滾動截斷) */}
               {activeRecommendations.length > 0 && (
                 <section className="space-y-3">
-                  <h2 className="text-[13px] font-bold text-[#555] uppercase tracking-wider flex items-center gap-1.5 backdrop-blur-sm w-fit px-2 py-0.5 rounded-lg bg-white/20 shadow-[inset_0_1px_4px_rgba(255,255,255,0.4)]">
+                  <h2 className="text-[13px] font-bold text-[#555] uppercase tracking-wider flex items-center gap-1.5">
                     <svg className="w-4 h-4 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                     附近探索與精選名店
                   </h2>
@@ -1403,7 +996,7 @@ export default function App() {
                         </figure>
                         <article className='p-3 pt-2 space-y-1 relative'>
                           <p className="text-[11px] text-[#555] line-clamp-1 mt-0.5 font-medium">{rec.address}</p>
-                          <div className='flex gap-2 pt-2 transition-all duration-300'>
+                          <div className='flex gap-2 pt-2'>
                             <button onClick={() => dismissRecommendation(rec.id)} className="flex-1 py-2 text-[11px] font-bold text-[#555] hover:bg-black/5 bg-[#F5F5F7] rounded-xl transition-all active:scale-90">略過</button>
                             <button onClick={() => saveRecommendationWithAnimation(rec)} className="flex-1 py-2 text-[11px] font-bold text-white bg-[#0071E3] hover:bg-[#0071E3]/90 rounded-xl transition-all active:scale-90 flex items-center justify-center gap-1 shadow-sm">
                               實體化 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7"/></svg>
@@ -1417,12 +1010,9 @@ export default function App() {
                 </section>
               )}
 
-              {/* 🌟 餐廳列表 (全面恢復高對比度純白底，提升文字易讀性，且支援完美手感拖曳排序) */}
               <section className="space-y-4 pb-10 relative">
                 {isLoading ? (
-                  <div className="text-center py-10">
-                    <div className="w-6 h-6 border-2 border-black border-t-transparent rounded-full animate-spin mx-auto opacity-50"></div>
-                  </div>
+                  <div className="text-center py-10"><div className="w-6 h-6 border-2 border-black border-t-transparent rounded-full animate-spin mx-auto opacity-50"></div></div>
                 ) : displayRestaurants.length > 0 ? (
                   displayRestaurants.map((restaurant, index) => {
                     const recommenderHandle = restaurant.sourceAuthor || restaurant.recommendedBy?.replace('@', '') || "";
@@ -1430,52 +1020,22 @@ export default function App() {
                     const smartCategory = getSmartTag(restaurant.name, restaurant.category);
                     const isDraggingThis = draggingId === restaurant.id;
                     const isSystemRecommended = restaurant.recommendedBy === "系統探索" || restaurant.recommendedBy === "系統推薦";
-
-                    // 🌟 智慧推動特效位移 (當其他卡片被拖曳過來時，自動計算往上或往下推擠翻譯 %)
                     let translateY = 0;
                     if (dragState.draggingId && dragState.hoveredIndex !== -1 && !isDraggingThis) {
-                      const start = dragState.startIndex;
-                      const hover = dragState.hoveredIndex;
-                      if (start < hover && index > start && index <= hover) {
-                        translateY = -105; // 往前/往上擠開
-                      } else if (start > hover && index < start && index >= hover) {
-                        translateY = 105; // 往後/往下擠開
-                      }
+                      const start = dragState.startIndex; const hover = dragState.hoveredIndex;
+                      if (start < hover && index > start && index <= hover) translateY = -105;
+                      else if (start > hover && index < start && index >= hover) translateY = 105;
                     }
-
                     return (
-                      <div
-                        key={restaurant.id}
-                        data-sort-index={index}
-                        data-restaurant-id={restaurant.id}
-                        onPointerDown={(e) => handlePointerDown(e, restaurant, index)}
-                        className={`group select-none cursor-grab active:cursor-grabbing w-full`}
-                        style={{
-                          transform: isDraggingThis ? 'none' : `translate3d(0, ${translateY}%, 0)`,
-                          transition: isDraggingThis ? 'none' : 'transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.4s ease',
-                          touchAction: 'none',
-                          opacity: isDraggingThis ? 0.6 : 1
-                        }}
-                      >
-                        {/* 經典白底 bg-white 加上精細邊框高質感設計 */}
+                      <div key={restaurant.id} data-sort-index={index} data-restaurant-id={restaurant.id} onPointerDown={(e) => handlePointerDown(e, restaurant, index)} className="group select-none cursor-grab active:cursor-grabbing w-full" style={{ transform: isDraggingThis ? 'none' : `translate3d(0, ${translateY}%, 0)`, transition: isDraggingThis ? 'none' : 'transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.4s ease', touchAction: 'none', opacity: isDraggingThis ? 0.6 : 1 }}>
                         <div className={`p-2 bg-white rounded-[24px] border border-[#E5E5EA] shadow-sm transition-all duration-300 ${!isDraggingThis && 'hover:shadow-lg hover:scale-[1.01]'}`}>
-                          
                           <figure className='w-full h-56 relative overflow-hidden rounded-[18px] bg-black/5 pointer-events-none'>
                             <img draggable={false} src={getFoodImage(restaurant)} onError={handleImageError} alt={restaurant.name} className='w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 pointer-events-none' />
-                            <div className='absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 opacity-80 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none'></div>
+                            <div className='absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 opacity-80 pointer-events-none'></div>
                             <span className="absolute top-3 left-3 text-[10px] font-bold text-white bg-black/30 backdrop-blur-md px-2.5 py-1 rounded-md border border-white/20 shadow-sm z-10">{smartCategory}</span>
-                            
                             {restaurant.recommendedBy && (
-                              <a 
-                                href={recommenderUrl} 
-                                target="_blank" 
-                                rel="noopener noreferrer" 
-                                onClick={(e) => e.stopPropagation()} 
-                                className="absolute top-3 right-3 z-20 bg-white/95 backdrop-blur-md px-2.5 py-1.5 rounded-full flex items-center gap-1.5 text-[10px] font-bold text-neutral-900 shadow-md hover:scale-110 active:scale-90 transition-transform pointer-events-auto"
-                              >
-                                <div className="w-3.5 h-3.5 rounded-full bg-gradient-to-br from-purple-500 to-orange-400 flex items-center justify-center text-white text-[8px]">
-                                  {isSystemRecommended ? "F" : recommenderHandle.charAt(0).toUpperCase()}
-                                </div>
+                              <a href={recommenderUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="absolute top-3 right-3 z-20 bg-white/95 backdrop-blur-md px-2.5 py-1.5 rounded-full flex items-center gap-1.5 text-[10px] font-bold text-neutral-900 shadow-md hover:scale-110 active:scale-90 transition-transform pointer-events-auto">
+                                <div className="w-3.5 h-3.5 rounded-full bg-gradient-to-br from-purple-500 to-orange-400 flex items-center justify-center text-white text-[8px]">{isSystemRecommended ? "F" : recommenderHandle.charAt(0).toUpperCase()}</div>
                                 @{isSystemRecommended ? "fabrica_tw" : recommenderHandle}
                               </a>
                             )}
@@ -1487,7 +1047,6 @@ export default function App() {
                                </div>
                             </div>
                           </figure>
-
                           <article className='px-3 pt-3 pb-2 relative pointer-events-auto'>
                             {restaurant.note && <p className='text-[13px] text-neutral-850 font-medium leading-relaxed'>{restaurant.note}</p>}
                             <div className='flex justify-between items-center pt-3 mt-2 border-t border-neutral-100'>
@@ -1505,7 +1064,7 @@ export default function App() {
                   })
                 ) : (
                   <div className="text-center py-16 px-4 bg-white rounded-[24px] border border-[#E5E5EA]">
-                    <div className="w-16 h-16 bg-neutral-100 rounded-full mx-auto flex items-center justify-center mb-4 transition-transform hover:scale-110 active:scale-90">
+                    <div className="w-16 h-16 bg-neutral-100 rounded-full mx-auto flex items-center justify-center mb-4">
                       <svg className="w-8 h-8 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
                     </div>
                     <h3 className="text-neutral-900 font-bold mb-1">找不到相關餐廳</h3>
@@ -1514,7 +1073,6 @@ export default function App() {
                 )}
               </section>
 
-              {/* 🌟 登入後之 Fabrica 頁尾 */}
               <footer className="text-center text-xs text-[#86868B]/60 pt-8 pb-4 mix-blend-overlay">
                 <p className="font-black tracking-widest text-[11px] uppercase mb-1">FABRICA FOODIE</p>
                 <p className="font-semibold">© Fabrica All Rights Reserved.</p>
@@ -1524,32 +1082,18 @@ export default function App() {
         )}
       </div>
 
-      {/* ========================================== */}
-      {/* 🌟 彈出式視窗 (Modals) */}
-      {/* ========================================== */}
-
+      {/* Import Modal */}
       {showImportModal && (
-        <div className="fixed inset-0 z-[125] flex items-end sm:items-center justify-center px-0 sm:px-4 pb-0 sm:pb-10 transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)]">
+        <div className="fixed inset-0 z-[125] flex items-end sm:items-center justify-center px-0 sm:px-4 pb-0 sm:pb-10">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isImportingThread && setShowImportModal(false)} />
           <div className="relative w-full max-w-md bg-white/95 backdrop-blur-2xl rounded-t-[32px] sm:rounded-[32px] p-6 sm:p-8 shadow-2xl border border-white/50 max-h-[90vh] overflow-y-auto">
             <div className="w-12 h-1.5 bg-[#D2D2D7] rounded-full mx-auto mb-6 sm:hidden" />
             <div className="flex justify-between items-center mb-5">
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-wider text-[#86868B]">Threads Import</p>
-                <h2 className="text-xl font-bold text-black tracking-tight">貼文匯入美食庫</h2>
-              </div>
+              <div><p className="text-[11px] font-bold uppercase tracking-wider text-[#86868B]">Threads Import</p><h2 className="text-xl font-bold text-black tracking-tight">貼文匯入美食庫</h2></div>
               <button type="button" disabled={isImportingThread} onClick={() => setShowImportModal(false)} className="w-8 h-8 flex items-center justify-center bg-black/5 hover:bg-black/10 rounded-full text-[#555] transition-all active:scale-90 disabled:opacity-40"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"/></svg></button>
             </div>
             <form onSubmit={handleImportThreadText} className="space-y-4">
-              <textarea
-                value={importText}
-                onChange={(e) => setImportText(e.target.value)}
-                placeholder="貼上 Threads 貼文文字、心得、店名，或貼文連結。例：台北中山這家布丁咖啡超值得收藏..."
-                className="w-full bg-black/5 text-sm font-bold rounded-xl py-3.5 px-4 border border-transparent focus:bg-white focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all min-h-[180px] resize-none shadow-inner"
-              />
-              <p className="text-xs font-medium leading-relaxed text-[#666]">
-                Meta App 還沒 Live 前，可以先用這個匯入流程測產品。系統會先保留原文，地址與店家狀態標成待確認。
-              </p>
+              <textarea value={importText} onChange={(e) => setImportText(e.target.value)} placeholder="貼上 Threads 貼文文字、心得、店名，或貼文連結。" className="w-full bg-black/5 text-sm font-bold rounded-xl py-3.5 px-4 border border-transparent focus:bg-white focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all min-h-[180px] resize-none shadow-inner" />
               <button type="submit" disabled={isImportingThread} className="w-full bg-black/90 text-white font-bold py-4 rounded-xl mt-4 hover:bg-black active:scale-[0.98] transition-all shadow-xl disabled:opacity-60">
                 {isImportingThread ? "分析並匯入中..." : "分析並存進美食庫"}
               </button>
@@ -1558,6 +1102,7 @@ export default function App() {
         </div>
       )}
 
+      {/* Add Modal */}
       {showAddModal && (
         <div className={`fixed inset-0 z-[120] flex items-end sm:items-center justify-center px-0 sm:px-4 pb-0 sm:pb-10 transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isClosingModal ? 'opacity-0' : 'opacity-100'}`}>
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeAddModal} />
@@ -1568,34 +1113,26 @@ export default function App() {
               <button onClick={closeAddModal} className="w-8 h-8 flex items-center justify-center bg-black/5 hover:bg-black/10 rounded-full text-[#555] transition-all active:scale-90"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"/></svg></button>
             </div>
             <form onSubmit={handleAddRestaurant} className="space-y-4">
-              
-              {/* 🌟 店名輸入框以及對其完美的建議選單 */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-[#86868B] ml-1 uppercase tracking-wider">店名 *</label>
-                {/* 🌟 修正：店名包裹一層 relative，徹底解決下拉選單在不同解析度下偏左與未對齊的痛點 */}
                 <div className="relative w-full">
-                  {/* 🌟 修正：移除 required 屬性，防止沙盒 iframe 導致 silent-block！由 JS 前端手工驗證防禦 */}
                   <input type="text" placeholder="例如：詹記麻辣火鍋" value={newRestName} onChange={(e) => { setNewRestName(e.target.value); setIsTypingName(true); }} className="w-full bg-black/5 text-sm font-bold rounded-xl py-3.5 px-4 border border-transparent focus:bg-white focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all shadow-inner" />
                   {isTypingName && (nameSuggestions.length > 0 || isSearchingPlaces) && (
-                    // 🌟 修正：設定寬度 w-full、文字置中 text-center，並使用全新的 animate-dropdown-in 替代原本帶有 translate(-50%) 的動畫！
                     <div className="absolute top-full left-0 mt-1 w-full bg-white/95 backdrop-blur-xl rounded-xl shadow-2xl border border-black/10 overflow-hidden z-50 max-h-48 overflow-y-auto animate-dropdown-in">
-                      {isSearchingPlaces ? (
-                         <div className="p-3 text-xs text-center text-[#86868B] animate-pulse">搜尋地圖座標中...</div>
-                      ) : (
-                         nameSuggestions.map(place => (
-                           <div key={place.place_id || place.osm_id || Math.random().toString()} onClick={() => handleSelectSuggestion(place)} className="p-3 hover:bg-black/5 cursor-pointer border-b border-black/5 last:border-0 transition-all text-center">
-                             <div className="font-bold text-sm text-[#1D1D1F]">{place.name || place.display_name.split(',')[0]}</div>
-                             <div className="text-[11px] text-[#86868B] mt-0.5 line-clamp-1 font-medium">{place.display_name}</div>
-                           </div>
-                         ))
-                      )}
+                      {isSearchingPlaces ? <div className="p-3 text-xs text-center text-[#86868B] animate-pulse">搜尋地圖座標中...</div>
+                        : nameSuggestions.map(place => (
+                          <div key={place.place_id || Math.random()} onClick={() => handleSelectSuggestion(place)} className="p-3 hover:bg-black/5 cursor-pointer border-b border-black/5 last:border-0 transition-all text-center">
+                            <div className="font-bold text-sm text-[#1D1D1F]">{place.name || place.display_name.split(',')[0]}</div>
+                            <div className="text-[11px] text-[#86868B] mt-0.5 line-clamp-1 font-medium">{place.display_name}</div>
+                          </div>
+                        ))
+                      }
                     </div>
                   )}
                 </div>
               </div>
-
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#86868B] ml-1 uppercase tracking-wider">分類 (系統將智慧修正)</label>
+                <label className="text-xs font-bold text-[#86868B] ml-1 uppercase tracking-wider">分類</label>
                 <input type="text" placeholder="例如：日式甜點 • 咖啡廳" value={newRestCategory} onChange={(e) => setNewRestCategory(e.target.value)} className="w-full bg-black/5 text-sm font-bold rounded-xl py-3.5 px-4 border border-transparent focus:bg-white focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all shadow-inner" />
               </div>
               <div className="space-y-1.5">
@@ -1603,20 +1140,15 @@ export default function App() {
                 <input type="text" placeholder="例如：台北市中山區" value={newRestAddress} onChange={(e) => setNewRestAddress(e.target.value)} className="w-full bg-black/5 text-sm font-bold rounded-xl py-3.5 px-4 border border-transparent focus:bg-white focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all shadow-inner" />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#86868B] ml-1 uppercase tracking-wider">推薦人 (Threads 帳號)</label>
+                <label className="text-xs font-bold text-[#86868B] ml-1 uppercase tracking-wider">推薦人</label>
                 <div className="relative group">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-[#86868B] group-focus-within:text-black transition-colors">@</span>
                   <input type="text" placeholder="推薦人帳號" value={newRestRecommender} onChange={(e) => setNewRestRecommender(e.target.value)} className="w-full bg-black/5 text-sm font-bold rounded-xl py-3.5 pl-9 pr-4 border border-transparent focus:bg-white focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all shadow-inner" />
                 </div>
               </div>
               <div className="space-y-1.5 pt-2">
-                <div className="flex justify-between items-center ml-1">
-                  <label className="text-xs font-bold text-[#86868B] uppercase tracking-wider">筆記與短評</label>
-                  <span className="text-[10px] font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#0071E3] to-[#A334FA] flex items-center gap-1">
-                    <svg className="w-3 h-3 text-[#0071E3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>空白時由 AI 自動產生
-                  </span>
-                </div>
-                <textarea placeholder="寫下你想記住的餐點或特色，或是留白讓 Fabrica AI 幫你總結網路評價..." value={newRestNote} onChange={(e) => setNewRestNote(e.target.value)} className="w-full bg-black/5 text-sm font-bold rounded-xl py-3.5 px-4 border border-transparent focus:bg-white focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all min-h-[100px] resize-none shadow-inner" />
+                <label className="text-xs font-bold text-[#86868B] uppercase tracking-wider ml-1">筆記與短評</label>
+                <textarea placeholder="寫下你想記住的餐點或特色，或留白讓 AI 幫你總結..." value={newRestNote} onChange={(e) => setNewRestNote(e.target.value)} className="w-full bg-black/5 text-sm font-bold rounded-xl py-3.5 px-4 border border-transparent focus:bg-white focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all min-h-[100px] resize-none shadow-inner" />
               </div>
               <button type="submit" className="w-full bg-black/90 text-white font-bold py-4 rounded-xl mt-4 hover:bg-black active:scale-[0.98] transition-all shadow-xl">儲存至地圖</button>
             </form>
@@ -1624,10 +1156,10 @@ export default function App() {
         </div>
       )}
 
-      {/* 🌟 餐廳詳細資訊 Modal (Blur Vignette 精緻套用) */}
+      {/* Restaurant detail modal */}
       {selectedRestaurant && !isGlobalTransitioning && (
         <div className="fixed inset-0 z-[130] flex items-center justify-center px-4 bg-black/50 backdrop-blur-md animate-fade-in" onClick={() => setSelectedRestaurant(null)}>
-          <div className="bg-white/95 backdrop-blur-3xl w-full max-w-sm rounded-[32px] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.3)] relative animate-bounce-in max-h-[85vh] flex flex-col border border-white/50 animate-fade-in" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white/95 backdrop-blur-3xl w-full max-w-sm rounded-[32px] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.3)] relative animate-bounce-in max-h-[85vh] flex flex-col border border-white/50" onClick={(e) => e.stopPropagation()}>
             <button onClick={() => setSelectedRestaurant(null)} className="absolute top-4 right-4 z-30 w-8 h-8 bg-black/40 backdrop-blur-md text-white rounded-full flex items-center justify-center hover:bg-black/60 transition-all active:scale-90">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
@@ -1645,12 +1177,11 @@ export default function App() {
                 <span className="leading-relaxed text-neutral-800">{selectedRestaurant.address}</span>
               </div>
               <div>
-                <h4 className="text-[11px] font-bold text-neutral-500 uppercase tracking-wider mb-2.5 flex items-center gap-1.5"><svg className="w-3.5 h-3.5 text-[#0071E3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>筆記與 AI 短評</h4>
+                <h4 className="text-[11px] font-bold text-neutral-500 uppercase tracking-wider mb-2.5">筆記與 AI 短評</h4>
                 <p className="text-[14px] text-neutral-900 font-medium leading-loose break-words whitespace-pre-wrap pl-1">{selectedRestaurant.note || "尚無筆記。"}</p>
               </div>
             </div>
             <div className="p-5 bg-white/80 backdrop-blur-xl border-t border-black/5 flex-shrink-0">
-              {/* 查看地點按鈕改用極高質感的 LiquidGlassCard 套件 */}
               <LiquidGlassCard onClick={() => window.open(getFreeMapAppUrl(selectedRestaurant.name, selectedRestaurant.address), "_blank")} className="w-full flex items-center justify-center gap-2 py-4 bg-black/95 text-white font-bold rounded-2xl shadow-xl active:scale-[0.95]">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
                 查看地點
@@ -1660,33 +1191,34 @@ export default function App() {
         </div>
       )}
 
+      {/* Shared item modal */}
       {isLoggedIn && sharedItem && !isGlobalTransitioning && (
         <div className="fixed inset-0 z-[140] flex items-center justify-center px-4 bg-black/60 backdrop-blur-md animate-fade-in">
           <div className="bg-white/95 backdrop-blur-3xl w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl relative scale-100 animate-bounce-in border border-white/50">
             <BlurVignette blur="15px" className="h-56 w-full relative">
               <img src={getFoodImage(sharedItem)} onError={handleImageError} className="w-full h-full object-cover" alt="food" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 z-10"></div>
-              <div className="absolute top-4 left-4 z-20 bg-black/50 backdrop-blur-xl text-white text-[10px] font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 tracking-wider shadow-sm border border-white/20"><svg className="w-3.5 h-3.5 text-[#34C759]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>SHARED • 好友私藏推薦</div>
-              <div className="absolute bottom-4 left-5 right-5 z-20"><span className="text-[10px] font-bold text-white bg-white/20 backdrop-blur-md px-2.5 py-1 rounded-md inline-block mb-1 border border-white/20">{getSmartTag(sharedItem.name, sharedItem.category)}</span><h2 className="text-2xl font-bold text-white leading-tight drop-shadow-md">{sharedItem.name}</h2></div>
+              <div className="absolute bottom-4 left-5 right-5 z-20"><h2 className="text-2xl font-bold text-white leading-tight drop-shadow-md">{sharedItem.name}</h2></div>
             </BlurVignette>
             <div className="p-6">
-              <div className="flex items-start gap-1.5 text-xs font-medium text-[#555] mb-5 bg-black/5 p-2 rounded-lg"><svg className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#0071E3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3" strokeWidth="2"/></svg><span className="line-clamp-2 leading-relaxed">{sharedItem.address}</span></div>
-              {sharedItem.note && <div className="bg-black/5 p-4 rounded-2xl mb-6 border border-black/5 shadow-inner"><p className="text-[13px] text-[#222] font-medium leading-relaxed break-words relative pl-3"><span className="absolute left-0 top-0 text-[#888] text-lg font-serif">"</span>{sharedItem.note}</p></div>}
-              <div className="flex items-center gap-2 text-xs font-bold text-[#888] mb-6 w-full justify-center">
-                 <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-orange-400 flex items-center justify-center text-white text-[11px] shadow-sm transform hover:scale-110 transition-transform">
-                   {sharedItem.recommendedBy.charAt(0).toUpperCase()}
-                 </div>這間店由 <span className="text-black">@{sharedItem.recommendedBy}</span> 推薦給您
-              </div>
               <div className="flex gap-3">
-                <button onClick={clearSharedItem} className="flex-[1] py-3.5 bg-black/5 text-[#555] hover:bg-black/10 hover:text-black font-bold rounded-xl transition-all active:scale-95 text-sm">沒興趣</button>
-                <button onClick={handleAcceptShared} className="flex-[2] py-3.5 bg-[#1D1D1F] text-white font-bold rounded-xl hover:bg-black transition-all shadow-xl active:scale-95 text-sm flex items-center justify-center gap-2"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4"/></svg>收下名單</button>
+                <button onClick={clearSharedItem} className="flex-[1] py-3.5 bg-black/5 text-[#555] font-bold rounded-xl transition-all active:scale-95 text-sm">沒興趣</button>
+                <button onClick={async () => {
+                  if (!sharedItem) return;
+                  const smartCategory = getSmartTag(sharedItem.name, sharedItem.category);
+                  const aiNote = await generateAIReview(sharedItem.name, sharedItem.address);
+                  const finalNote = aiNote || sharedItem.note;
+                  const userLibraryId = getUserLibraryId();
+                  await addDoc(collection(db, 'artifacts', appId, 'users', userLibraryId, 'restaurants'), { name: sharedItem.name, address: sharedItem.address, category: smartCategory, note: finalNote, recommendedBy: sharedItem.recommendedBy.replace("@","").trim(), savedAt: serverTimestamp() });
+                  setToastMessage(`🎉 成功收藏 ${sharedItem.name}！`); setTimeout(() => setToastMessage(""), 3000); clearSharedItem();
+                }} className="flex-[2] py-3.5 bg-[#1D1D1F] text-white font-bold rounded-xl transition-all active:scale-95 text-sm">收下名單</button>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* 全域 Toast 通知 */}
+      {/* Toast */}
       {toastMessage && (
         <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[150] animate-fade-in-up pointer-events-none">
           <div className="bg-black/80 backdrop-blur-xl text-white px-5 py-3.5 rounded-full shadow-2xl flex items-center gap-2.5 border border-white/20">
@@ -1705,20 +1237,12 @@ export default function App() {
         .animate-fade-in-up { animation: fade-in-up 0.5s cubic-bezier(0.2,0.8,0.2,1) forwards; }
         @keyframes bounce-in { 0% { opacity: 0; transform: scale(0.9) translateY(10px); } 60% { opacity: 1; transform: scale(1.02) translateY(-2px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
         .animate-bounce-in { animation: bounce-in 0.6s cubic-bezier(0.2,0.8,0.2,1) forwards; }
-        
         @keyframes marquee-up { 0% { transform: translateX(0%); } 100% { transform: translateX(-50%); } }
         @keyframes marquee-down { 0% { transform: translateX(-50%); } 100% { transform: translateX(0%); } }
         .animate-marquee-up { animation: marquee-up 12s linear infinite; }
         .animate-marquee-down { animation: marquee-down 12s linear infinite; }
-
-        /* 🌟 專屬下拉選單進場動畫：移除 translateX 的 -50%，完美防止向左偏移 cut off 的問題 */
-        @keyframes dropdown-in {
-          from { opacity: 0; transform: translateY(10px) scale(0.98); }
-          to { opacity: 1; transform: translateY(0) scale(1); }
-        }
-        .animate-dropdown-in {
-          animation: dropdown-in 0.25s cubic-bezier(0.2,0.8,0.2,1) forwards;
-        }
+        @keyframes dropdown-in { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        .animate-dropdown-in { animation: dropdown-in 0.25s cubic-bezier(0.2,0.8,0.2,1) forwards; }
       `}</style>
     </div>
   );
