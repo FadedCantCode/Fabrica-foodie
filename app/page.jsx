@@ -1043,7 +1043,7 @@ export default function App() {
                           <div className='flex gap-2 pt-2'>
                             <button onClick={() => dismissRecommendation(rec.id)} className="flex-1 py-2 text-[11px] font-bold text-[#555] hover:bg-black/5 bg-[#F5F5F7] rounded-xl transition-all active:scale-90">略過</button>
                             <button onClick={() => saveRecommendationWithAnimation(rec)} className="flex-1 py-2 text-[11px] font-bold text-white bg-[#0071E3] hover:bg-[#0071E3]/90 rounded-xl transition-all active:scale-90 flex items-center justify-center gap-1 shadow-sm">
-                              實體化 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7"/></svg>
+                              加入<svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7"/></svg>
                             </button>
                           </div>
                         </article>
