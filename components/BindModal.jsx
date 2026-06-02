@@ -1,0 +1,125 @@
+"use client";
+
+import React from 'react';
+import { FABRICA_THREADS_HANDLE } from '../lib/firebase';
+import { AppleButton, SuccessCheck, StepPips, ModalSheet } from './ui';
+
+export default function BindModal({ show, onClose, firebaseUser }) {
+  const [bindUsername, setBindUsername] = React.useState("");
+  const [bindCode, setBindCode] = React.useState("");
+  const [bindStep, setBindStep] = React.useState("idle");
+  const [bindError, setBindError] = React.useState("");
+
+  const handleGenerateCode = (e) => {
+    e.preventDefault();
+    const clean = bindUsername.replace("@", "").trim().toLowerCase();
+    if (!clean) { setBindError("請輸入您的 Threads 帳號"); return; }
+    const code = `FAB-${Math.floor(1000 + Math.random() * 9000)}`;
+    setBindCode(code); setBindError(""); setBindStep("code_shown");
+  };
+
+  const handleVerify = async (e) => {
+    e.preventDefault();
+    const clean = bindUsername.replace("@", "").trim().toLowerCase();
+    if (!clean || !bindCode) return;
+    setBindStep("verifying"); setBindError("");
+    try {
+      const res = await fetch("/api/verify-crawler", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: clean, expectedCode: bindCode, uid: firebaseUser?.uid }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.success) {
+        if (typeof window !== "undefined") window.localStorage.setItem("fabrica_threads_username", clean);
+        setBindStep("done");
+        setTimeout(() => { onClose(clean); setBindStep("idle"); setBindUsername(""); setBindCode(""); }, 2200);
+      } else {
+        setBindStep("code_shown");
+        setBindError(data.message || "驗證失敗，請稍後再試。");
+      }
+    } catch {
+      setBindStep("code_shown");
+      setBindError("網路錯誤，請確認連線後再試。");
+    }
+  };
+
+  return (
+    <ModalSheet show={show} onClose={() => onClose(null)} zIndex={130} disableClose={bindStep === "verifying"}>
+      <div className="p-6 sm:p-8">
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-[#86868B]">綁定 Threads</p>
+            <h2 className="text-xl font-bold text-black tracking-tight mt-0.5">連結你的 Threads 帳號</h2>
+          </div>
+          <AppleButton onClick={() => onClose(null)}
+            className="w-8 h-8 flex items-center justify-center bg-black/5 hover:bg-black/10 rounded-full text-[#555]">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+          </AppleButton>
+        </div>
+
+        <StepPips currentStep={bindStep} />
+
+        <div className="space-y-4">
+          {bindStep === "idle" && (
+            <form onSubmit={handleGenerateCode} className="space-y-4 animate-fade-in">
+              <p className="text-xs text-[#666] font-medium leading-relaxed bg-black/5 p-3 rounded-xl">
+                綁定後，無論你用 Google 或 Threads 登入，都會進到同一個美食庫。
+              </p>
+              <div className="relative flex items-center w-full group">
+                <span className="absolute left-5 top-1/2 -translate-y-1/2 text-base font-semibold text-[#86868B] group-focus-within:text-black transition-colors">@</span>
+                <input type="text" placeholder="輸入 Threads 帳號" value={bindUsername}
+                  onChange={(e) => setBindUsername(e.target.value.replace("@", ""))}
+                  className="w-full bg-black/5 text-sm font-bold rounded-2xl py-4 pl-12 pr-5 border border-transparent focus:bg-white focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all duration-300"/>
+              </div>
+              {bindError && <p className="text-xs font-bold text-[#FF3B30] animate-shake">{bindError}</p>}
+              <AppleButton type="submit" dark className="w-full h-14 bg-black text-white font-bold rounded-2xl text-sm shadow-lg">
+                產生驗證碼
+              </AppleButton>
+            </form>
+          )}
+
+          {bindStep === "code_shown" && (
+            <form onSubmit={handleVerify} className="space-y-4 animate-fade-in">
+              <div className="rounded-2xl border border-black/10 bg-white/80 p-4 space-y-3">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-[#86868B]">到 Threads 發布以下公開貼文</p>
+                <div className="rounded-xl bg-black px-4 py-3 font-mono text-sm font-bold text-white text-center select-all tracking-wide">
+                  {FABRICA_THREADS_HANDLE} verify {bindCode}
+                </div>
+                <p className="text-xs text-[#666] leading-relaxed font-medium">
+                  複製上方文字，到 Threads 發文（需設為<strong>公開貼文</strong>）。
+                </p>
+              </div>
+              <AppleButton type="button" onClick={() => navigator.clipboard?.writeText(`${FABRICA_THREADS_HANDLE} verify ${bindCode}`)}
+                className="w-full h-10 rounded-xl border border-black/10 bg-white/60 text-xs font-bold text-[#555] hover:bg-white transition-colors">
+                複製驗證文字
+              </AppleButton>
+              {bindError && <p className="text-xs font-bold text-[#FF3B30] whitespace-pre-line animate-shake">{bindError}</p>}
+              <AppleButton type="submit" dark className="w-full h-14 bg-black text-white font-bold rounded-2xl text-sm shadow-lg">
+                我已發文，完成綁定
+              </AppleButton>
+              <AppleButton type="button" onClick={() => { setBindStep("idle"); setBindError(""); }}
+                className="w-full text-xs font-semibold text-[#86868B] hover:text-black py-2 transition-colors">
+                ← 重新輸入帳號
+              </AppleButton>
+            </form>
+          )}
+
+          {bindStep === "verifying" && (
+            <div className="flex flex-col items-center gap-4 py-10 animate-fade-in">
+              <div className="w-10 h-10 rounded-full border-2 border-black border-t-transparent animate-spin"/>
+              <p className="text-sm font-bold text-black">正在驗證中...</p>
+            </div>
+          )}
+
+          {bindStep === "done" && (
+            <div className="flex flex-col items-center gap-4 py-10 animate-bounce-in">
+              <SuccessCheck/>
+              <p className="text-sm font-bold text-black">@{bindUsername} 已成功綁定！</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </ModalSheet>
+  );
+}

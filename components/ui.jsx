@@ -1,0 +1,248 @@
+"use client";
+
+import React, { useState, useEffect, useRef } from 'react';
+import * as THREE from 'three';
+
+// ─── CSS Animations (inject once) ────────────────────────────────────────────
+export const GlobalStyles = () => (
+  <style>{`
+    .scrollbar-hide::-webkit-scrollbar{display:none}
+    .scrollbar-hide{-ms-overflow-style:none;scrollbar-width:none}
+
+    /* Fade */
+    @keyframes fade-in{from{opacity:0}to{opacity:1}}
+    .animate-fade-in{animation:fade-in 0.5s cubic-bezier(0.2,0.8,0.2,1) forwards}
+
+    /* Fade up (toast) */
+    @keyframes fade-in-up{from{opacity:0;transform:translate(-50%,20px) scale(0.95)}to{opacity:1;transform:translate(-50%,0) scale(1)}}
+    .animate-fade-in-up{animation:fade-in-up 0.5s cubic-bezier(0.2,0.8,0.2,1) forwards}
+
+    /* Bounce in */
+    @keyframes bounce-in{0%{opacity:0;transform:scale(0.88) translateY(14px)}60%{opacity:1;transform:scale(1.03) translateY(-3px)}100%{opacity:1;transform:scale(1) translateY(0)}}
+    .animate-bounce-in{animation:bounce-in 0.6s cubic-bezier(0.2,0.8,0.2,1) forwards}
+
+    /* Slide up (modal) */
+    @keyframes slide-up{from{opacity:0;transform:translateY(40px) scale(0.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+    .animate-slide-up{animation:slide-up 0.45s cubic-bezier(0.2,0.8,0.2,1) forwards}
+
+    /* Marquee */
+    @keyframes marquee-up{0%{transform:translateX(0%)}100%{transform:translateX(-50%)}}
+    @keyframes marquee-down{0%{transform:translateX(-50%)}100%{transform:translateX(0%)}}
+    .animate-marquee-up{animation:marquee-up 12s linear infinite}
+    .animate-marquee-down{animation:marquee-down 12s linear infinite}
+
+    /* Dropdown */
+    @keyframes dropdown-in{from{opacity:0;transform:translateY(8px) scale(0.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+    .animate-dropdown-in{animation:dropdown-in 0.22s cubic-bezier(0.2,0.8,0.2,1) forwards}
+
+    /* Ripple */
+    @keyframes ripple{0%{transform:scale(0);opacity:0.6}100%{transform:scale(4.5);opacity:0}}
+    .animate-ripple{animation:ripple 0.55s cubic-bezier(0.2,0.8,0.2,1) forwards}
+
+    /* Success pop */
+    @keyframes success-pop{0%{transform:scale(0);opacity:0}55%{transform:scale(1.22)}100%{transform:scale(1);opacity:1}}
+    .animate-success-pop{animation:success-pop 0.5s cubic-bezier(0.2,0.8,0.2,1) forwards}
+
+    /* Check draw */
+    @keyframes check-draw{from{stroke-dashoffset:30}to{stroke-dashoffset:0}}
+    .animate-check-path{stroke-dasharray:30;stroke-dashoffset:30;animation:check-draw 0.38s 0.18s cubic-bezier(0.2,0.8,0.2,1) forwards}
+
+    /* Shake (error) */
+    @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+    .animate-shake{animation:shake 0.4s cubic-bezier(0.2,0.8,0.2,1)}
+
+    /* Pulse badge */
+    @keyframes pulse-badge{0%,100%{opacity:1}50%{opacity:0.6}}
+    .animate-pulse-badge{animation:pulse-badge 2s ease-in-out infinite}
+
+    /* Card appear */
+    @keyframes card-appear{from{opacity:0;transform:translateY(20px) scale(0.96)}to{opacity:1;transform:translateY(0) scale(1)}}
+    .animate-card-appear{animation:card-appear 0.5s cubic-bezier(0.2,0.8,0.2,1) both}
+  `}</style>
+);
+
+// ─── AppleButton — ripple + scale on every tap ────────────────────────────────
+export const AppleButton = ({
+  children, onClick, className, type = "button",
+  disabled = false, dark = false, onAnimationEnd
+}) => {
+  const [ripples, setRipples] = useState([]);
+  const handleClick = (e) => {
+    if (disabled) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const id = Date.now();
+    setRipples(prev => [...prev, { x: e.clientX - rect.left, y: e.clientY - rect.top, id }]);
+    setTimeout(() => setRipples(prev => prev.filter(r => r.id !== id)), 600);
+    onClick?.(e);
+  };
+  return (
+    <button type={type} disabled={disabled} onClick={handleClick} onAnimationEnd={onAnimationEnd}
+      className={`relative overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] active:scale-[0.95] disabled:opacity-40 disabled:cursor-not-allowed select-none ${className}`}>
+      {ripples.map(r => (
+        <span key={r.id}
+          className={`absolute rounded-full animate-ripple pointer-events-none ${dark ? 'bg-white/25' : 'bg-black/10'}`}
+          style={{ left: r.x - 40, top: r.y - 40, width: 80, height: 80 }} />
+      ))}
+      {children}
+    </button>
+  );
+};
+
+// ─── LiquidGlassCard — frosted glass tap card ────────────────────────────────
+export const LiquidGlassCard = ({ children, className, onClick, disabled }) => (
+  <div onClick={disabled ? undefined : onClick}
+    className={`relative overflow-hidden bg-white/40 backdrop-blur-2xl border border-white/50 rounded-[24px]
+      transition-all duration-500 ease-[cubic-bezier(0.25,1,0.5,1)]
+      ${disabled ? 'opacity-40 cursor-not-allowed' : 'active:scale-[0.96] cursor-pointer hover:scale-[1.02]'} ${className}`}
+    style={{ boxShadow: "inset 0 0 15px rgba(255,255,255,0.6), 0 8px 32px 0 rgba(0,0,0,0.06)" }}>
+    <div className="absolute inset-0 pointer-events-none rounded-[24px] border border-white/40 mix-blend-overlay" />
+    {children}
+  </div>
+);
+
+// ─── SuccessCheck ─────────────────────────────────────────────────────────────
+export const SuccessCheck = () => (
+  <div className="w-16 h-16 rounded-full bg-[#34C759] flex items-center justify-center animate-success-pop shadow-[0_0_30px_rgba(52,199,89,0.45)]">
+    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 13l4 4L19 7" className="animate-check-path" />
+    </svg>
+  </div>
+);
+
+// ─── GooeyLoader ─────────────────────────────────────────────────────────────
+export const GooeyLoader = () => (
+  <div className="relative w-[260px] h-[260px] flex items-center justify-center">
+    <style>{`.blobs2{width:260px;height:260px;position:absolute;overflow:hidden;border-radius:60px;filter:url(#goo2)}.blobs2 .bc{position:absolute;background:#1D1D1F;top:50%;left:50%;width:28px;height:28px;transform-origin:left top;transform:scale(0.9) translate(-50%,-50%);animation:bg2 linear 3.4s infinite;border-radius:50%;box-shadow:0 -10px 40px -5px #1D1D1F}.blobs2 .b{position:absolute;background:#1D1D1F;top:50%;left:50%;width:28px;height:28px;border-radius:50%;animation:bl2 ease-out 3.4s infinite;transform:scale(0.9) translate(-50%,-50%);transform-origin:center top;opacity:0}.blobs2 .b:nth-child(2){animation-delay:.2s}.blobs2 .b:nth-child(3){animation-delay:.4s}.blobs2 .b:nth-child(4){animation-delay:.6s}.blobs2 .b:nth-child(5){animation-delay:.8s}.blobs2 .b:nth-child(6){animation-delay:1s}@keyframes bl2{0%{opacity:0;transform:scale(0) translate(calc(-300px - 50%),-50%)}1%{opacity:1}35%,65%{opacity:1;transform:scale(0.9) translate(-50%,-50%)}99%{opacity:1}100%{opacity:0;transform:scale(0) translate(calc(300px - 50%),-50%)}}@keyframes bg2{0%,39%{transform:scale(0) translate(-50%,-50%)}52%{transform:scale(1.5,1.4) translate(-50%,-50%)}68%,70%{transform:scale(1.7,1.5) translate(-50%,-50%)}92%,100%{transform:scale(0) translate(-50%,-50%)}}`}</style>
+    <div className="blobs2"><div className="bc"/><div className="b"/><div className="b"/><div className="b"/><div className="b"/><div className="b"/></div>
+    <svg xmlns="http://www.w3.org/2000/svg" className="hidden absolute"><defs><filter id="goo2"><feGaussianBlur in="SourceGraphic" stdDeviation="9" result="blur"/><feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7" result="goo"/><feBlend in="SourceGraphic" in2="goo"/></filter></defs></svg>
+  </div>
+);
+
+// ─── BlurVignette ─────────────────────────────────────────────────────────────
+export const BlurVignette = ({ children, className, blur = '35px' }) => (
+  <div className={`relative ${className}`}>
+    {children}
+    <div className="absolute inset-0 pointer-events-none z-10"
+      style={{ boxShadow: `inset 0 0 150px 65px rgba(0,0,0,0.96)`, backdropFilter: `blur(${blur})`, maskImage: `radial-gradient(circle at center, transparent 25%, black 90%)`, WebkitMaskImage: `radial-gradient(circle at center, transparent 25%, black 90%)` }} />
+  </div>
+);
+
+// ─── VerticalMarquee ─────────────────────────────────────────────────────────
+export const VerticalMarquee = ({ direction = "up", text = "WELCOME TO FOODIE" }) => (
+  <div className="relative w-16 h-screen overflow-hidden flex justify-center items-center select-none bg-black/[0.02]">
+    <div className="absolute w-[400vh] flex items-center justify-center rotate-90">
+      <div className={`flex gap-16 whitespace-nowrap text-black font-black text-4xl md:text-5xl tracking-[0.3em] will-change-transform ${direction === "up" ? "animate-marquee-up" : "animate-marquee-down"}`}>
+        {Array(15).fill(text).map((t, i) => <span key={i}>{t}</span>)}
+      </div>
+    </div>
+  </div>
+);
+
+// ─── StepPips ─────────────────────────────────────────────────────────────────
+export const StepPips = ({ currentStep }) => {
+  const steps = ["輸入帳號", "發文驗證", "確認身分"];
+  const stepIndex = currentStep === "idle" ? 0 : currentStep === "code_shown" ? 1 : 2;
+  return (
+    <div className="flex items-center justify-center gap-2 mb-5">
+      {steps.map((label, i) => (
+        <React.Fragment key={label}>
+          <div className="flex flex-col items-center gap-1">
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold
+              transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)]
+              ${i < stepIndex ? "bg-[#34C759] text-white scale-100" : i === stepIndex ? "bg-black text-white scale-110 shadow-[0_0_12px_rgba(0,0,0,0.2)]" : "bg-black/10 text-[#86868B]"}`}>
+              {i < stepIndex
+                ? <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg>
+                : i + 1}
+            </div>
+            <span className={`text-[9px] font-semibold transition-colors duration-300 ${i === stepIndex ? "text-black" : "text-[#86868B]"}`}>{label}</span>
+          </div>
+          {i < steps.length - 1 && (
+            <div className={`h-px w-8 mb-4 transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${i < stepIndex ? "bg-[#34C759]" : "bg-black/10"}`} />
+          )}
+        </React.Fragment>
+      ))}
+    </div>
+  );
+};
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+export const Toast = ({ message, type = "success" }) => {
+  if (!message) return null;
+  const colors = {
+    success: "bg-black/80",
+    error: "bg-[#FF3B30]/80",
+    info: "bg-black/70",
+  };
+  const icons = {
+    success: <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg>,
+    error: <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12"/></svg>,
+    info: <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M13 16h-1v-4h-1m1-4h.01"/></svg>,
+  };
+  const iconBg = {
+    success: "bg-[#34C759] shadow-[0_0_10px_rgba(52,199,89,0.5)]",
+    error: "bg-white/30",
+    info: "bg-white/20",
+  };
+  return (
+    <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[150] animate-fade-in-up pointer-events-none">
+      <div className={`${colors[type]} backdrop-blur-xl text-white px-5 py-3.5 rounded-full shadow-2xl flex items-center gap-2.5 border border-white/20`}>
+        <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${iconBg[type]}`}>
+          {icons[type]}
+        </div>
+        <span className="text-sm font-bold tracking-wide">{message}</span>
+      </div>
+    </div>
+  );
+};
+
+// ─── ModalSheet — bottom sheet / centered modal ───────────────────────────────
+export const ModalSheet = ({ show, onClose, children, zIndex = 120, disableClose = false }) => {
+  const [closing, setClosing] = useState(false);
+  const handleClose = () => {
+    if (disableClose) return;
+    setClosing(true);
+    setTimeout(() => { setClosing(false); onClose(); }, 380);
+  };
+  if (!show) return null;
+  return (
+    <div className={`fixed inset-0 z-[${zIndex}] flex items-end sm:items-center justify-center px-0 sm:px-4 pb-0 sm:pb-10 animate-fade-in`}>
+      <div className="absolute inset-0 bg-black/45 backdrop-blur-sm" onClick={handleClose} />
+      <div className={`relative w-full max-w-md bg-white/95 backdrop-blur-2xl rounded-t-[32px] sm:rounded-[32px] shadow-2xl border border-white/50 max-h-[92vh] overflow-y-auto
+        transition-all duration-400 ease-[cubic-bezier(0.2,0.8,0.2,1)]
+        ${closing ? 'translate-y-full sm:translate-y-8 sm:scale-95 blur-sm opacity-0' : 'translate-y-0 sm:scale-100 opacity-100 animate-slide-up'}`}>
+        <div className="w-12 h-1.5 bg-[#D2D2D7] rounded-full mx-auto mt-4 mb-2 sm:hidden" />
+        {children}
+      </div>
+    </div>
+  );
+};
+
+// ─── ColorfulBackground (Three.js shader) ────────────────────────────────────
+export const ColorfulBackground = ({ show }) => {
+  const containerRef = useRef(null);
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const container = containerRef.current;
+    const scene = new THREE.Scene();
+    const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    container.appendChild(renderer.domElement);
+    const uniforms = { u_time: { value: 0 }, u_resolution: { value: new THREE.Vector2(container.clientWidth, container.clientHeight) } };
+    const material = new THREE.ShaderMaterial({
+      uniforms,
+      vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position, 1.0); }`,
+      fragmentShader: `uniform float u_time;uniform vec2 u_resolution;varying vec2 vUv;vec3 mod289(vec3 x){return x-floor(x*(1./289.))*289.;}vec2 mod289(vec2 x){return x-floor(x*(1./289.))*289.;}vec3 permute(vec3 x){return mod289(((x*34.)+1.)*x);}float snoise(vec2 v){const vec4 C=vec4(.211324865,.366025404,-.577350269,.024390244);vec2 i=floor(v+dot(v,C.yy));vec2 x0=v-i+dot(i,C.xx);vec2 i1=(x0.x>x0.y)?vec2(1.,0.):vec2(0.,1.);vec4 x12=x0.xyxy+C.xxzz;x12.xy-=i1;i=mod289(i);vec3 p=permute(permute(i.y+vec3(0.,i1.y,1.))+i.x+vec3(0.,i1.x,1.));vec3 m=max(.5-vec3(dot(x0,x0),dot(x12.xy,x12.xy),dot(x12.zw,x12.zw)),0.);m=m*m;m=m*m;vec3 x=2.*fract(p*C.www)-1.;vec3 h=abs(x)-.5;vec3 ox=floor(x+.5);vec3 a0=x-ox;m*=1.79284291-.85373472*(a0*a0+h*h);vec3 g;g.x=a0.x*x0.x+h.x*x0.y;g.yz=a0.yz*x12.xz+h.yz*x12.yw;return 130.*dot(m,g);}void main(){vec2 uv=gl_FragCoord.xy/u_resolution.xy;float t=u_time*.2;float n1=snoise(uv*1.5+vec2(t,t*.5));float n2=snoise(uv*2.-vec2(t*.3,t*.8));vec2 d=uv+vec2(n1,n2)*.2;vec3 c1=vec3(.96,.96,.97);vec3 c2=vec3(.12,.12,.12);vec3 c3=vec3(.75,.75,.75);float m1=smoothstep(0.,1.,sin(d.x*4.+t)*.5+.5);float m2=smoothstep(0.,1.,cos(d.y*3.-t)*.5+.5);vec3 fc=mix(c1,c2,m1);fc=mix(fc,c3,m2);gl_FragColor=vec4(fc,1.);}`
+    });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
+    scene.add(mesh);
+    let rafId;
+    const animate = (t) => { uniforms.u_time.value = t * 0.001; renderer.render(scene, camera); rafId = requestAnimationFrame(animate); };
+    animate(0);
+    const onResize = () => { if (!container) return; renderer.setSize(container.clientWidth, container.clientHeight); uniforms.u_resolution.value.set(container.clientWidth, container.clientHeight); };
+    window.addEventListener('resize', onResize);
+    return () => { window.removeEventListener('resize', onResize); cancelAnimationFrame(rafId); if (container && renderer.domElement) container.removeChild(renderer.domElement); material.dispose(); renderer.dispose(); };
+  }, []);
+  return <div ref={containerRef} className={`fixed inset-0 z-0 pointer-events-none transition-opacity duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${show ? 'opacity-100' : 'opacity-0'}`} />;
+};
