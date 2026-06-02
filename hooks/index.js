@@ -8,18 +8,12 @@ import {
   signInWithRedirect,
   signOut,
 } from 'firebase/auth';
-import {
-  collection, onSnapshot, addDoc, updateDoc,
-  deleteDoc, doc, serverTimestamp
-} from 'firebase/firestore';
+import { collection, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import {
   auth, db, googleProvider, consumeGoogleRedirectResult,
-  APP_ID, createVerificationCode, FABRICA_THREADS_HANDLE
+  APP_ID, createVerificationCode,
 } from '../lib/firebase';
-import {
-  getMasterUid, getSmartTag, generateAIReview,
-  extractThreadsAuthor, TAIWAN_TRENDY_RECS
-} from '../lib/helpers';
+import { getMasterUid, getSmartTag, TAIWAN_TRENDY_RECS } from '../lib/helpers';
 
 // ─── useToast ─────────────────────────────────────────────────────────────────
 export function useToast() {
@@ -35,88 +29,116 @@ export function useToast() {
 
 // ─── useAuth ──────────────────────────────────────────────────────────────────
 export function useAuth() {
-  const [firebaseUser, setFirebaseUser]           = useState(null);
-  const [masterUid, setMasterUid]                 = useState("");
-  const [threadsUsername, setThreadsUsername]     = useState("");
-  const [isLoggedIn, setIsLoggedIn]               = useState(false);
-  const [isThreadsBound, setIsThreadsBound]       = useState(false);
+  const [firebaseUser, setFirebaseUser]               = useState(null);
+  const [masterUid, setMasterUid]                     = useState("");
+  const [threadsUsername, setThreadsUsername]         = useState("");
+  const [isLoggedIn, setIsLoggedIn]                   = useState(false);
+  const [isThreadsBound, setIsThreadsBound]           = useState(false);
   const [isGoogleAuthPending, setIsGoogleAuthPending] = useState(false);
-  const [loginStep, setLoginStep]                 = useState("idle");
-  const [verificationCode, setVerificationCode]   = useState("");
-  const [loginError, setLoginError]               = useState("");
-  const [inputUsername, setInputUsername]         = useState("");
+  const [loginStep, setLoginStep]                     = useState("idle");
+  const [verificationCode, setVerificationCode]       = useState("");
+  const [loginError, setLoginError]                   = useState("");
+  const [inputUsername, setInputUsername]             = useState("");
   const [isGlobalTransitioning, setIsGlobalTransitioning] = useState(false);
+
+  // Keep a ref so async callbacks can check if still mounted
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const getGoogleAuthErrorMessage = (error) => {
     const code = error?.code || "";
-    if (code.includes("unauthorized-domain")) return `Google login failed (${code}). Add this domain in Firebase Auth > Authorized domains.`;
-    if (code.includes("invalid-api-key"))     return `Google login failed (${code}). Check NEXT_PUBLIC_FIREBASE_API_KEY.`;
-    if (code.includes("popup-blocked"))       return "Browser blocked the auth popup. Please try again.";
-    if (code.includes("popup-closed-by-user"))return "Google login was cancelled.";
-    return code ? `Google login failed: ${code}` : "Google login failed. Please try again.";
+    if (code.includes("unauthorized-domain"))   return `Google 登入失敗 (${code})。請在 Firebase Auth > Authorized domains 加入此網域。`;
+    if (code.includes("invalid-api-key"))       return `Google 登入失敗 (${code})。請確認 NEXT_PUBLIC_FIREBASE_API_KEY。`;
+    if (code.includes("popup-blocked"))         return "瀏覽器封鎖了彈出視窗，請再試一次。";
+    if (code.includes("popup-closed-by-user"))  return "Google 登入已取消。";
+    return code ? `Google 登入失敗：${code}` : "Google 登入失敗，請稍後再試。";
   };
 
   useEffect(() => {
-    // Handle Google redirect result
+    // ── Check if Google redirect is in progress ──────────────────────────────
     if (typeof window !== 'undefined' &&
         window.localStorage.getItem('fabrica_auth_mode') === 'google' &&
         !auth.currentUser) {
       setIsGoogleAuthPending(true);
     }
 
+    // ── Consume any pending redirect result ──────────────────────────────────
     consumeGoogleRedirectResult()
       .then(result => {
-        if (result?.user) { setLoginError(""); setIsGoogleAuthPending(false); }
+        if (!mountedRef.current) return;
+        if (result?.user) {
+          setLoginError("");
+          setIsGoogleAuthPending(false);
+        }
       })
       .catch(err => {
-        if (!err) return;
+        if (!mountedRef.current || !err) return;
         setIsGoogleAuthPending(false);
         setLoginError(getGoogleAuthErrorMessage(err));
       });
 
-    // Main auth listener
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    // ── Main auth state listener ─────────────────────────────────────────────
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (!mountedRef.current) return;
+
       const savedThreadsUsername =
         typeof window !== 'undefined'
-          ? window.localStorage.getItem('fabrica_threads_username')
+          ? window.localStorage.getItem('fabrica_threads_username') || ""
           : "";
       const savedAuthMode =
         typeof window !== 'undefined'
-          ? window.localStorage.getItem('fabrica_auth_mode')
+          ? window.localStorage.getItem('fabrica_auth_mode') || ""
           : "";
 
       setFirebaseUser(user || null);
 
       if (user) {
-        // ── Logged in (Google OR Custom Token) ──────────────────────────────
+        // ── Signed in ────────────────────────────────────────────────────────
         const isThreadsUser = user.uid.startsWith("threads_");
         const cleanUsername = isThreadsUser
           ? user.uid.replace("threads_", "")
           : (savedThreadsUsername || "");
 
-        // Resolve the master library UID
-        let resolvedMasterUid = user.uid;
-        if (isThreadsUser && cleanUsername) {
-          resolvedMasterUid = await getMasterUid(cleanUsername);
-        }
+        const displayName = cleanUsername
+          ? `@${cleanUsername}`
+          : (user.displayName || user.email?.split("@")[0] || "User");
 
         const bound = !isThreadsUser && !!savedThreadsUsername;
 
-        setMasterUid(resolvedMasterUid);
-        setThreadsUsername(
-          cleanUsername
-            ? `@${cleanUsername}`
-            : (user.displayName || user.email?.split("@")[0] || "User")
-        );
+        // Set everything we know synchronously first
+        setFirebaseUser(user);
+        setThreadsUsername(displayName);
         setInputUsername(cleanUsername || "");
         setIsThreadsBound(bound);
-        setIsLoggedIn(true);
-        setLoginError("");
         setIsGoogleAuthPending(false);
+        setLoginError("");
 
-      } else if (savedAuthMode === "google") {
-        // Google redirect in progress — wait
+        // If Threads user, resolve masterUid async WITHOUT blocking isLoggedIn
+        if (isThreadsUser && cleanUsername) {
+          // Set masterUid to temporary value so Firestore listener can start
+          setMasterUid(user.uid);
+          setIsLoggedIn(true);
+
+          // Then update masterUid in background
+          getMasterUid(cleanUsername).then(resolved => {
+            if (!mountedRef.current) return;
+            setMasterUid(resolved);
+          }).catch(() => {
+            if (!mountedRef.current) return;
+            setMasterUid(user.uid);
+          });
+        } else {
+          setMasterUid(user.uid);
+          setIsLoggedIn(true);
+        }
+
+      } else if (savedAuthMode === 'google') {
+        // Google redirect in progress
         setIsGoogleAuthPending(true);
+        setIsLoggedIn(false);
       } else {
         // Fully signed out
         setIsGoogleAuthPending(false);
@@ -129,7 +151,7 @@ export function useAuth() {
     return () => unsubscribe();
   }, []);
 
-  // ── Threads login ────────────────────────────────────────────────────────────
+  // ── Threads login ─────────────────────────────────────────────────────────
   const handleGenerateCode = (e) => {
     e.preventDefault();
     const clean = inputUsername.replace("@", "").trim().toLowerCase();
@@ -165,13 +187,14 @@ export function useAuth() {
       const data = await res.json().catch(() => ({}));
 
       if (data.success) {
-        // Sign in with custom token → triggers onAuthStateChanged
         if (data.customToken) {
           try {
             await signInWithCustomToken(auth, data.customToken);
+            // onAuthStateChanged fires → sets isLoggedIn automatically
           } catch {
+            if (!mountedRef.current) return;
             setLoginStep("code_shown");
-            setLoginError("Custom Token 登入失敗，請稍後再試。");
+            setLoginError("登入失敗，請稍後再試。");
             return;
           }
         }
@@ -183,15 +206,20 @@ export function useAuth() {
           window.localStorage.setItem("fabrica_threads_username", clean);
           window.localStorage.removeItem("fabrica_threads_verification");
         }
+        if (!mountedRef.current) return;
         setLoginStep("done");
         setLoginError("");
         setIsGlobalTransitioning(true);
-        setTimeout(() => { setIsGlobalTransitioning(false); }, 800);
+        setTimeout(() => {
+          if (mountedRef.current) setIsGlobalTransitioning(false);
+        }, 800);
       } else {
+        if (!mountedRef.current) return;
         setLoginStep("code_shown");
         setLoginError(data.message || "驗證失敗，請稍後再試。");
       }
     } catch {
+      if (!mountedRef.current) return;
       setLoginStep("code_shown");
       setLoginError("網路錯誤，請確認連線後再試。");
     }
@@ -207,7 +235,7 @@ export function useAuth() {
     }
   };
 
-  // ── Google login ─────────────────────────────────────────────────────────────
+  // ── Google login ──────────────────────────────────────────────────────────
   const handleGoogleSignIn = async (e) => {
     e.preventDefault();
     if (typeof window !== 'undefined') {
@@ -216,24 +244,28 @@ export function useAuth() {
     setLoginError("");
     setIsGoogleAuthPending(true);
     try {
-      try {
-        await signInWithPopup(auth, googleProvider);
-        // onAuthStateChanged will fire and handle setIsLoggedIn
-        setIsGoogleAuthPending(false);
-      } catch (popupErr) {
-        if (popupErr?.code === 'auth/popup-blocked') {
-          await signInWithRedirect(auth, googleProvider);
-          return;
-        }
-        throw popupErr;
+      await signInWithPopup(auth, googleProvider);
+      // onAuthStateChanged fires automatically
+      if (mountedRef.current) setIsGoogleAuthPending(false);
+    } catch (popupErr) {
+      if (popupErr?.code === 'auth/popup-blocked') {
+        await signInWithRedirect(auth, googleProvider);
+        return;
       }
-    } catch (err) {
+      if (!mountedRef.current) return;
       setIsGoogleAuthPending(false);
-      setLoginError(getGoogleAuthErrorMessage(err));
+      if (popupErr?.code !== 'auth/popup-closed-by-user') {
+        setLoginError(getGoogleAuthErrorMessage(popupErr));
+      } else {
+        // User just closed the popup — reset cleanly, no error message
+        if (typeof window !== 'undefined') {
+          window.localStorage.removeItem('fabrica_auth_mode');
+        }
+      }
     }
   };
 
-  // ── Logout ───────────────────────────────────────────────────────────────────
+  // ── Logout ────────────────────────────────────────────────────────────────
   const handleLogout = () => {
     setIsGlobalTransitioning(true);
     setTimeout(async () => {
@@ -242,6 +274,7 @@ export function useAuth() {
         window.localStorage.removeItem('fabrica_threads_username');
       }
       await signOut(auth).catch(console.error);
+      if (!mountedRef.current) return;
       setIsGoogleAuthPending(false);
       setIsLoggedIn(false);
       setFirebaseUser(null);
@@ -327,9 +360,7 @@ export function useDrag(setDisplayRestaurants, setSelectedRestaurant) {
       setDraggingId(restaurant.id);
     };
 
-    if (e.pointerType === 'touch') {
-      pressTimer.current = setTimeout(startDrag, 300);
-    }
+    if (e.pointerType === 'touch') pressTimer.current = setTimeout(startDrag, 300);
 
     const onMove = (ev) => {
       const dx = ev.clientX - startX;
@@ -378,10 +409,10 @@ export function useDrag(setDisplayRestaurants, setSelectedRestaurant) {
         setSelectedRestaurant(restaurant);
       }
       if (dragRef.current.el) {
-        dragRef.current.el.style.transition   = 'transform 0.5s cubic-bezier(0.175,0.885,0.32,1.275), box-shadow 0.4s ease';
-        dragRef.current.el.style.transform    = 'translate3d(0,0,0) scale(1) rotate(0deg)';
-        dragRef.current.el.style.zIndex       = "1";
-        dragRef.current.el.style.boxShadow    = "none";
+        dragRef.current.el.style.transition = 'transform 0.5s cubic-bezier(0.175,0.885,0.32,1.275), box-shadow 0.4s ease';
+        dragRef.current.el.style.transform  = 'translate3d(0,0,0) scale(1) rotate(0deg)';
+        dragRef.current.el.style.zIndex     = "1";
+        dragRef.current.el.style.boxShadow  = "none";
       }
       document.body.style.userSelect = 'auto';
       dragRef.current = { id: null, startX: 0, startY: 0, el: null, hoveredIndex: -1, isDragging: false };
@@ -432,14 +463,14 @@ export function useNearby(isLoggedIn) {
             id:       el.id.toString(),
             name,
             address:  tags['addr:street']
-              ? `${tags['addr:city'] || ''}${tags['addr:street']}${tags['addr:housenumber'] || ''}`
+              ? `${tags['addr:city']||''}${tags['addr:street']}${tags['addr:housenumber']||''}`
               : "點擊查看地圖定位",
             category: getSmartTag(name, tags.amenity || tags.shop || "在地美食"),
             note:     "📍 透過智慧地理雷達探測到的精選店家。",
           };
         }).filter(Boolean);
       }
-    } catch { /* fallback below */ }
+    } catch {}
 
     if (results.length === 0) {
       try {
@@ -460,7 +491,7 @@ export function useNearby(isLoggedIn) {
             note:     "📍 透過智慧地理雷達探測到的精選店家。",
           };
         }).filter(Boolean);
-      } catch { /* ignored */ }
+      } catch {}
     }
 
     setNearbyRecommendations(results.length > 0 ? results : TAIWAN_TRENDY_RECS);
