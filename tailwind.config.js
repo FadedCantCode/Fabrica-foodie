@@ -7,109 +7,28 @@ module.exports = {
     "./lib/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
-    extend: {
-      scale: {
-        '95': '0.95',
-        '96': '0.96',
-        '97': '0.97',
-        '98': '0.98',
-        '108': '1.08',
-      },
-      animation: {
-        'fade-in':        'fade-in 0.45s cubic-bezier(0.2,0.8,0.2,1) both',
-        'fade-in-up':     'fade-in-up 0.45s cubic-bezier(0.2,0.8,0.2,1) both',
-        'bounce-in':      'bounce-in 0.6s cubic-bezier(0.2,0.8,0.2,1) both',
-        'slide-up':       'slide-up 0.42s cubic-bezier(0.2,0.8,0.2,1) both',
-        'slide-down-out': 'slide-down-out 0.35s cubic-bezier(0.4,0,1,1) both',
-        'marquee-up':     'marquee-up 12s linear infinite',
-        'marquee-down':   'marquee-down 12s linear infinite',
-        'dropdown-in':    'dropdown-in 0.22s cubic-bezier(0.2,0.8,0.2,1) both',
-        'ripple':         'ripple 0.55s cubic-bezier(0.2,0.8,0.2,1) forwards',
-        'success-pop':    'success-pop 0.5s cubic-bezier(0.2,0.8,0.2,1) both',
-        'shake':          'shake 0.4s cubic-bezier(0.2,0.8,0.2,1)',
-        'pulse-badge':    'pulse-badge 2.2s ease-in-out infinite',
-        'card-appear':    'card-appear 0.48s cubic-bezier(0.2,0.8,0.2,1) both',
-      },
-      keyframes: {
-        'fade-in': {
-          'from': { opacity: '0' },
-          'to':   { opacity: '1' },
-        },
-        'fade-in-up': {
-          'from': { opacity: '0', transform: 'translate(-50%, 18px) scale(0.96)' },
-          'to':   { opacity: '1', transform: 'translate(-50%, 0) scale(1)' },
-        },
-        'bounce-in': {
-          '0%':   { opacity: '0', transform: 'scale(0.88) translateY(14px)' },
-          '60%':  { opacity: '1', transform: 'scale(1.03) translateY(-3px)' },
-          '100%': { opacity: '1', transform: 'scale(1) translateY(0)' },
-        },
-        'slide-up': {
-          'from': { opacity: '0', transform: 'translateY(36px) scale(0.97)' },
-          'to':   { opacity: '1', transform: 'translateY(0) scale(1)' },
-        },
-        'slide-down-out': {
-          'from': { opacity: '1', transform: 'translateY(0) scale(1)' },
-          'to':   { opacity: '0', transform: 'translateY(40px) scale(0.96)' },
-        },
-        'marquee-up': {
-          '0%':   { transform: 'translateX(0%)' },
-          '100%': { transform: 'translateX(-50%)' },
-        },
-        'marquee-down': {
-          '0%':   { transform: 'translateX(-50%)' },
-          '100%': { transform: 'translateX(0%)' },
-        },
-        'dropdown-in': {
-          'from': { opacity: '0', transform: 'translateY(8px) scale(0.97)' },
-          'to':   { opacity: '1', transform: 'translateY(0) scale(1)' },
-        },
-        'ripple': {
-          '0%':   { transform: 'scale(0)',   opacity: '0.55' },
-          '100%': { transform: 'scale(4.5)', opacity: '0' },
-        },
-        'success-pop': {
-          '0%':   { transform: 'scale(0)',    opacity: '0' },
-          '55%':  { transform: 'scale(1.22)', opacity: '1' },
-          '100%': { transform: 'scale(1)',    opacity: '1' },
-        },
-        'shake': {
-          '0%,100%': { transform: 'translateX(0)' },
-          '20%':     { transform: 'translateX(-6px)' },
-          '40%':     { transform: 'translateX(6px)' },
-          '60%':     { transform: 'translateX(-4px)' },
-          '80%':     { transform: 'translateX(4px)' },
-        },
-        'pulse-badge': {
-          '0%,100%': { opacity: '1' },
-          '50%':     { opacity: '0.6' },
-        },
-        'card-appear': {
-          'from': { opacity: '0', transform: 'translateY(18px) scale(0.97)' },
-          'to':   { opacity: '1', transform: 'translateY(0) scale(1)' },
-        },
-      },
-      transitionTimingFunction: {
-        'apple': 'cubic-bezier(0.2, 0.8, 0.2, 1)',
-        'apple-in': 'cubic-bezier(0.25, 1, 0.5, 1)',
-      },
-    },
+    extend: {},
   },
   plugins: [],
-  // Safelist critical dynamic classes that Tailwind might purge
+  // Safelist dynamic/arbitrary classes that Tailwind can't detect at build time
   safelist: [
-    'active:scale-[0.95]',
-    'active:scale-[0.96]',
-    'hover:scale-[1.02]',
-    'scale-[1.05]',
-    'scale-[1.03]',
-    'scale-[1.015]',
-    'scale-[0.75]',
-    'scale-[0.8]',
-    'scale-[0.95]',
-    'scale-[0.96]',
-    'scale-[0.97]',
-    'scale-[0.98]',
+    // Scale
+    { pattern: /^scale-\[/ },
+    { pattern: /^hover:scale-\[/ },
+    { pattern: /^active:scale-\[/ },
+    // Opacity
+    { pattern: /^opacity-/ },
+    // Z-index
+    { pattern: /^z-\[/ },
+    // Translate
+    { pattern: /^translate-/ },
+    { pattern: /^-translate-/ },
+    // Colors with opacity
+    { pattern: /^bg-\[/ },
+    { pattern: /^text-\[/ },
+    { pattern: /^border-\[/ },
+    { pattern: /^shadow-\[/ },
+    // Animations
     'animate-fade-in',
     'animate-fade-in-up',
     'animate-bounce-in',
@@ -124,9 +43,14 @@ module.exports = {
     'animate-pulse-badge',
     'animate-card-appear',
     'animate-check-path',
-    'ease-[cubic-bezier(0.2,0.8,0.2,1)]',
-    'ease-[cubic-bezier(0.25,1,0.5,1)]',
-    'ease-[cubic-bezier(0.4,0,1,1)]',
-    'duration-380',
+    'animate-spin',
+    'animate-bounce',
+    'animate-pulse',
+    // Backdrop
+    { pattern: /^backdrop-blur-/ },
+    // Transitions
+    { pattern: /^transition-/ },
+    { pattern: /^duration-/ },
+    { pattern: /^ease-\[/ },
   ],
 }
