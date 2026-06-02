@@ -8,6 +8,7 @@ import {
   signInWithRedirect,
   signInWithPopup,
   getRedirectResult,
+  signInWithCustomToken,
   signOut,
   onAuthStateChanged 
 } from 'firebase/auth';
@@ -369,6 +370,8 @@ export default function App() {
         setLoginError("");
         setIsGoogleAuthPending(false);
       } else if (savedAuthMode === "threads" && savedThreadsUsername) {
+        // 這個 branch 現在應該不會走到，因為 customToken 登入後 user 不會是 null
+        // 但保留作為 fallback
         setIsGoogleAuthPending(false);
         setThreadsUsername(`@${savedThreadsUsername}`);
         setInputUsername(savedThreadsUsername);
@@ -508,7 +511,7 @@ export default function App() {
     }
   };
 
-  // Step 2: call verify-crawler
+  // Step 2: call verify-crawler，收到 customToken 後用 signInWithCustomToken 登入
   const handleVerifyCrawler = async (e) => {
     e.preventDefault();
     const clean = inputUsername.replace("@", "").trim().toLowerCase();
@@ -523,6 +526,20 @@ export default function App() {
       });
       const data = await res.json().catch(() => ({}));
       if (data.success) {
+        // ── 用 customToken 取得真正的 Firebase Auth session ──────────────────
+        if (data.customToken) {
+          try {
+            await signInWithCustomToken(auth, data.customToken);
+            // onAuthStateChanged 會自動觸發並設定 firebaseUser
+            // 不需要手動 setFirebaseUser，讓 listener 處理
+          } catch (tokenErr) {
+            console.error("signInWithCustomToken failed:", tokenErr);
+            setLoginStep("code_shown");
+            setLoginError("Custom Token 登入失敗，請稍後再試。");
+            return;
+          }
+        }
+
         if (typeof window !== "undefined") {
           window.localStorage.setItem("fabrica_auth_mode", firebaseUser ? "google_threads" : "threads");
           window.localStorage.setItem("fabrica_threads_username", clean);
