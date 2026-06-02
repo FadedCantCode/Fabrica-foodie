@@ -918,7 +918,7 @@ export default function App() {
                             我已發文，驗證身分
                           </div>
                           <div className="absolute inset-0 flex gap-2 items-center justify-center text-white z-20 translate-x-[-3rem] opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none select-none">
-                            <span className="font-semibold text-sm">透過爬蟲驗證</span>
+                            <span className="font-semibold text-sm">驗證發文內容</span>
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
                             </svg>
