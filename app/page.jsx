@@ -91,7 +91,7 @@ const generateAIReview = async (name, address) => {
     const payload = { 
       contents: [{ parts: [{ text: `請搜尋台灣的這間餐廳：${name} ${address} 的最新網路資訊。請根據搜尋結果，產出完整的商家分析報告。` }] }], 
       tools: [{ googleSearch: {} }], 
-      systemInstruction: { parts: [{ text:"你是一個高端美食顧問 Fabrica。請用 50-80 字精煉總結這家餐廳的真實網路評價、特色招牌菜色。請務必確保語意完整、順利結尾，絕不可話講一半。語氣要專業、具質感，不需加上 Markdown 標籤，直接給出純文字結果。" }] }
+      systemInstruction: { parts: [{ text:"你是一個高端美食顧問 Fabrica。用 50-80 字精煉總結這家餐廳的真實網路評價、特色招牌菜色。請務必確保語意完整、順利結尾，絕不可話講一半。語氣要專業、具質感，不要加上 Markdown 標籤，直接給出純文字結果。" }] }
     };
     const res = await fetch(geminiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const data = await res.json();
