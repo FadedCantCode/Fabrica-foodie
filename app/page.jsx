@@ -6,6 +6,7 @@ import {
   getAuth, 
   GoogleAuthProvider,
   signInWithRedirect,
+  signInWithPopup,
   getRedirectResult,
   signOut,
   onAuthStateChanged 
@@ -36,6 +37,15 @@ const firebaseConfig = {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: 'select_account' });
+let googleRedirectResultPromise = null;
+const consumeGoogleRedirectResult = () => {
+  if (typeof window === 'undefined') return Promise.resolve(null);
+  if (!googleRedirectResultPromise) {
+    googleRedirectResultPromise = getRedirectResult(auth);
+  }
+  return googleRedirectResultPromise;
+};
 const db = getFirestore(app);
 const appId = 'fabrica-foodie-app'; 
 const FABRICA_THREADS_HANDLE = '@fabrica_tw';
@@ -242,6 +252,7 @@ export default function App() {
   const [isImportingThread, setIsImportingThread] = useState(false);
   const [inputUsername, setInputUsername] = useState("");
   const [loginError, setLoginError] = useState("");
+  const [isGoogleAuthPending, setIsGoogleAuthPending] = useState(false);
   const [verificationCode, setVerificationCode] = useState("");
   const [verificationUsername, setVerificationUsername] = useState("");
   const [isWaitingVerification, setIsWaitingVerification] = useState(false);
@@ -347,36 +358,53 @@ export default function App() {
   }, [mounted, isLoggedIn]);
 
   useEffect(() => {
+    if (typeof window !== 'undefined' && window.localStorage.getItem('fabrica_auth_mode') === 'google' && !auth.currentUser) {
+      setIsGoogleAuthPending(true);
+    }
+
+    const completeGoogleRedirect = async () => {
+      try {
+        const result = await consumeGoogleRedirectResult();
+        if (result?.user) {
+          setLoginError("");
+          setIsGoogleAuthPending(false);
+        }
+      } catch (err) {
+        if (!err) return;
+        console.error("Google redirect result failed:", err);
+        setIsGoogleAuthPending(false);
+        setLoginError(getGoogleAuthErrorMessage(err));
+      }
+    };
+
+    completeGoogleRedirect();
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
+      const savedThreadsUsername = typeof window !== 'undefined' ? window.localStorage.getItem('fabrica_threads_username') : "";
+      const savedAuthMode = typeof window !== 'undefined' ? window.localStorage.getItem('fabrica_auth_mode') : "";
       setFirebaseUser(user || null);
       if (user) {
-        const savedThreadsUsername = typeof window !== 'undefined' ? window.localStorage.getItem('fabrica_threads_username') : "";
         const fallbackName = user.displayName || user.email?.split("@")[0] || "Google User";
         setThreadsUsername(savedThreadsUsername ? `@${savedThreadsUsername}` : fallbackName);
         setInputUsername(savedThreadsUsername || "");
         setIsLoggedIn(true);
+        setLoginError("");
+        setIsGoogleAuthPending(false);
+      } else if (savedAuthMode === "threads" && savedThreadsUsername) {
+        setIsGoogleAuthPending(false);
+        setThreadsUsername(`@${savedThreadsUsername}`);
+        setInputUsername(savedThreadsUsername);
+        setIsLoggedIn(true);
+      } else if (savedAuthMode === "google") {
+        setIsGoogleAuthPending(true);
       } else {
-        const savedThreadsUsername = typeof window !== 'undefined' ? window.localStorage.getItem('fabrica_threads_username') : "";
-        const savedAuthMode = typeof window !== 'undefined' ? window.localStorage.getItem('fabrica_auth_mode') : "";
-        if (savedAuthMode === "threads" && savedThreadsUsername) {
-          setThreadsUsername(`@${savedThreadsUsername}`);
-          setInputUsername(savedThreadsUsername);
-          setIsLoggedIn(true);
-        } else {
-          setIsLoggedIn(false);
-          setThreadsUsername("");
-        }
+        setIsGoogleAuthPending(false);
+        setIsLoggedIn(false);
+        setThreadsUsername("");
       }
     });
-    return () => unsubscribe();
-  }, []);
 
-  useEffect(() => {
-    getRedirectResult(auth).catch((err) => {
-      if (!err) return;
-      console.error("Google redirect result failed:", err);
-      setLoginError(getGoogleAuthErrorMessage(err));
-    });
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -638,10 +666,22 @@ export default function App() {
     setVerificationCode("");
     setIsWaitingVerification(false);
     setLoginError("Opening Google sign-in...");
+    setIsGoogleAuthPending(true);
     try {
-      await signInWithRedirect(auth, googleProvider);
+      try {
+        await signInWithPopup(auth, googleProvider);
+        setLoginError("");
+        setIsGoogleAuthPending(false);
+      } catch (popupErr) {
+        if (popupErr?.code === 'auth/popup-blocked') {
+          await signInWithRedirect(auth, googleProvider);
+          return;
+        }
+        throw popupErr;
+      }
     } catch (err) {
-      console.error("Google redirect sign-in failed:", err);
+      setIsGoogleAuthPending(false);
+      console.error("Google sign-in failed:", err);
       setLoginError(getGoogleAuthErrorMessage(err));
     }
   };
@@ -654,6 +694,7 @@ export default function App() {
         window.localStorage.removeItem('fabrica_threads_username');
       }
       signOut(auth).catch((err) => console.error("Sign out failed:", err));
+      setIsGoogleAuthPending(false);
       setIsLoggedIn(false); setThreadsUsername(""); setInputUsername(""); setRestaurants([]);
       setNearbyRecommendations([]); setDismissedRecommendationIds([]); hasSearchedRef.current = false;
       setIsGlobalTransitioning(false);
@@ -1249,6 +1290,9 @@ export default function App() {
                       </p>
                     </div>
                   )}
+                  {isGoogleAuthPending && !loginError && (
+                    <p className="text-xs font-bold text-[#007AFF]">正在完成 Google 登入...</p>
+                  )}
                   {loginError && <p className="text-xs font-bold text-[#FF3B30]">{loginError}</p>}
                   <div className="grid gap-3">
                     <button type="submit" className="group relative cursor-pointer w-full h-[56px] border border-[#D2D2D7] bg-white rounded-2xl overflow-hidden text-[#1D1D1F] font-semibold transition-all duration-300 shadow-sm hover:shadow-md active:scale-90 outline-none">
@@ -1671,3 +1715,4 @@ export default function App() {
     </div>
   );
 }
+
