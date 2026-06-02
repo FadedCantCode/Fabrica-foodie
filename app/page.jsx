@@ -5,8 +5,7 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getAuth, 
   GoogleAuthProvider,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup, // 修改這裡，改用 Popup
   signOut,
   onAuthStateChanged 
 } from 'firebase/auth';
@@ -630,21 +629,24 @@ export default function App() {
     return code ? `Google login failed: ${code}` : "Google login failed. Please try again.";
   };
 
-  const handleGoogleSignIn = async (e) => {
-    e.preventDefault();
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem('fabrica_auth_mode', 'google');
-    }
-    setVerificationCode("");
-    setIsWaitingVerification(false);
-    setLoginError("Opening Google sign-in...");
-    try {
-      await signInWithRedirect(auth, googleProvider);
-    } catch (err) {
-      console.error("Google redirect sign-in failed:", err);
-      setLoginError(getGoogleAuthErrorMessage(err));
-    }
-  };
+ const handleGoogleLogin = async () => {
+  const auth = getAuth(app);
+  const provider = new GoogleAuthProvider();
+  
+  // 選擇性：強制每次都跳出帳號選擇器
+  provider.setCustomParameters({
+    prompt: 'select_account'
+  });
+
+  try {
+    const result = await signInWithPopup(auth, provider);
+    const user = result.user;
+    console.log("登入成功:", user);
+    // 如果你原本有在登入成功後設定 state（例如 setUser(user)），請加在這邊
+  } catch (error) {
+    console.error("Google 登入失敗:", error);
+  }
+};
 
   const handleGoogleLogout = () => {
     setIsGlobalTransitioning(true);
