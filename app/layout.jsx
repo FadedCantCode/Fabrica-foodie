@@ -1,4 +1,5 @@
 import React from 'react';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 export const metadata = {
   title: 'Fabrica Foodie - 您的 Threads 美食收藏庫',
@@ -54,7 +55,10 @@ export default function RootLayout({ children }) {
           }
         `}</style>
       </head>
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        {children}
+        <SpeedInsights />
+      </body>
     </html>
   );
 }
