@@ -5,7 +5,8 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getAuth, 
   GoogleAuthProvider,
-  signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
   signOut,
   onAuthStateChanged 
 } from 'firebase/auth';
@@ -629,26 +630,21 @@ export default function App() {
     return code ? `Google login failed: ${code}` : "Google login failed. Please try again.";
   };
 
-const handleGoogleLogin = async () => {
-  const auth = getAuth(app);
-  const provider = new GoogleAuthProvider();
-  
-  // 加入這個設定，強制每次登入都跳出帳號選擇器，避免卡在預設帳號
-  provider.setCustomParameters({
-    prompt: 'select_account'
-  });
-
-  try {
-    // 改用 Popup（彈窗登入），完美避免因跳轉頁面造成的狀態遺失問題
-    const result = await signInWithPopup(auth, provider);
-    console.log("Google 登入成功:", result.user);
-    
-    // 註：只要您原本程式碼中的 useEffect 內有設定 onAuthStateChanged，
-    // 這裡登入成功後，使用者的狀態（user state）就會自動更新，不需要額外處理。
-  } catch (error) {
-    console.error("Google 登入失敗:", error);
-  }
-};
+  const handleGoogleSignIn = async (e) => {
+    e.preventDefault();
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('fabrica_auth_mode', 'google');
+    }
+    setVerificationCode("");
+    setIsWaitingVerification(false);
+    setLoginError("Opening Google sign-in...");
+    try {
+      await signInWithRedirect(auth, googleProvider);
+    } catch (err) {
+      console.error("Google redirect sign-in failed:", err);
+      setLoginError(getGoogleAuthErrorMessage(err));
+    }
+  };
 
   const handleGoogleLogout = () => {
     setIsGlobalTransitioning(true);
