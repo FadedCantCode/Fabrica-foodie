@@ -864,8 +864,17 @@ export default function App() {
                           <input type="text" placeholder="輸入您的 Threads 帳號" value={inputUsername} onChange={(e) => setInputUsername(e.target.value.replace("@", ""))} className="w-full bg-white/80 text-base font-medium rounded-2xl py-4 pl-12 pr-5 border border-[#D2D2D7] focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all placeholder-[#86868B]/70" />
                         </div>
                         {loginError && <p className="text-xs font-bold text-[#FF3B30]">{loginError}</p>}
-                        <button type="submit" className="w-full h-[52px] bg-black text-white font-semibold rounded-2xl hover:bg-[#1D1D1F] active:scale-95 transition-all">
-                          產生驗證碼
+                        <button type="submit" className="group relative cursor-pointer w-full h-[56px] border border-[#D2D2D7] bg-white rounded-2xl overflow-hidden text-[#1D1D1F] font-semibold transition-all duration-300 shadow-sm hover:shadow-md active:scale-90 outline-none">
+                          <div className="absolute inset-0 flex items-center justify-center translate-x-0 group-hover:translate-x-16 group-hover:opacity-0 transition-all duration-300 z-20 pointer-events-none select-none">
+                            產生驗證碼
+                          </div>
+                          <div className="absolute inset-0 flex gap-2 items-center justify-center text-white z-20 translate-x-[-3rem] opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none select-none">
+                            <span className="font-semibold text-sm">取得驗證碼</span>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+                            </svg>
+                          </div>
+                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-[#1D1D1F] scale-0 group-hover:scale-[35] transition-transform duration-500 ease-out z-10" />
                         </button>
                       </form>
                     )}
@@ -887,8 +896,17 @@ export default function App() {
                           複製驗證文字
                         </button>
                         {loginError && <p className="text-xs font-bold text-[#FF3B30] whitespace-pre-line">{loginError}</p>}
-                        <button type="submit" className="w-full h-[52px] bg-black text-white font-semibold rounded-2xl hover:bg-[#1D1D1F] active:scale-95 transition-all">
-                          我已發文，驗證身分 →
+                        <button type="submit" className="group relative cursor-pointer w-full h-[56px] border border-[#D2D2D7] bg-white rounded-2xl overflow-hidden text-[#1D1D1F] font-semibold transition-all duration-300 shadow-sm hover:shadow-md active:scale-90 outline-none">
+                          <div className="absolute inset-0 flex items-center justify-center translate-x-0 group-hover:translate-x-16 group-hover:opacity-0 transition-all duration-300 z-20 pointer-events-none select-none">
+                            我已發文，驗證身分
+                          </div>
+                          <div className="absolute inset-0 flex gap-2 items-center justify-center text-white z-20 translate-x-[-3rem] opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none select-none">
+                            <span className="font-semibold text-sm">透過爬蟲驗證</span>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+                            </svg>
+                          </div>
+                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-[#1D1D1F] scale-0 group-hover:scale-[35] transition-transform duration-500 ease-out z-10" />
                         </button>
                         <button type="button" onClick={handleResetLogin} className="w-full text-xs font-semibold text-[#86868B] hover:text-black py-2 transition-colors">
                           ← 重新輸入帳號
@@ -916,8 +934,17 @@ export default function App() {
                           <div className="flex-1 h-px bg-black/10" />
                         </div>
                         {isGoogleAuthPending && <p className="text-xs font-bold text-[#007AFF] text-center">正在完成 Google 登入...</p>}
-                        <button type="button" onClick={handleGoogleSignIn} className="w-full h-[52px] rounded-2xl border border-black/10 bg-black text-white text-sm font-semibold transition-all hover:bg-[#1D1D1F] active:scale-95">
-                          使用 Google 登入
+                        <button type="button" onClick={handleGoogleSignIn} className="group relative cursor-pointer w-full h-[52px] border border-black/10 bg-black rounded-2xl overflow-hidden text-white font-semibold transition-all duration-300 shadow-sm hover:shadow-md active:scale-90 outline-none">
+                          <div className="absolute inset-0 flex items-center justify-center translate-x-0 group-hover:translate-x-16 group-hover:opacity-0 transition-all duration-300 z-20 pointer-events-none select-none text-sm">
+                            使用 Google 登入
+                          </div>
+                          <div className="absolute inset-0 flex gap-2 items-center justify-center z-20 translate-x-[-3rem] opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none select-none">
+                            <span className="font-semibold text-sm text-black">Google 帳號登入</span>
+                            <svg className="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+                            </svg>
+                          </div>
+                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-white scale-0 group-hover:scale-[35] transition-transform duration-500 ease-out z-10" />
                         </button>
                       </>
                     )}
