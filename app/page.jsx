@@ -89,6 +89,12 @@ export default function App() {
   useEffect(() => {
     if (!mounted || isLoggedIn) return;
     const container = canvasContainerRef.current;
+    if (!mounted) return (
+  <div style={{ minHeight:'100vh', background:'#F2F2F7', display:'flex', alignItems:'center', justifyContent:'center' }}>
+    <div style={{ width:36, height:36, border:'2px solid #1D1D1F', borderTopColor:'transparent', borderRadius:'50%', animation:'spin 0.8s linear infinite' }}/>
+    <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+  </div>
+);
     if (!container) return;
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(35, container.clientWidth / container.clientHeight, 0.1, 100);
