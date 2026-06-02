@@ -231,6 +231,14 @@ export default function App() {
   useEffect(() => { setDisplayRestaurants(filteredRestaurants); }, [filteredRestaurants]);
 
   // ─────────────────────────────────────────────────────────────────────────
+  // ── Prevent SSR hydration mismatch (React error #423) ────────────────────
+  if (!mounted) return (
+    <div style={{ minHeight:'100vh', background:'#F2F2F7', display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <div style={{ width:36, height:36, border:'2px solid #1D1D1F', borderTopColor:'transparent', borderRadius:'50%', animation:'spin 0.8s linear infinite' }}/>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+
   return (
     <div className="relative min-h-screen text-[#1D1D1F] tracking-tight font-sans antialiased overflow-x-hidden overflow-y-scroll bg-[#F4F4F6] touch-manipulation">
       <GlobalStyles />
