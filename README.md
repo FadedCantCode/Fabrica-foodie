@@ -1,46 +1,181 @@
-Fabrica Foodie 🥑A personal food library for saving restaurant and food recommendations from Threads.Fabrica Foodie 是一個個人美食收藏庫，專門用來儲存與管理來自 Threads 上的餐廳及美食推薦。Auto-saves when mentioning @fabrica_tw, with manual import support (pasting text or links) during development/review.長期目標為：當 Threads 用戶提及 @fabrica_tw 時自動儲存推薦；在開發與審查期間，亦支援貼上 Threads 文字或連結的手動匯入。FEATURESGoogle sign-in with Firebase Authentication / 使用 Google 帳戶進行安全登入Private food library per Firebase user / 每個用戶在 Firestore 中皆擁有獨立且安全的個人專屬美食收藏庫Manual Threads import for MVP testing / 手動匯入 Threads 貼文或連結以進行 MVP 測試AI-assisted food card extraction with Gemini / 利用 Google Gemini API 自動解析非結構化文字為美食卡片Saves source text, Threads link, author handle, confidence, and verification status / 記錄來源文字、Threads 連結、作者帳號、信心指數及驗證狀態Tracks signature items, reputation summary, promotions, and business hours / 自動擷取主打品項、評價摘要、近期優惠與營業時間Optional Threads webhook endpoint for future @fabrica_tw automation / 預留 Webhook 節點以供未來自動化提及儲存使用EnvironmentThe project runs on Next.js 14, deployed on Vercel, and backed by Firebase & Gemini API.本專案基於 Next.js 14 開發，部署於 Vercel，並使用 Firebase 與 Gemini API 提供支援。Required Environment Variables / 必要環境變數:NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_web_api_key
+# Fabrica Foodie
+
+Fabrica Foodie is a personal food library for saving restaurant and food recommendations from Threads.
+
+The long-term goal is simple: when a Threads user mentions `@fabrica_tw`, Fabrica saves the recommendation into that user's food library. While the Meta app is still in development or waiting for review, the app also supports a manual import flow where users paste Threads text or a Threads link into the site.
+
+## Features
+
+- Google sign-in with Firebase Authentication
+- Private food library per Firebase user
+- Manual Threads import for MVP testing
+- AI-assisted food card extraction with Gemini
+- Saves source text, Threads link, author handle, confidence, and verification status
+- Tracks consumer-facing details:
+  - main offer / signature items
+  - reputation summary
+  - recent promotions
+  - business hours
+- Optional Threads webhook endpoint for future `@fabrica_tw` automation
+
+## Tech Stack
+
+- Next.js 14
+- React 18
+- Tailwind CSS
+- Firebase Authentication
+- Cloud Firestore
+- Gemini API
+- Vercel
+
+## Required Environment Variables
+
+Set these in Vercel:
+
+```env
+NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_web_api_key
 GEMINI_API_KEY=your_gemini_api_key
 FIREBASE_SERVICE_ACCOUNT_KEY={"type":"service_account",...}
-Optional for Webhook / Webhook 選用變數:THREADS_ACCESS_TOKEN=your_threads_access_token
+```
+
+Do not expose Gemini from the browser in production. Server routes read
+`GEMINI_API_KEY`; `NEXT_PUBLIC_GEMINI_API_KEY` is only kept as a temporary
+fallback for older deployments.
+
+`FIREBASE_SERVICE_ACCOUNT_KEY` is required for Threads verification and webhook
+writes. It should be the Firebase service account JSON stored as a single Vercel
+environment variable. As an alternative, set `FIREBASE_PROJECT_ID`,
+`FIREBASE_CLIENT_EMAIL`, and `FIREBASE_PRIVATE_KEY`.
+
+Optional for Threads webhook support:
+
+```env
+THREADS_ACCESS_TOKEN=your_threads_access_token
 THREADS_VERIFY_TOKEN=your_webhook_verify_token
-Firestore RulesUse these rules in Firebase Console to secure user data per Firebase UID.請於 Firebase Console 中套用以下安全規則，確保資料依據 Firebase UID 進行安全隔離：rules_version = '2';
+```
+
+## Firebase Setup
+
+Enable Google sign-in:
+
+1. Open Firebase Console.
+2. Go to Authentication.
+3. Open Sign-in method.
+4. Enable Google.
+5. Add your Vercel domain to Authorized domains.
+
+Example:
+
+```text
+project-fabricafoodie.vercel.app
+```
+
+## Firestore Rules
+
+Use rules like this for the Google-login version:
+
+```js
+rules_version = '2';
 service cloud.firestore {
-  match /databases/{database}/documents {
-    function signedIn() {
-      return request.auth != null;
-    }
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
 
-    function ownsUserDoc(uid) {
-      return signedIn() && request.auth.uid == uid;
-    }
+    function ownsUserDoc(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
 
-    match /artifacts/fabrica-foodie-app/users/{uid}/{document=**} {
-      allow read, write: if ownsUserDoc(uid);
-    }
+    match /artifacts/fabrica-foodie-app/users/{uid}/{document=**} {
+      allow read, write: if ownsUserDoc(uid);
+    }
 
-    match /artifacts/fabrica-foodie-app/verifiedUsers/{threadsUsername} {
-      allow read, write: if false;
-    }
-  }
+    match /artifacts/fabrica-foodie-app/verifiedUsers/{threadsUsername} {
+      allow read, write: if false;
+    }
+  }
 }
-UsageLocal Development / 本地開發1. Install dependencies / 安裝依賴套件:
-   npm install
+```
 
-2. Run the development server / 啟動開發伺服器:
-   npm run dev
+## Manual Threads Import
 
-3. Build the project / 專案編譯:
-   npm run build
-Manual Threads Import / 手動匯入流程1. Sign in with Google / 使用 Google 帳戶登入。
+Because Meta does not send real production webhook events while the app is in development mode, the current MVP flow is:
 
-2. Paste a Threads link or post text into the import modal / 將 Threads 連結或貼文文字貼入匯入彈窗中。
+1. Sign in with Google.
+2. Paste a Threads post link, food text, or review into the import modal.
+3. Fabrica analyzes the content.
+4. The result is saved to the user's food library.
 
-3. Fabrica analyzes content via Gemini API / Fabrica 將透過 Gemini API 自動分析內容。
+For best results, paste both the Threads link and the post text. If only a link is provided and Threads blocks server-side fetching, Fabrica will save a fallback card and mark uncertain fields as `未確認`.
 
-4. The result is saved to your private food library / 分析結果將自動儲存至您的私有美食收藏庫。
-Account Verification / 帳號驗證模式* Mode 1: Enter Threads ID -> Get `FAB-1234` code -> Post `@fabrica_tw verify FAB-1234` on Threads -> Webhook auto-verifies.
-* 模式 1：輸入 Threads ID -> 取得 `FAB-1234` 驗證碼 -> 於 Threads 發文 `@fabrica_tw verify FAB-1234` -> Webhook 自動驗證。
+The `/api/analyze-food` route now accepts pasted text or a Threads URL. It tries
+to read public page metadata, extracts food-card fields with Gemini, and returns
+address, main offer, reputation summary, recent promotions, business hours,
+operating status, confidence, source author, and source URL fields.
 
-* Mode 2 (Fallback): Paste the proof post URL -> Click proof-check -> Server fetches page and verifies verification code.
-* 模式 2 (備用)：貼上包含驗證指令的貼文網址 -> 點擊「憑證檢查」 -> 伺服器抓取網頁並自動驗證。
-ContributingFeel free to contribute. Don't hesitate to create a pull request or to submit an issue if you stumble upon any problems.如果您想要貢獻或改進此工具，歡迎創建一個 pull request 或者提交問題報告。DisclaimerReal Threads mention events are not delivered while the Meta app is in development mode. The app must be live and approved for the relevant Threads permissions before production webhook automation works.當 Meta 應用程式仍處於開發模式時，真實的 Threads 提及（Mention）事件將無法送達。本專案必須正式上線並通過 Meta App Review 取得相關 Threads 權限，Webhook 自動化功能才能正常運作。Use Google login and manual import while Meta permissions are pending. Keep Firestore locked by Firebase UID.在 Meta 權限審查完成前，請優先使用 Google 登入與手動匯入功能，並保持 Firestore 安全規則鎖定在 Firebase UID 以確保資料安全。LicenseThis project is licensed under the MIT License - see the LICENSE file for details.本工具遵循 MIT 授權協議，請查閱 LICENSE 文件獲取更多詳細信息。
+## Login Modes
+
+Foodie supports two separate account flows:
+
+1. Threads verification: enter a Threads ID, receive a `FAB-1234` code, then post
+   or comment `@fabrica_tw verify FAB-1234` on Threads. The webhook marks the
+   Threads username as verified through Firebase Admin. The app polls
+   `/api/check-verification` and opens that user's library once the code matches.
+   If Meta does not deliver webhook events while the Threads app is in
+   development/review mode, paste the Threads post/comment URL into the
+   verification box and click the proof-check button. The app calls
+   `/api/verify-threads-proof`, fetches the public page text, checks for
+   `@fabrica_tw verify FAB-1234`, and marks the username verified.
+2. Google login: sign in with Google first. If no Threads ID is bound yet, enter
+   a Threads ID after login and complete the same `FAB-1234` verification flow.
+
+For production, keep Google/Firebase UID as the private storage owner and store
+Threads binding metadata under that user. Pure Threads login needs either Firebase
+custom auth or adjusted Firestore rules before it can be used as a secure
+persistent account.
+
+## Threads Webhook
+
+The webhook route is available at:
+
+```text
+/api/threads-webhook
+```
+
+The endpoint supports:
+
+- Meta webhook verification
+- `@fabrica_tw verify FAB-1234` verification events
+- future automatic food saving from Threads mentions
+
+Important: real Threads mention events are not delivered while the Meta app is in development mode. The app must be live and approved for the relevant Threads permissions before production webhook automation works.
+
+## Local Development
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Run the development server:
+
+```bash
+npm run dev
+```
+
+Build:
+
+```bash
+npm run build
+```
+
+## Project Status
+
+This project is currently an MVP. The recommended production path is:
+
+1. Use Google login and manual import while Meta permissions are pending.
+2. Keep Firestore locked by Firebase UID.
+3. Move future webhook writes to Firebase Admin SDK before enabling public Threads automation.
+4. Enable `@fabrica_tw` automatic saving only after Meta App Review and webhook delivery are working.
+ 這是我project 的read me  幫我再加入中文在同一個檔
