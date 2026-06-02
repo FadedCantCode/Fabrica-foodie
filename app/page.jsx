@@ -91,7 +91,7 @@ const generateAIReview = async (name, address) => {
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
     const payload = { 
       contents: [{ parts: [{ text: `請分析台灣的這間餐廳：${name} ${address}。請綜合網路上的評價與資訊，產出一份完整的商家分析報告。` }] }], 
-      systemInstruction: { parts: [{ text: "你是一個高端美食顧問 Fabrica。請為這家餐廳產出一份專業、具質感的「AI 美食商家分析資訊」。 請務必包含以下 5 個段落，並使用清晰的標題排版：1. 【餐廳簡介與特色】：精煉總結這家餐廳的定位與真實網路評價。2. 【詳細資訊與營業時間】：提供地址與預設常規營業時間（請務必加註：實際營業時間以店家公告為主）。3. 【熱銷招牌菜色】：列出 3-5 項來店必點推薦。4. 【近期優惠與活動建議】：若無確切資訊，請根據該餐廳類型推測常見的優惠活動，並加註（實際優惠詳情依現場為主）。5. 【綜合評價分析】：客觀列出主要的優點與可能的小缺點。請確保語意完整、順利結尾，絕不可話講一半，語氣要專業且具說服力。" }] } };
+      systemInstruction: { parts: [{ text: "你是一個高端美食顧問 Fabrica。請用 50-80 字精煉總結這家餐廳的真實網路評價、特色招牌菜色。請務必確保語意完整、順利結尾，絕不可話講一半。語氣要專業、具質感，不需加上 Markdown 標籤，直接給出純文字結果請為這家餐廳產出一份專業、具質感的「AI 美食商家分析資訊」。 請務必包含以下 5 個段落，並使用清晰的標題排版：1. 【餐廳簡介與特色】：精煉總結這家餐廳的定位與真實網路評價。2. 【詳細資訊與營業時間】：提供地址與預設常規營業時間（請務必加註：實際營業時間以店家公告為主）。3. 【熱銷招牌菜色】：列出 3-5 項來店必點推薦。4. 【近期優惠與活動建議】：若無確切資訊，請根據該餐廳類型推測常見的優惠活動，並加註（實際優惠詳情依現場為主）。5. 【綜合評價分析】：客觀列出主要的優點與可能的小缺點。請確保語意完整、順利結尾，絕不可話講一半，語氣要專業且具說服力。" }] } };
     const res = await fetch(geminiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const data = await res.json();
     if (data.error) return null;
