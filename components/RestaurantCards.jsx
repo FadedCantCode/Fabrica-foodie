@@ -15,8 +15,8 @@ function gyroTick(e) {
   if (gBase === null) { gBase = g; bBase = b; }
   const rx = Math.max(0, Math.min(1, ((g - gBase) / 30) * 0.5 + 0.5));
   const ry = Math.max(0, Math.min(1, ((b - bBase) / 30) * 0.5 + 0.5));
-  gSmooth = 0.1 * rx + 0.9 * gSmooth;
-  bSmooth = 0.1 * ry + 0.9 * bSmooth;
+  gSmooth = 0.12 * rx + 0.88 * gSmooth;
+  bSmooth = 0.12 * ry + 0.88 * bSmooth;
   gyroSubs.forEach(fn => fn(gSmooth, bSmooth));
 }
 
@@ -36,38 +36,29 @@ export async function enableGyro() {
 }
 
 // ─── GyroPermissionButton ─────────────────────────────────────────────────────
-// Only show when logged in (passed as prop) and on iOS
 export const GyroPermissionButton = ({ isLoggedIn }) => {
   const [show, setShow] = useState(false);
-
   useEffect(() => {
     if (!isLoggedIn) { setShow(false); return; }
     const iOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
-    const needsPermission = typeof DeviceOrientationEvent?.requestPermission === 'function';
-    if (iOS && needsPermission && !gyroOn) setShow(true);
-    // Android: auto-start
-    if (!iOS && typeof DeviceOrientationEvent !== 'undefined' && !gyroOn) {
-      enableGyro();
+    if (iOS && typeof DeviceOrientationEvent?.requestPermission === 'function' && !gyroOn) {
+      setShow(true);
+    } else if (!iOS && typeof DeviceOrientationEvent !== 'undefined' && !gyroOn) {
+      enableGyro(); // Android auto
     }
   }, [isLoggedIn]);
-
   if (!show) return null;
-
   return (
     <button
-      onClick={async () => {
-        const ok = await enableGyro();
-        if (ok) setShow(false);
-      }}
+      onClick={async () => { const ok = await enableGyro(); if (ok) setShow(false); }}
       style={{
-        position: 'fixed', bottom: 96, right: 16, zIndex: 50,
-        background: '#1D1D1F', color: 'white',
-        border: 'none', borderRadius: 999,
-        padding: '10px 16px',
-        fontSize: 12, fontWeight: 700,
-        display: 'flex', alignItems: 'center', gap: 6,
-        boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
-        touchAction: 'manipulation', cursor: 'pointer',
+        position:'fixed', bottom:96, right:16, zIndex:50,
+        background:'#1D1D1F', color:'white', border:'none',
+        borderRadius:999, padding:'10px 16px',
+        fontSize:12, fontWeight:700,
+        display:'flex', alignItems:'center', gap:6,
+        boxShadow:'0 8px 24px rgba(0,0,0,0.25)',
+        touchAction:'manipulation', cursor:'pointer',
       }}
     >
       <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -79,13 +70,13 @@ export const GyroPermissionButton = ({ isLoggedIn }) => {
   );
 };
 
-// ─── useHolo hook ──────────────────────────────────────────────────────────────
+// ─── useHolo ──────────────────────────────────────────────────────────────────
 function useHolo() {
   const [pos, setPos] = useState({ x: 0.5, y: 0.5, on: false });
   const raf = useRef(null);
-  const el  = useRef(null);
+  const ref = useRef(null);
 
-  // Gyro subscription
+  // Gyro
   useEffect(() => {
     const fn = (x, y) => {
       if (raf.current) cancelAnimationFrame(raf.current);
@@ -95,12 +86,13 @@ function useHolo() {
     return () => { gyroSubs.delete(fn); if (raf.current) cancelAnimationFrame(raf.current); };
   }, []);
 
-  function onMove(e) {
+  // Mouse (desktop only — don't bind on touch devices to avoid scroll conflict)
+  function onMouseMove(e) {
     if (gyroOn) return;
     if (raf.current) cancelAnimationFrame(raf.current);
     raf.current = requestAnimationFrame(() => {
-      if (!el.current) return;
-      const r = el.current.getBoundingClientRect();
+      if (!ref.current) return;
+      const r = ref.current.getBoundingClientRect();
       setPos({
         x: Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)),
         y: Math.max(0, Math.min(1, (e.clientY - r.top)  / r.height)),
@@ -109,93 +101,94 @@ function useHolo() {
     });
   }
 
-  function onLeave() {
+  function onMouseLeave() {
     if (gyroOn) return;
     if (raf.current) cancelAnimationFrame(raf.current);
     setPos({ x: 0.5, y: 0.5, on: false });
   }
 
-  // Computed styles
-  const rx  =  (pos.y - 0.5) * 22;
-  const ry  = -(pos.x - 0.5) * 22;
+  const rx  =  (pos.y - 0.5) * 18;   // max ±9° — subtle
+  const ry  = -(pos.x - 0.5) * 18;
   const hue =   pos.x * 360;
 
-  // iOS Safari: use matrix3d instead of rotateX/Y for better compat
-  const a  = pos.on ? Math.cos(ry * Math.PI / 180) : 1;
-  const b_ = pos.on ? Math.sin(ry * Math.PI / 180) : 0;
-  const c  = pos.on ? Math.cos(rx * Math.PI / 180) : 1;
-  const d  = pos.on ? Math.sin(rx * Math.PI / 180) : 0;
-  const sc = pos.on ? 1.025 : 1;
+  // Reduced opacity for all layers — more subtle, less garish
+  const FOIL_OPACITY  = 0.18;  // was 0.30
+  const SHINE_OPACITY = 0.40;  // was 0.55
+  const EDGE_OPACITY  = 0.7;
 
   return {
-    ref: el,
-    onMove,
-    onLeave,
+    ref,
+    onMouseMove,
+    onMouseLeave,
+    on: pos.on,
     wrapStyle: {
       transform: pos.on
-        ? `perspective(800px) rotateX(${rx}deg) rotateY(${ry}deg) scale(${sc})`
-        : 'perspective(800px) rotateX(0deg) rotateY(0deg) scale(1)',
+        ? `perspective(900px) rotateX(${rx}deg) rotateY(${ry}deg) scale(1.018)`
+        : 'perspective(900px) rotateX(0deg) rotateY(0deg) scale(1)',
       transition: pos.on
         ? 'transform 0.07s linear, box-shadow 0.07s linear'
-        : 'transform 0.6s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.6s ease',
+        : 'transform 0.65s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.65s ease',
       boxShadow: pos.on
-        ? `${-ry * 1.5}px ${rx * 1.5 + 10}px 40px rgba(0,0,0,0.2)`
-        : '0 2px 12px rgba(0,0,0,0.07)',
+        ? `${-ry * 1.2}px ${rx * 1.2 + 8}px 36px rgba(0,0,0,0.16)`
+        : '0 2px 10px rgba(0,0,0,0.06)',
       borderRadius: 24,
       willChange: 'transform',
       position: 'relative',
     },
+    // Foil: subtle rainbow, only visible when tilting
     foilStyle: {
-      position: 'absolute', inset: 0, borderRadius: 22,
-      pointerEvents: 'none', zIndex: 15,
-      mixBlendMode: 'screen',
-      opacity: pos.on ? 1 : 0,
-      transition: pos.on ? 'none' : 'opacity 0.6s ease',
+      position:'absolute', inset:0, borderRadius:22,
+      pointerEvents:'none', zIndex:15,
+      mixBlendMode:'screen',
+      opacity: pos.on ? FOIL_OPACITY : 0,
+      transition: pos.on ? 'none' : 'opacity 0.7s ease',
       background: pos.on ? `linear-gradient(
         ${115 + ry * 3}deg,
-        hsla(${hue},     100%,65%,0.32) 0%,
-        hsla(${hue+ 60}, 100%,65%,0.24) 20%,
-        hsla(${hue+120}, 100%,65%,0.30) 40%,
-        hsla(${hue+180}, 100%,65%,0.24) 60%,
-        hsla(${hue+240}, 100%,65%,0.30) 80%,
-        hsla(${hue+300}, 100%,65%,0.32) 100%
+        hsla(${hue},     100%,70%,1) 0%,
+        hsla(${hue+ 60}, 100%,70%,1) 20%,
+        hsla(${hue+120}, 100%,70%,1) 40%,
+        hsla(${hue+180}, 100%,70%,1) 60%,
+        hsla(${hue+240}, 100%,70%,1) 80%,
+        hsla(${hue+300}, 100%,70%,1) 100%
       )` : 'transparent',
     },
+    // Specular shine spot
     shineStyle: {
-      position: 'absolute', inset: 0, borderRadius: 22,
-      pointerEvents: 'none', zIndex: 16,
-      opacity: pos.on ? 1 : 0,
-      transition: pos.on ? 'none' : 'opacity 0.6s ease',
+      position:'absolute', inset:0, borderRadius:22,
+      pointerEvents:'none', zIndex:16,
+      opacity: pos.on ? SHINE_OPACITY : 0,
+      transition: pos.on ? 'none' : 'opacity 0.7s ease',
       background: pos.on ? `radial-gradient(
         circle at ${pos.x*100}% ${pos.y*100}%,
-        rgba(255,255,255,0.55) 0%,
-        rgba(255,255,255,0.12) 30%,
-        transparent 60%
+        rgba(255,255,255,0.6) 0%,
+        rgba(255,255,255,0.08) 35%,
+        transparent 65%
       )` : 'transparent',
     },
-    edgeStyle: {
-      position: 'absolute', bottom: 0, left: 0, right: 0,
-      height: 2, borderRadius: '0 0 22px 22px',
-      pointerEvents: 'none', zIndex: 17,
-      opacity: pos.on ? 1 : 0,
-      transition: pos.on ? 'none' : 'opacity 0.6s ease',
-      background: pos.on ? `linear-gradient(90deg,
-        hsla(${hue},100%,70%,0.9),
-        hsla(${hue+120},100%,70%,0.9),
-        hsla(${hue+240},100%,70%,0.9)
-      )` : 'transparent',
-    },
+    // Edge glint — ONLY on the side facing "light source", not the bottom
+    // Use a thin border highlight, not a bottom bar
+    edgeStyle: pos.on ? {
+      position:'absolute', inset:0, borderRadius:22,
+      pointerEvents:'none', zIndex:17,
+      boxShadow: `
+        inset ${ry > 0 ? ry * 2 : 0}px 0 8px rgba(${
+          Math.round(255 * Math.abs(Math.sin(hue*Math.PI/180)))|0},
+          ${Math.round(200 * Math.abs(Math.cos(hue*Math.PI/180)))|0},
+          255, ${EDGE_OPACITY * 0.4})
+      `,
+      opacity: 1,
+    } : { position:'absolute', inset:0, pointerEvents:'none', opacity:0 },
   };
 }
 
-// ─── Helper ───────────────────────────────────────────────────────────────────
+// ─── Recommender helper ───────────────────────────────────────────────────────
 function getRecommenderInfo(r) {
   const isSystem  = r.recommendedBy === "系統探索" || r.recommendedBy === "系統推薦";
   const isThreads = r.source === "threads_mention" || r.source === "manual_threads_import" || !!r.threadsUrl;
   const isManual  = !isThreads && !isSystem;
   const handle    = r.sourceAuthor || r.recommendedBy?.replace("@","") || "";
   const link      = isThreads && r.threadsUrl ? r.threadsUrl
-                  : isThreads && handle       ? `https://www.threads.net/@${handle}`
+                  : isThreads && handle ? `https://www.threads.net/@${handle}`
                   : "https://www.threads.com/@fabrica_tw";
   const label     = isSystem ? "@fabrica_tw" : (isThreads && handle) ? `@${handle}` : "手動加入";
   const avatar    = isManual ? "✎" : handle ? handle[0].toUpperCase() : "F";
@@ -208,9 +201,9 @@ export const RestaurantCard = ({
   onPointerDown, onDelete, onShare,
 }) => {
   const isDragging = draggingId === restaurant.id;
-  const cat   = getSmartTag(restaurant.name, restaurant.category);
-  const rec   = getRecommenderInfo(restaurant);
-  const holo  = useHolo();
+  const cat  = getSmartTag(restaurant.name, restaurant.category);
+  const rec  = getRecommenderInfo(restaurant);
+  const holo = useHolo();
 
   let ty = 0;
   if (dragState.draggingId && dragState.hoveredIndex !== -1 && !isDragging) {
@@ -225,52 +218,55 @@ export const RestaurantCard = ({
       data-restaurant-id={restaurant.id}
       onPointerDown={e => onPointerDown(e, restaurant, index)}
       style={{
-        animationDelay: `${Math.min(index*60,400)}ms`,
+        animationDelay:`${Math.min(index*60,400)}ms`,
         transform: isDragging ? 'none' : `translate3d(0,${ty}%,0)`,
         transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.25,1,0.5,1)',
-        touchAction: 'none',
+        // KEY FIX: allow vertical scroll on touch, only capture pointer for drag
+        touchAction: 'pan-y',
         opacity: isDragging ? 0.55 : 1,
-        width: '100%',
+        width:'100%',
       }}
       className="select-none cursor-grab active:cursor-grabbing animate-card-appear"
     >
-      {/* Holo wrapper — mouse only, no conflict with pointer drag */}
+      {/* Holo wrapper — mouse events only, no touch events */}
       <div
         ref={holo.ref}
         style={holo.wrapStyle}
-        onMouseMove={holo.onMove}
-        onMouseLeave={holo.onLeave}
+        onMouseMove={holo.onMouseMove}
+        onMouseLeave={holo.onMouseLeave}
       >
         {/* Overlay layers */}
         <div style={holo.foilStyle} />
         <div style={holo.shineStyle} />
         <div style={holo.edgeStyle} />
 
-        {/* Card body */}
-        <div style={{ background: 'white', borderRadius: 22, border: '1px solid #E5E5EA', padding: 8, position: 'relative', overflow: 'hidden' }}>
-
+        {/* Card */}
+        <div style={{
+          background:'white', borderRadius:22,
+          border:'1px solid #E5E5EA', padding:8,
+          position:'relative', overflow:'hidden',
+        }}>
           {/* Image */}
-          <div style={{ width: '100%', height: 220, position: 'relative', borderRadius: 16, overflow: 'hidden', background: '#111' }}>
+          <div style={{ width:'100%', height:216, position:'relative', borderRadius:16, overflow:'hidden', background:'#111' }}>
             <img
               draggable={false}
               src={getFoodImage(restaurant)}
               onError={e => { e.target.onerror=null; e.target.src="https://images.unsplash.com/photo-1414235077428-338988692309?q=80&w=800&auto=format&fit=crop"; }}
               alt={restaurant.name}
-              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }}
             />
-            {/* Gradient overlay */}
-            <div style={{ position:'absolute', inset:0, background:'linear-gradient(to top, rgba(0,0,0,0.82) 0%, transparent 50%, rgba(0,0,0,0.2) 100%)' }} />
+            <div style={{ position:'absolute', inset:0, background:'linear-gradient(to top, rgba(0,0,0,0.82) 0%, transparent 50%, rgba(0,0,0,0.18) 100%)' }} />
 
-            {/* Category badge */}
+            {/* Category */}
             <div style={{ position:'absolute', top:12, left:12, background:'rgba(0,0,0,0.32)', backdropFilter:'blur(8px)', WebkitBackdropFilter:'blur(8px)', color:'white', fontSize:10, fontWeight:700, padding:'4px 10px', borderRadius:6, border:'1px solid rgba(255,255,255,0.2)' }}>
               {cat}
             </div>
 
-            {/* Recommender badge */}
+            {/* Recommender */}
             <a href={rec.link} target="_blank" rel="noopener noreferrer"
               onClick={e => e.stopPropagation()}
               style={{ position:'absolute', top:12, right:12, background:'rgba(255,255,255,0.95)', borderRadius:999, padding:'5px 10px', display:'flex', alignItems:'center', gap:5, fontSize:10, fontWeight:700, color:'#1D1D1F', textDecoration:'none' }}>
-              <div style={{ width:14, height:14, borderRadius:'50%', background: rec.isManual ? 'linear-gradient(135deg,#9CA3AF,#6B7280)' : 'linear-gradient(135deg,#8B5CF6,#F97316)', color:'white', fontSize:8, display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <div style={{ width:14, height:14, borderRadius:'50%', background: rec.isManual ? 'linear-gradient(135deg,#9CA3AF,#6B7280)' : 'linear-gradient(135deg,#8B5CF6,#F97316)', color:'white', fontSize:8, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                 {rec.avatar}
               </div>
               {rec.label}
@@ -282,7 +278,7 @@ export const RestaurantCard = ({
                 {restaurant.name}
               </div>
               <div style={{ display:'flex', alignItems:'center', gap:3, color:'rgba(255,255,255,0.88)', fontSize:11, fontWeight:500 }}>
-                <svg width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ flexShrink:0 }}>
+                <svg width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{flexShrink:0}}>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
                   <circle cx="12" cy="11" r="3" strokeWidth="2"/>
                 </svg>
@@ -321,7 +317,7 @@ export const RestaurantCard = ({
 
 // ─── RecommendationCard ───────────────────────────────────────────────────────
 export const RecommendationCard = ({ rec, animatingRecId, onDismiss, onSave }) => (
-  <div className={`group flex-shrink-0 w-64 p-2 bg-white rounded-[24px] border border-[#E5E5EA] shadow-sm transition-all duration-700 ${animatingRecId===rec.id ? 'scale-[0.75] opacity-0 rotate-3' : 'scale-100 opacity-100 hover:shadow-xl hover:-translate-y-1'}`}>
+  <div className={`group flex-shrink-0 w-64 p-2 bg-white rounded-[24px] border border-[#E5E5EA] shadow-sm transition-all duration-700 ${animatingRecId===rec.id?'scale-[0.75] opacity-0 rotate-3':'scale-100 opacity-100 hover:shadow-xl hover:-translate-y-1'}`}>
     <figure className="w-full h-40 relative overflow-hidden rounded-[18px] bg-black/5">
       <img draggable={false} src={getFoodImage(rec)} onError={e=>{e.target.onerror=null;e.target.src="https://images.unsplash.com/photo-1414235077428-338988692309?q=80&w=800&auto=format&fit=crop";}} alt={rec.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 pointer-events-none"/>
       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent pointer-events-none"/>
