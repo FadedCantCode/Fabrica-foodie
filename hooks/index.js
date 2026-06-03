@@ -122,18 +122,19 @@ export function useAuth() {
           window.localStorage.removeItem('fabrica_auth_mode');
         }
 
-        // Threads user: resolve masterUid FIRST, then set isLoggedIn
-        // This ensures Firestore listener uses the correct UID from the start
+        // If Threads user, resolve masterUid async WITHOUT blocking isLoggedIn
         if (isThreadsUser && cleanUsername) {
+          // Set masterUid to temporary value so Firestore listener can start
+          setMasterUid(user.uid);
+          setIsLoggedIn(true);
+
+          // Then update masterUid in background
           getMasterUid(cleanUsername).then(resolved => {
             if (!mountedRef.current) return;
-            // resolved is Google UID if bound, otherwise threads_xxx
             setMasterUid(resolved);
-            setIsLoggedIn(true);
           }).catch(() => {
             if (!mountedRef.current) return;
             setMasterUid(user.uid);
-            setIsLoggedIn(true);
           });
         } else {
           setMasterUid(user.uid);
@@ -243,53 +244,61 @@ export function useAuth() {
   // ── Google login ──────────────────────────────────────────────────────────
   const handleGoogleSignIn = async (e) => {
     e.preventDefault();
+    setLoginError("");
+    setIsGoogleAuthPending(true);
+
+    // Set auth_mode so onAuthStateChanged knows what's happening
     if (typeof window !== 'undefined') {
       window.localStorage.setItem('fabrica_auth_mode', 'google');
     }
-    setLoginError("");
-    setIsGoogleAuthPending(true);
+
     try {
+      // Always use popup — never redirect
+      // The COOP "warning" in console is harmless, login still succeeds
+      // signInWithRedirect causes iOS Safari ITP sessionStorage issues
       await signInWithPopup(auth, googleProvider);
-      // onAuthStateChanged fires automatically and handles setIsLoggedIn
-      // Clear auth_mode here too so the pending state doesn't persist
+
+      // Success — onAuthStateChanged will fire and call setIsLoggedIn(true)
       if (typeof window !== 'undefined') {
         window.localStorage.removeItem('fabrica_auth_mode');
       }
       if (mountedRef.current) setIsGoogleAuthPending(false);
-    } catch (popupErr) {
-      if (popupErr?.code === 'auth/popup-blocked') {
-        await signInWithRedirect(auth, googleProvider);
+
+    } catch (err) {
+      if (!mountedRef.current) return;
+
+      // Clean up pending state
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem('fabrica_auth_mode');
+      }
+      setIsGoogleAuthPending(false);
+
+      const code = err?.code || "";
+
+      // User closed the popup — not an error
+      if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
         return;
       }
-      if (!mountedRef.current) return;
-      setIsGoogleAuthPending(false);
-      if (popupErr?.code !== 'auth/popup-closed-by-user') {
-        setLoginError(getGoogleAuthErrorMessage(popupErr));
-      } else {
-        // User just closed the popup — reset cleanly, no error message
-        if (typeof window !== 'undefined') {
-          window.localStorage.removeItem('fabrica_auth_mode');
-        }
+
+      // Popup blocked — show helpful message instead of trying redirect
+      if (code === 'auth/popup-blocked') {
+        setLoginError("瀏覽器封鎖了登入視窗。請允許此網站開啟彈出視窗，或嘗試其他瀏覽器。");
+        return;
       }
+
+      setLoginError(getGoogleAuthErrorMessage(err));
     }
   };
 
   // ── Logout ────────────────────────────────────────────────────────────────
-  // Threads users: keep Firebase session → auto-login next time, no re-verification
-  // Google users: full signOut
   const handleLogout = () => {
     setIsGlobalTransitioning(true);
     setTimeout(async () => {
-      const isThreadsUser = firebaseUser?.uid?.startsWith("threads_");
       if (typeof window !== 'undefined') {
         window.localStorage.removeItem('fabrica_auth_mode');
-        if (!isThreadsUser) {
-          window.localStorage.removeItem('fabrica_threads_username');
-        }
+        window.localStorage.removeItem('fabrica_threads_username');
       }
-      if (!isThreadsUser) {
-        await signOut(auth).catch(console.error);
-      }
+      await signOut(auth).catch(console.error);
       if (!mountedRef.current) return;
       setIsGoogleAuthPending(false);
       setIsLoggedIn(false);
