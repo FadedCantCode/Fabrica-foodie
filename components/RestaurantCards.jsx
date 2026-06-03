@@ -40,110 +40,160 @@ export const GyroPermissionButton = ({ isLoggedIn }) => {
   return (
     <button onClick={async () => { if (await enableGyro()) setShow(false); }}
       style={{ position:'fixed', bottom:96, right:16, zIndex:50, background:'#1D1D1F', color:'white', border:'none', borderRadius:999, padding:'10px 16px', fontSize:12, fontWeight:700, display:'flex', alignItems:'center', gap:6, boxShadow:'0 8px 24px rgba(0,0,0,0.25)', touchAction:'manipulation', cursor:'pointer' }}>
-      <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" strokeWidth="2"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3"/></svg>
+      <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10" strokeWidth="2"/>
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3"/>
+      </svg>
       啟用光柵陀螺儀
     </button>
   );
 };
 
-// ─── HoloCard — self-contained card with holographic effect ──────────────────
-const HoloCard = ({ children, disabled }) => {
-  const divRef = useRef(null);
-  const rafRef = useRef(null);
-  const [tilt, setTilt] = useState({ x: 0.5, y: 0.5, active: false });
+// ─── HoloCard ─────────────────────────────────────────────────────────────────
+// Completely self-contained — handles its own mouse tracking via DOM events
+// NOT React synthetic events (avoids conflicts with onPointerDown drag handler)
+const HoloCard = ({ children }) => {
+  const wrapRef = useRef(null);
+  const rafRef  = useRef(null);
+  const stateRef = useRef({ x: 0.5, y: 0.5, active: false });
 
-  // Gyro
-  useEffect(() => {
-    const fn = (x, y) => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(() => setTilt({ x, y, active: true }));
-    };
-    gyroSubs.add(fn);
-    return () => { gyroSubs.delete(fn); if (rafRef.current) cancelAnimationFrame(rafRef.current); };
-  }, []);
-
-  const handleMouseMove = useCallback((e) => {
-    if (disabled || gyroOn) return;
-    const el = divRef.current;
+  // Apply styles directly to DOM — no React re-render needed
+  const applyStyles = useCallback((x, y, active) => {
+    const el = wrapRef.current;
     if (!el) return;
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    rafRef.current = requestAnimationFrame(() => {
-      const r = el.getBoundingClientRect();
-      setTilt({
-        x: Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)),
-        y: Math.max(0, Math.min(1, (e.clientY - r.top) / r.height)),
-        active: true,
-      });
-    });
-  }, [disabled]);
 
-  const handleMouseLeave = useCallback(() => {
-    if (gyroOn) return;
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    setTilt({ x: 0.5, y: 0.5, active: false });
+    const rx  =  (y - 0.5) * 20;
+    const ry  = -(x - 0.5) * 20;
+    const hue =  x * 360;
+
+    if (active) {
+      el.style.transform = `perspective(800px) rotateX(${rx}deg) rotateY(${ry}deg) scale(1.02)`;
+      el.style.transition = 'transform 0.08s linear, box-shadow 0.08s linear';
+      el.style.boxShadow  = `${-ry * 0.8}px ${rx * 0.8 + 8}px 30px rgba(0,0,0,0.15)`;
+
+      // Foil overlay
+      const foil = el.querySelector('.holo-foil');
+      if (foil) {
+        foil.style.opacity = '1';
+        foil.style.background = `linear-gradient(
+          ${120 + ry * 2}deg,
+          hsla(${hue},100%,60%,1) 0%,
+          hsla(${hue+60},100%,60%,1) 17%,
+          hsla(${hue+120},100%,60%,1) 34%,
+          hsla(${hue+180},100%,60%,1) 51%,
+          hsla(${hue+240},100%,60%,1) 68%,
+          hsla(${hue+300},100%,60%,1) 85%,
+          hsla(${hue+360},100%,60%,1) 100%
+        )`;
+        foil.style.transition = 'none';
+      }
+
+      const shine = el.querySelector('.holo-shine');
+      if (shine) {
+        shine.style.opacity = '1';
+        shine.style.background = `radial-gradient(circle at ${x*100}% ${y*100}%, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.05) 35%, transparent 65%)`;
+        shine.style.transition = 'none';
+      }
+    } else {
+      el.style.transform  = 'perspective(800px) rotateX(0deg) rotateY(0deg) scale(1)';
+      el.style.transition = 'transform 0.6s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.6s ease';
+      el.style.boxShadow  = '0 2px 10px rgba(0,0,0,0.07)';
+
+      const foil = el.querySelector('.holo-foil');
+      if (foil) { foil.style.opacity = '0'; foil.style.transition = 'opacity 0.5s ease'; }
+
+      const shine = el.querySelector('.holo-shine');
+      if (shine) { shine.style.opacity = '0'; shine.style.transition = 'opacity 0.5s ease'; }
+    }
   }, []);
 
-  const { x, y, active } = tilt;
-  const rx = (y - 0.5) * 20;
-  const ry = -(x - 0.5) * 20;
-  const hue = x * 360;
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+
+    // Use native DOM events — completely bypasses React event system
+    const onMove = (e) => {
+      if (gyroOn) return;
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        const r = el.getBoundingClientRect();
+        const x = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+        const y = Math.max(0, Math.min(1, (e.clientY - r.top)  / r.height));
+        stateRef.current = { x, y, active: true };
+        applyStyles(x, y, true);
+      });
+    };
+
+    const onLeave = () => {
+      if (gyroOn) return;
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      stateRef.current = { x: 0.5, y: 0.5, active: false };
+      applyStyles(0.5, 0.5, false);
+    };
+
+    // Also reset when page regains focus (tab switch fix)
+    const onVisibility = () => {
+      if (document.hidden) {
+        stateRef.current = { x: 0.5, y: 0.5, active: false };
+        applyStyles(0.5, 0.5, false);
+      }
+    };
+
+    el.addEventListener('mousemove', onMove);
+    el.addEventListener('mouseleave', onLeave);
+    document.addEventListener('visibilitychange', onVisibility);
+
+    // Gyro subscription
+    const gyroFn = (x, y) => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => applyStyles(x, y, true));
+    };
+    gyroSubs.add(gyroFn);
+
+    return () => {
+      el.removeEventListener('mousemove', onMove);
+      el.removeEventListener('mouseleave', onLeave);
+      document.removeEventListener('visibilitychange', onVisibility);
+      gyroSubs.delete(gyroFn);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [applyStyles]);
 
   return (
     <div
-      ref={divRef}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
+      ref={wrapRef}
       style={{
         position: 'relative',
         borderRadius: 24,
-        // Perspective transform on THIS element — no conflict with parent
-        transform: active
-          ? `perspective(800px) rotateX(${rx}deg) rotateY(${ry}deg) scale(1.02)`
-          : 'perspective(800px) rotateX(0deg) rotateY(0deg) scale(1)',
-        transition: active
-          ? 'transform 0.08s linear, box-shadow 0.08s linear'
-          : 'transform 0.6s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.6s ease',
-        boxShadow: active
-          ? `${-ry}px ${rx + 8}px 32px rgba(0,0,0,0.18)`
-          : '0 2px 10px rgba(0,0,0,0.07)',
-        willChange: active ? 'transform' : 'auto',
+        transform: 'perspective(800px) rotateX(0deg) rotateY(0deg) scale(1)',
+        transition: 'transform 0.6s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.6s ease',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.07)',
+        willChange: 'transform',
+        cursor: 'default',
       }}
     >
       {children}
 
-      {/* Foil — only rendered when active to avoid any resting artifacts */}
-      {active && (
-        <>
-          {/* Rainbow layer */}
-          <div style={{
-            position:'absolute', inset:0, borderRadius:22,
-            pointerEvents:'none', zIndex:10,
-            mixBlendMode:'color-dodge',
-            opacity: 0.12,
-            background:`linear-gradient(
-              ${120 + ry * 2}deg,
-              hsla(${hue},100%,60%,1) 0%,
-              hsla(${hue+60},100%,60%,1) 17%,
-              hsla(${hue+120},100%,60%,1) 34%,
-              hsla(${hue+180},100%,60%,1) 51%,
-              hsla(${hue+240},100%,60%,1) 68%,
-              hsla(${hue+300},100%,60%,1) 85%,
-              hsla(${hue+360},100%,60%,1) 100%
-            )`,
-          }} />
-          {/* Shine spot */}
-          <div style={{
-            position:'absolute', inset:0, borderRadius:22,
-            pointerEvents:'none', zIndex:11,
-            background:`radial-gradient(
-              circle at ${x*100}% ${y*100}%,
-              rgba(255,255,255,0.45) 0%,
-              rgba(255,255,255,0.06) 30%,
-              transparent 60%
-            )`,
-          }} />
-        </>
-      )}
+      {/* Foil layer — always in DOM, opacity controlled via JS */}
+      <div
+        className="holo-foil"
+        style={{
+          position: 'absolute', inset: 0, borderRadius: 22,
+          pointerEvents: 'none', zIndex: 10,
+          mixBlendMode: 'color-dodge',
+          opacity: 0,
+        }}
+      />
+
+      {/* Shine layer */}
+      <div
+        className="holo-shine"
+        style={{
+          position: 'absolute', inset: 0, borderRadius: 22,
+          pointerEvents: 'none', zIndex: 11,
+          opacity: 0,
+        }}
+      />
     </div>
   );
 };
@@ -183,20 +233,22 @@ export const RestaurantCard = ({
       data-sort-index={index}
       data-restaurant-id={restaurant.id}
       onPointerDown={e => onPointerDown(e, restaurant, index)}
-      className="select-none cursor-grab active:cursor-grabbing animate-card-appear w-full"
+      className="select-none w-full animate-card-appear"
       style={{
         animationDelay: `${Math.min(index*60,400)}ms`,
-        // Only translate for drag — NO perspective here
         transform: isDragging ? 'none' : `translate3d(0,${ty}%,0)`,
         transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.25,1,0.5,1)',
         opacity: isDragging ? 0.55 : 1,
-        touchAction: 'pan-y', // allow vertical scroll on mobile
+        touchAction: 'pan-y',
+        cursor: 'grab',
       }}
     >
-      {/* HoloCard handles perspective + mouse events independently */}
-      <HoloCard disabled={isDragging}>
-        <div style={{ background:'white', borderRadius:22, border:'1px solid #E5E5EA', padding:8, position:'relative', overflow:'hidden' }}>
-
+      <HoloCard>
+        <div style={{
+          background:'white', borderRadius:22,
+          border:'1px solid #E5E5EA', padding:8,
+          position:'relative', overflow:'hidden',
+        }}>
           {/* Image */}
           <div style={{ width:'100%', height:216, position:'relative', borderRadius:16, overflow:'hidden', background:'#111' }}>
             <img draggable={false}
