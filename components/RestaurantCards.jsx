@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import { AppleButton, BlurVignette } from './ui';
 import { getFoodImage, getFreeMapAppUrl, getSmartTag } from '../lib/helpers';
 
@@ -29,7 +29,7 @@ export async function enableGyro() {
 }
 
 export const GyroPermissionButton = ({ isLoggedIn }) => {
-  const [show, setShow] = useState(false);
+  const [show, setShow] = React.useState(false);
   useEffect(() => {
     if (!isLoggedIn) return;
     const iOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
@@ -49,104 +49,101 @@ export const GyroPermissionButton = ({ isLoggedIn }) => {
   );
 };
 
+// ─── applyHolo / resetHolo — pure DOM manipulation ───────────────────────────
+function applyHolo(el, x, y) {
+  if (!el) return;
+  const rx  =  (y - 0.5) * 20;
+  const ry  = -(x - 0.5) * 20;
+  const hue =  x * 360;
+
+  el.style.transform  = `perspective(800px) rotateX(${rx}deg) rotateY(${ry}deg) scale(1.02)`;
+  el.style.boxShadow  = `${-ry * 0.8}px ${rx * 0.8 + 8}px 30px rgba(0,0,0,0.15)`;
+
+  const foil  = el._holoFoil;
+  const shine = el._holoShine;
+
+  if (foil) {
+    foil.style.opacity    = '0.15';
+    foil.style.transition = 'none';
+    foil.style.backgroundImage = `linear-gradient(
+      ${120 + ry * 2}deg,
+      hsl(${hue},100%,60%) 0%,
+      hsl(${hue+51},100%,60%) 14%,
+      hsl(${hue+102},100%,60%) 28%,
+      hsl(${hue+153},100%,60%) 42%,
+      hsl(${hue+204},100%,60%) 57%,
+      hsl(${hue+255},100%,60%) 71%,
+      hsl(${hue+306},100%,60%) 85%,
+      hsl(${hue+357},100%,60%) 100%
+    )`;
+  }
+  if (shine) {
+    shine.style.opacity    = '1';
+    shine.style.transition = 'none';
+    shine.style.backgroundImage = `radial-gradient(circle at ${x*100}% ${y*100}%, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.08) 40%, transparent 70%)`;
+  }
+}
+
+function resetHolo(el) {
+  if (!el) return;
+  el.style.transform  = 'perspective(800px) rotateX(0deg) rotateY(0deg) scale(1)';
+  el.style.transition = 'transform 0.6s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.6s ease';
+  el.style.boxShadow  = '0 2px 10px rgba(0,0,0,0.07)';
+
+  const foil  = el._holoFoil;
+  const shine = el._holoShine;
+  if (foil)  { foil.style.transition  = 'opacity 0.5s ease'; foil.style.opacity  = '0'; }
+  if (shine) { shine.style.transition = 'opacity 0.5s ease'; shine.style.opacity = '0'; }
+}
+
 // ─── HoloCard ─────────────────────────────────────────────────────────────────
-// Completely self-contained — handles its own mouse tracking via DOM events
-// NOT React synthetic events (avoids conflicts with onPointerDown drag handler)
 const HoloCard = ({ children }) => {
   const wrapRef = useRef(null);
   const rafRef  = useRef(null);
-  const stateRef = useRef({ x: 0.5, y: 0.5, active: false });
-
-  // Apply styles directly to DOM — no React re-render needed
-  const applyStyles = useCallback((x, y, active) => {
-    const el = wrapRef.current;
-    if (!el) return;
-
-    const rx  =  (y - 0.5) * 20;
-    const ry  = -(x - 0.5) * 20;
-    const hue =  x * 360;
-
-    if (active) {
-      el.style.transform = `perspective(800px) rotateX(${rx}deg) rotateY(${ry}deg) scale(1.02)`;
-      el.style.transition = 'transform 0.08s linear, box-shadow 0.08s linear';
-      el.style.boxShadow  = `${-ry * 0.8}px ${rx * 0.8 + 8}px 30px rgba(0,0,0,0.15)`;
-
-      // Foil overlay
-      const foil = el.querySelector('.holo-foil');
-      if (foil) {
-        foil.style.opacity = '1';
-        foil.style.background = `linear-gradient(
-          ${120 + ry * 2}deg,
-          hsla(${hue},100%,60%,1) 0%,
-          hsla(${hue+60},100%,60%,1) 17%,
-          hsla(${hue+120},100%,60%,1) 34%,
-          hsla(${hue+180},100%,60%,1) 51%,
-          hsla(${hue+240},100%,60%,1) 68%,
-          hsla(${hue+300},100%,60%,1) 85%,
-          hsla(${hue+360},100%,60%,1) 100%
-        )`;
-        foil.style.transition = 'none';
-      }
-
-      const shine = el.querySelector('.holo-shine');
-      if (shine) {
-        shine.style.opacity = '1';
-        shine.style.background = `radial-gradient(circle at ${x*100}% ${y*100}%, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.05) 35%, transparent 65%)`;
-        shine.style.transition = 'none';
-      }
-    } else {
-      el.style.transform  = 'perspective(800px) rotateX(0deg) rotateY(0deg) scale(1)';
-      el.style.transition = 'transform 0.6s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.6s ease';
-      el.style.boxShadow  = '0 2px 10px rgba(0,0,0,0.07)';
-
-      const foil = el.querySelector('.holo-foil');
-      if (foil) { foil.style.opacity = '0'; foil.style.transition = 'opacity 0.5s ease'; }
-
-      const shine = el.querySelector('.holo-shine');
-      if (shine) { shine.style.opacity = '0'; shine.style.transition = 'opacity 0.5s ease'; }
-    }
-  }, []);
+  const foilRef = useRef(null);
+  const shineRef = useRef(null);
 
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
 
-    // Use native DOM events — completely bypasses React event system
+    // Cache references on the element for applyHolo/resetHolo
+    el._holoFoil  = foilRef.current;
+    el._holoShine = shineRef.current;
+
+    // Native DOM events — bypasses React entirely
     const onMove = (e) => {
       if (gyroOn) return;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(() => {
         const r = el.getBoundingClientRect();
-        const x = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
-        const y = Math.max(0, Math.min(1, (e.clientY - r.top)  / r.height));
-        stateRef.current = { x, y, active: true };
-        applyStyles(x, y, true);
+        applyHolo(el,
+          Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)),
+          Math.max(0, Math.min(1, (e.clientY - r.top)  / r.height))
+        );
       });
     };
 
     const onLeave = () => {
       if (gyroOn) return;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      stateRef.current = { x: 0.5, y: 0.5, active: false };
-      applyStyles(0.5, 0.5, false);
+      resetHolo(el);
     };
 
-    // Also reset when page regains focus (tab switch fix)
+    // Tab switch: always reset
     const onVisibility = () => {
-      if (document.hidden) {
-        stateRef.current = { x: 0.5, y: 0.5, active: false };
-        applyStyles(0.5, 0.5, false);
-      }
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      resetHolo(el);
     };
 
-    el.addEventListener('mousemove', onMove);
-    el.addEventListener('mouseleave', onLeave);
+    el.addEventListener('mousemove', onMove, { passive: true });
+    el.addEventListener('mouseleave', onLeave, { passive: true });
     document.addEventListener('visibilitychange', onVisibility);
 
-    // Gyro subscription
+    // Gyro
     const gyroFn = (x, y) => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(() => applyStyles(x, y, true));
+      rafRef.current = requestAnimationFrame(() => applyHolo(el, x, y));
     };
     gyroSubs.add(gyroFn);
 
@@ -156,8 +153,10 @@ const HoloCard = ({ children }) => {
       document.removeEventListener('visibilitychange', onVisibility);
       gyroSubs.delete(gyroFn);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      // Always clean up on unmount
+      resetHolo(el);
     };
-  }, [applyStyles]);
+  }, []);
 
   return (
     <div
@@ -169,31 +168,24 @@ const HoloCard = ({ children }) => {
         transition: 'transform 0.6s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.6s ease',
         boxShadow: '0 2px 10px rgba(0,0,0,0.07)',
         willChange: 'transform',
-        cursor: 'default',
       }}
     >
       {children}
 
-      {/* Foil layer — always in DOM, opacity controlled via JS */}
-      <div
-        className="holo-foil"
-        style={{
-          position: 'absolute', inset: 0, borderRadius: 22,
-          pointerEvents: 'none', zIndex: 10,
-          mixBlendMode: 'color-dodge',
-          opacity: 0,
-        }}
-      />
+      {/* Foil: screen blend — shows colour without blowing out whites */}
+      <div ref={foilRef} style={{
+        position:'absolute', inset:0, borderRadius:22,
+        pointerEvents:'none', zIndex:10,
+        mixBlendMode:'screen',
+        opacity:0,
+      }} />
 
-      {/* Shine layer */}
-      <div
-        className="holo-shine"
-        style={{
-          position: 'absolute', inset: 0, borderRadius: 22,
-          pointerEvents: 'none', zIndex: 11,
-          opacity: 0,
-        }}
-      />
+      {/* Shine: normal blend */}
+      <div ref={shineRef} style={{
+        position:'absolute', inset:0, borderRadius:22,
+        pointerEvents:'none', zIndex:11,
+        opacity:0,
+      }} />
     </div>
   );
 };
@@ -239,17 +231,13 @@ export const RestaurantCard = ({
         transform: isDragging ? 'none' : `translate3d(0,${ty}%,0)`,
         transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.25,1,0.5,1)',
         opacity: isDragging ? 0.55 : 1,
+        // pan-y on mobile only — desktop needs pointer events free
         touchAction: 'pan-y',
-        cursor: 'grab',
+        cursor: isDragging ? 'grabbing' : 'grab',
       }}
     >
       <HoloCard>
-        <div style={{
-          background:'white', borderRadius:22,
-          border:'1px solid #E5E5EA', padding:8,
-          position:'relative', overflow:'hidden',
-        }}>
-          {/* Image */}
+        <div style={{ background:'white', borderRadius:22, border:'1px solid #E5E5EA', padding:8, position:'relative', overflow:'hidden' }}>
           <div style={{ width:'100%', height:216, position:'relative', borderRadius:16, overflow:'hidden', background:'#111' }}>
             <img draggable={false}
               src={getFoodImage(restaurant)}
@@ -272,8 +260,6 @@ export const RestaurantCard = ({
               </div>
             </div>
           </div>
-
-          {/* Body */}
           <div style={{ padding:'12px 14px 10px', position:'relative', zIndex:20 }}>
             {restaurant.note && <p style={{ fontSize:13, color:'#3C3C43', lineHeight:1.6, margin:'0 0 10px', fontWeight:500 }}>{restaurant.note}</p>}
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', borderTop:'1px solid #F0F0F0', paddingTop:10 }}>
