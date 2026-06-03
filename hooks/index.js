@@ -276,49 +276,26 @@ export function useAuth() {
   };
 
   // ── Logout ────────────────────────────────────────────────────────────────
+  // Threads 用戶：只清 UI state，Firebase session 保留
+  //   → 下次進來 onAuthStateChanged 自動恢復，不需重新發文
+  // Google 用戶：完全登出，清掉所有資料
   const handleLogout = () => {
     setIsGlobalTransitioning(true);
     setTimeout(async () => {
       const isThreadsUser = firebaseUser?.uid?.startsWith("threads_");
 
       if (typeof window !== 'undefined') {
-        // ── 永遠清掉 auth_mode ────────────────────────────────────────────────
         window.localStorage.removeItem('fabrica_auth_mode');
-
-        if (isThreadsUser) {
-          // Threads 用戶：保留 fabrica_threads_username 和 Firebase session
-          // 下次進來 onAuthStateChanged 會自動恢復登入，不需要重新發文
-          // 只清掉 UI state，不呼叫 signOut
-        } else {
-          // Google 用戶：完全登出，清掉所有資料
+        if (!isThreadsUser) {
           window.localStorage.removeItem('fabrica_threads_username');
-          await signOut(auth).catch(console.error);
         }
       }
 
-      if (!mountedRef.current) return;
-      setIsGoogleAuthPending(false);
-      setIsLoggedIn(false);
-      setFirebaseUser(null);
-      setThreadsUsername("");
-      setInputUsername("");
-      setMasterUid("");
-      setLoginStep("idle");
-      setVerificationCode("");
-      setLoginError("");
-      setIsGlobalTransitioning(false);
-    }, 800);
-  };
-
-  // ── Full logout (Threads users: also clears Firebase session) ────────────────
-  const handleFullLogout = () => {
-    setIsGlobalTransitioning(true);
-    setTimeout(async () => {
-      if (typeof window !== 'undefined') {
-        window.localStorage.removeItem('fabrica_auth_mode');
-        window.localStorage.removeItem('fabrica_threads_username');
+      if (!isThreadsUser) {
+        await signOut(auth).catch(console.error);
       }
-      await signOut(auth).catch(console.error);
+      // Threads 用戶不呼叫 signOut → Firebase session 持久化
+
       if (!mountedRef.current) return;
       setIsGoogleAuthPending(false);
       setIsLoggedIn(false);
@@ -343,7 +320,7 @@ export function useAuth() {
     inputUsername, setInputUsername,
     isGlobalTransitioning,
     handleGenerateCode, handleVerifyCrawler, handleResetLogin,
-    handleGoogleSignIn, handleLogout, handleFullLogout,
+    handleGoogleSignIn, handleLogout,
   };
 }
 
