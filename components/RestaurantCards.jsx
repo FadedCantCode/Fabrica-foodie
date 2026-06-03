@@ -107,9 +107,9 @@ const HoloCard = ({ children }) => {
     const el = wrapRef.current;
     if (!el) return;
 
-    // Cache references on the element for applyHolo/resetHolo
-    el._holoFoil  = foilRef.current;
-    el._holoShine = shineRef.current;
+    // querySelector is safer than ref — guaranteed to find after mount
+    el._holoFoil  = el.querySelector('.holo-foil');
+    el._holoShine = el.querySelector('.holo-shine');
 
     // Native DOM events — bypasses React entirely
     const onMove = (e) => {
@@ -130,15 +130,18 @@ const HoloCard = ({ children }) => {
       resetHolo(el);
     };
 
-    // Tab switch: always reset
-    const onVisibility = () => {
+    // Reset on any focus change or tab switch
+    const onReset = () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       resetHolo(el);
     };
 
     el.addEventListener('mousemove', onMove, { passive: true });
     el.addEventListener('mouseleave', onLeave, { passive: true });
-    document.addEventListener('visibilitychange', onVisibility);
+    // visibilitychange fires when tab is hidden/shown
+    document.addEventListener('visibilitychange', onReset);
+    // window focus fires when user returns from another window/tab
+    window.addEventListener('focus', onReset);
 
     // Gyro
     const gyroFn = (x, y) => {
@@ -150,7 +153,8 @@ const HoloCard = ({ children }) => {
     return () => {
       el.removeEventListener('mousemove', onMove);
       el.removeEventListener('mouseleave', onLeave);
-      document.removeEventListener('visibilitychange', onVisibility);
+      document.removeEventListener('visibilitychange', onReset);
+      window.removeEventListener('focus', onReset);
       gyroSubs.delete(gyroFn);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       // Always clean up on unmount
