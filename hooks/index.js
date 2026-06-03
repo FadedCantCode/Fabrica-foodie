@@ -122,19 +122,17 @@ export function useAuth() {
           window.localStorage.removeItem('fabrica_auth_mode');
         }
 
-        // If Threads user, resolve masterUid async WITHOUT blocking isLoggedIn
+        // If Threads user, resolve masterUid BEFORE setting isLoggedIn
+        // This ensures Firestore listener uses the correct masterUid (Google UID if bound)
         if (isThreadsUser && cleanUsername) {
-          // Set masterUid to temporary value so Firestore listener can start
-          setMasterUid(user.uid);
-          setIsLoggedIn(true);
-
-          // Then update masterUid in background
           getMasterUid(cleanUsername).then(resolved => {
             if (!mountedRef.current) return;
             setMasterUid(resolved);
+            setIsLoggedIn(true);
           }).catch(() => {
             if (!mountedRef.current) return;
-            setMasterUid(user.uid);
+            setMasterUid(user.uid); // fallback to threads_ uid
+            setIsLoggedIn(true);
           });
         } else {
           setMasterUid(user.uid);
