@@ -112,28 +112,56 @@ const HoloCard = ({ children }) => {
     el._holoShine = el.querySelector('.holo-shine');
 
     // Native DOM events — bypasses React entirely
+    // Get foil/shine once after mount — querySelector on wrapRef children
+    const foilEl  = wrapRef.current.querySelector('.holo-foil');
+    const shineEl = wrapRef.current.querySelector('.holo-shine');
+
     const onMove = (e) => {
       if (gyroOn) return;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(() => {
         const r = el.getBoundingClientRect();
-        applyHolo(el,
-          Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)),
-          Math.max(0, Math.min(1, (e.clientY - r.top)  / r.height))
-        );
+        const x = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+        const y = Math.max(0, Math.min(1, (e.clientY - r.top)  / r.height));
+        const rx  =  (y - 0.5) * 20;
+        const ry  = -(x - 0.5) * 20;
+        const hue =   x * 360;
+
+        el.style.transform  = `perspective(800px) rotateX(${rx}deg) rotateY(${ry}deg) scale(1.02)`;
+        el.style.transition = 'transform 0.08s linear, box-shadow 0.08s linear';
+        el.style.boxShadow  = `${-ry * 0.8}px ${rx * 0.8 + 8}px 30px rgba(0,0,0,0.15)`;
+
+        if (foilEl) {
+          foilEl.style.transition = 'none';
+          foilEl.style.opacity = '0.15';
+          foilEl.style.backgroundImage = `linear-gradient(${120 + ry * 2}deg,hsl(${hue},100%,60%),hsl(${hue+60},100%,60%),hsl(${hue+120},100%,60%),hsl(${hue+180},100%,60%),hsl(${hue+240},100%,60%),hsl(${hue+300},100%,60%))`;
+        }
+        if (shineEl) {
+          shineEl.style.transition = 'none';
+          shineEl.style.opacity = '0.7';
+          shineEl.style.backgroundImage = `radial-gradient(circle at ${x*100}% ${y*100}%,rgba(255,255,255,0.55) 0%,rgba(255,255,255,0.05) 40%,transparent 70%)`;
+        }
       });
+    };
+
+    const doReset = () => {
+      el.style.transform  = 'perspective(800px) rotateX(0deg) rotateY(0deg) scale(1)';
+      el.style.transition = 'transform 0.6s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.6s ease';
+      el.style.boxShadow  = '0 2px 10px rgba(0,0,0,0.07)';
+      if (foilEl)  { foilEl.style.transition  = 'opacity 0.5s ease'; foilEl.style.opacity  = '0'; }
+      if (shineEl) { shineEl.style.transition = 'opacity 0.5s ease'; shineEl.style.opacity = '0'; }
     };
 
     const onLeave = () => {
       if (gyroOn) return;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      resetHolo(el);
+      doReset();
     };
 
     // Reset on any focus change or tab switch
     const onReset = () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      resetHolo(el);
+      doReset();
     };
 
     el.addEventListener('mousemove', onMove, { passive: true });
@@ -146,7 +174,18 @@ const HoloCard = ({ children }) => {
     // Gyro
     const gyroFn = (x, y) => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(() => applyHolo(el, x, y));
+      rafRef.current = requestAnimationFrame(() => {
+        const rx  =  (y - 0.5) * 20;
+        const ry  = -(x - 0.5) * 20;
+        const hue =   x * 360;
+        el.style.transform = `perspective(800px) rotateX(${rx}deg) rotateY(${ry}deg) scale(1.02)`;
+        el.style.transition = 'transform 0.08s linear';
+        if (foilEl) {
+          foilEl.style.opacity = '0.15';
+          foilEl.style.backgroundImage = `linear-gradient(${120+ry*2}deg,hsl(${hue},100%,60%),hsl(${hue+60},100%,60%),hsl(${hue+120},100%,60%),hsl(${hue+180},100%,60%),hsl(${hue+240},100%,60%),hsl(${hue+300},100%,60%))`;
+        }
+        if (shineEl) { shineEl.style.opacity = '0.5'; }
+      });
     };
     gyroSubs.add(gyroFn);
 
@@ -158,7 +197,7 @@ const HoloCard = ({ children }) => {
       gyroSubs.delete(gyroFn);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       // Always clean up on unmount
-      resetHolo(el);
+      doReset();
     };
   }, []);
 
