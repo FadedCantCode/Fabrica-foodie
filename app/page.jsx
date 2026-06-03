@@ -21,7 +21,7 @@ import {
 } from '../components/ui';
 import LoginPage from '../components/LoginPage';
 import BindModal from '../components/BindModal';
-import { RestaurantCard, RecommendationCard, RestaurantDetailModal } from '../components/RestaurantCards';
+import { RestaurantCard, RecommendationCard, RestaurantDetailModal, GyroPermissionButton } from '../components/RestaurantCards';
 
 // ── Firebase imports for food actions ────────────────────────────────────────
 import { addDoc, updateDoc, deleteDoc, doc, collection, serverTimestamp } from 'firebase/firestore';
@@ -508,9 +508,9 @@ export default function App() {
       {selectedRestaurant && !isGlobalTransitioning && (
         <RestaurantDetailModal restaurant={selectedRestaurant} onClose={() => setSelectedRestaurant(null)} />
       )}
-
+     
       {/* ── Toast ── */}
-      <Toast message={toastMessage} type={toastType} />
+      <GyroPermissionButton /> <Toast message={toastMessage} type={toastType} />
     </div>
   );
 }
