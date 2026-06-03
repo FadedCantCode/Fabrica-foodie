@@ -20,10 +20,6 @@ function randomUA() {
   return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
 }
 
-/**
- * Fetch the public Threads profile page for `username` and return the raw HTML.
- * Returns null when the page is blocked or unreachable.
- */
 async function fetchThreadsProfileHtml(username) {
   const url = `https://www.threads.net/@${username}`;
   try {
@@ -36,11 +32,7 @@ async function fetchThreadsProfileHtml(username) {
       },
       cache: 'no-store',
     });
-
-    if (!res.ok) {
-      return { html: null, status: res.status };
-    }
-
+    if (!res.ok) return { html: null, status: res.status };
     const html = await res.text();
     return { html, status: res.status };
   } catch (err) {
@@ -49,16 +41,6 @@ async function fetchThreadsProfileHtml(username) {
   }
 }
 
-/**
- * POST /api/verify-crawler
- *
- * Body: { username: string, expectedCode: string, uid?: string }
- *
- * - uid is the Firebase UID when the user is already signed in with Google.
- *   When provided, the verified Threads username gets bound to that Google account.
- * - When uid is omitted, a Firebase Custom Token is generated so the frontend
- *   can call signInWithCustomToken() and get a real Auth session.
- */
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -74,7 +56,7 @@ export async function POST(request) {
     const cleanUsername = normalizeUsername(username);
     const upperCode = expectedCode.trim().toUpperCase();
 
-    // ── Step 1: fetch the public profile page ────────────────────────────────
+    // ── Step 1: fetch Threads profile ─────────────────────────────────────────
     const { html, status } = await fetchThreadsProfileHtml(cleanUsername);
 
     if (!html) {
@@ -88,87 +70,90 @@ export async function POST(request) {
       return NextResponse.json({
         success: false,
         blocked: true,
-        message: 'Threads 頁面目前無法讀取（Meta 可能暫時封鎖了伺服器請求）。請稍後再試，或改用 Threads API 驗證。',
+        message: 'Threads 頁面目前無法讀取（Meta 可能暫時封鎖了伺服器請求）。請稍後再試。',
       });
     }
 
-    // ── Step 2: look for @fabrica_tw AND the verification code in the HTML ───
+    // ── Step 2: verify mention + code ─────────────────────────────────────────
     const lowerHtml = html.toLowerCase();
     const hasMention = lowerHtml.includes('@fabrica_tw') || lowerHtml.includes('fabrica_tw');
     const hasCode = html.toUpperCase().includes(upperCode);
 
-    console.log(
-      `[verify-crawler] @${cleanUsername} — mention=${hasMention}, code=${hasCode}, httpStatus=${status}`
-    );
-
     if (!hasMention || !hasCode) {
       if (!hasMention && !hasCode) {
-        return NextResponse.json({
-          success: false,
-          message: `在 @${cleanUsername} 的公開頁面中，未偵測到「@fabrica_tw」及「${upperCode}」。請確認貼文已公開，並等待約 5 秒後再試。`,
-        });
+        return NextResponse.json({ success: false, message: `在 @${cleanUsername} 的公開頁面中，未偵測到「@fabrica_tw」及「${upperCode}」。請確認貼文已公開，並等待約 5 秒後再試。` });
       }
       if (!hasMention) {
-        return NextResponse.json({
-          success: false,
-          message: `找到驗證碼「${upperCode}」，但沒找到「@fabrica_tw」的標記。請確認貼文內容正確。`,
-        });
+        return NextResponse.json({ success: false, message: `找到驗證碼「${upperCode}」，但沒找到「@fabrica_tw」的標記。請確認貼文內容正確。` });
       }
-      return NextResponse.json({
-        success: false,
-        message: `找到「@fabrica_tw」的標記，但未找到驗證碼「${upperCode}」。請確認複製的驗證碼正確。`,
-      });
+      return NextResponse.json({ success: false, message: `找到「@fabrica_tw」的標記，但未找到驗證碼「${upperCode}」。請確認複製的驗證碼正確。` });
     }
 
-    // ── Step 3: write verification record to Firestore ───────────────────────
+    // ── Step 3: write to Firestore ────────────────────────────────────────────
     const db = getAdminDb();
     const now = FieldValue.serverTimestamp();
 
+    // Always write verifiedUsers
     await db
-      .collection('artifacts')
-      .doc(appId)
-      .collection('verifiedUsers')
-      .doc(cleanUsername)
-      .set(
-        {
-          username: cleanUsername,
-          verificationCode: upperCode,
-          verified: true,
-          verifiedAt: now,
-          source: 'crawler_verification',
-          ...(uid ? { boundUid: uid } : {}),
-        },
-        { merge: true }
-      );
+      .collection('artifacts').doc(appId)
+      .collection('verifiedUsers').doc(cleanUsername)
+      .set({
+        username: cleanUsername,
+        verificationCode: upperCode,
+        verified: true,
+        verifiedAt: now,
+        source: 'crawler_verification',
+        ...(uid ? { boundUid: uid } : {}),
+      }, { merge: true });
 
-    if (uid) {
+    // ── KEY FIX: threadMappings ───────────────────────────────────────────────
+    // Check if there's already a Google UID bound to this username
+    // NEVER overwrite a real Google UID with threads_ fallback
+    const mappingRef = db
+      .collection('artifacts').doc(appId)
+      .collection('threadMappings').doc(cleanUsername);
+
+    const existingMapping = await mappingRef.get();
+    const existingUid = existingMapping.data()?.uid || "";
+    const existingIsGoogle = existingUid && !existingUid.startsWith("threads_");
+
+    if (uid && !uid.startsWith("threads_")) {
+      // Caller provided a real Google UID → always write (this is a binding action)
+      await mappingRef.set({ uid, updatedAt: now }, { merge: true });
+
+      // Also update the Google user doc
       await db
-        .collection('artifacts')
-        .doc(appId)
-        .collection('users')
-        .doc(uid)
-        .set(
-          {
-            threadsUsername: cleanUsername,
-            threadsVerified: true,
-            threadsVerifiedAt: now,
-          },
-          { merge: true }
-        );
+        .collection('artifacts').doc(appId)
+        .collection('users').doc(uid)
+        .set({
+          threadsUsername: cleanUsername,
+          threadsVerified: true,
+          threadsVerifiedAt: now,
+        }, { merge: true });
+
+    } else if (!existingIsGoogle) {
+      // No Google UID provided AND no existing Google binding → write threads_ fallback
+      await mappingRef.set({
+        uid: `threads_${cleanUsername}`,
+        updatedAt: now,
+      }, { merge: true });
+    }
+    // else: existing Google UID found, don't overwrite it
+    // (pure Threads login won't erase a previous Google binding)
+
+    // If Google user is doing the binding, also update users/{googleUID}
+    if (uid && !uid.startsWith("threads_")) {
+      await db
+        .collection('artifacts').doc(appId)
+        .collection('users').doc(uid)
+        .set({
+          threadsUsername: cleanUsername,
+          threadsVerified: true,
+          threadsVerifiedAt: now,
+        }, { merge: true });
     }
 
-    await db
-      .collection('artifacts')
-      .doc(appId)
-      .collection('threadMappings')
-      .doc(cleanUsername)
-      .set(
-        { uid: uid || `threads_${cleanUsername}`, updatedAt: now },
-        { merge: true }
-      );
-
-    // ── Step 4: 產生 Custom Token（只有純 Threads 登入才需要）────────────────
-    // Google 登入用戶已有 uid，不需要 custom token
+    // ── Step 4: custom token (only for pure Threads login) ────────────────────
     let customToken = null;
     if (!uid) {
       const threadsFirebaseUid = `threads_${cleanUsername}`;
@@ -179,7 +164,6 @@ export async function POST(request) {
         });
       } catch (tokenErr) {
         console.error('[verify-crawler] createCustomToken failed:', tokenErr);
-        // token 產生失敗不影響驗證成功，前端會用舊的 localStorage 方式處理
       }
     }
 
@@ -187,8 +171,9 @@ export async function POST(request) {
       success: true,
       message: `🎉 驗證成功！@${cleanUsername} 已綁定至您的帳號。`,
       username: cleanUsername,
-      customToken, // null 表示 Google 登入，前端不需處理
+      customToken,
     });
+
   } catch (err) {
     console.error('[verify-crawler] error:', err);
     return NextResponse.json(
