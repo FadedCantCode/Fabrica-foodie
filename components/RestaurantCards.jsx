@@ -1,66 +1,45 @@
 "use client";
 
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { AppleButton, BlurVignette } from './ui';
 import { getFoodImage, getFreeMapAppUrl, getSmartTag } from '../lib/helpers';
 
-// ─── Global gyro singleton ────────────────────────────────────────────────────
+// ─── Gyro singleton ───────────────────────────────────────────────────────────
 const gyroSubs = new Set();
-let gyroOn = false;
-let gBase = null, bBase = null;
-let gSmooth = 0.5, bSmooth = 0.5;
+let gyroOn = false, gBase = null, bBase = null, gS = 0.5, bS = 0.5;
 
 function gyroTick(e) {
   const g = e.gamma ?? 0, b = e.beta ?? 0;
   if (gBase === null) { gBase = g; bBase = b; }
-  const rx = Math.max(0, Math.min(1, ((g - gBase) / 30) * 0.5 + 0.5));
-  const ry = Math.max(0, Math.min(1, ((b - bBase) / 30) * 0.5 + 0.5));
-  gSmooth = 0.12 * rx + 0.88 * gSmooth;
-  bSmooth = 0.12 * ry + 0.88 * bSmooth;
-  gyroSubs.forEach(fn => fn(gSmooth, bSmooth));
+  gS = 0.12 * Math.max(0, Math.min(1, ((g - gBase) / 30) * 0.5 + 0.5)) + 0.88 * gS;
+  bS = 0.12 * Math.max(0, Math.min(1, ((b - bBase) / 30) * 0.5 + 0.5)) + 0.88 * bS;
+  gyroSubs.forEach(fn => fn(gS, bS));
 }
 
 export async function enableGyro() {
   if (gyroOn) return true;
   if (typeof DeviceOrientationEvent === 'undefined') return false;
   if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-    try {
-      const r = await DeviceOrientationEvent.requestPermission();
-      if (r !== 'granted') return false;
-    } catch { return false; }
+    try { if ((await DeviceOrientationEvent.requestPermission()) !== 'granted') return false; }
+    catch { return false; }
   }
   window.addEventListener('deviceorientation', gyroTick, { passive: true });
-  gyroOn = true;
-  gBase = null; bBase = null;
+  gyroOn = true; gBase = null; bBase = null;
   return true;
 }
 
-// ─── GyroPermissionButton ─────────────────────────────────────────────────────
 export const GyroPermissionButton = ({ isLoggedIn }) => {
   const [show, setShow] = useState(false);
   useEffect(() => {
-    if (!isLoggedIn) { setShow(false); return; }
+    if (!isLoggedIn) return;
     const iOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
-    if (iOS && typeof DeviceOrientationEvent?.requestPermission === 'function' && !gyroOn) {
-      setShow(true);
-    } else if (!iOS && typeof DeviceOrientationEvent !== 'undefined' && !gyroOn) {
-      enableGyro(); // Android auto
-    }
+    if (iOS && typeof DeviceOrientationEvent?.requestPermission === 'function' && !gyroOn) setShow(true);
+    else if (!iOS && typeof DeviceOrientationEvent !== 'undefined' && !gyroOn) enableGyro();
   }, [isLoggedIn]);
   if (!show) return null;
   return (
-    <button
-      onClick={async () => { const ok = await enableGyro(); if (ok) setShow(false); }}
-      style={{
-        position:'fixed', bottom:96, right:16, zIndex:50,
-        background:'#1D1D1F', color:'white', border:'none',
-        borderRadius:999, padding:'10px 16px',
-        fontSize:12, fontWeight:700,
-        display:'flex', alignItems:'center', gap:6,
-        boxShadow:'0 8px 24px rgba(0,0,0,0.25)',
-        touchAction:'manipulation', cursor:'pointer',
-      }}
-    >
+    <button onClick={async () => { if (await enableGyro()) setShow(false); }}
+      style={{ position:'fixed', bottom:96, right:16, zIndex:50, background:'#1D1D1F', color:'white', border:'none', borderRadius:999, padding:'10px 16px', fontSize:12, fontWeight:700, display:'flex', alignItems:'center', gap:6, boxShadow:'0 8px 24px rgba(0,0,0,0.25)', touchAction:'manipulation', cursor:'pointer' }}>
       <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <circle cx="12" cy="12" r="10" strokeWidth="2"/>
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3"/>
@@ -70,110 +49,166 @@ export const GyroPermissionButton = ({ isLoggedIn }) => {
   );
 };
 
-// ─── useHolo ──────────────────────────────────────────────────────────────────
-function useHolo() {
-  const [pos, setPos] = useState({ x: 0.5, y: 0.5, on: false });
-  const raf = useRef(null);
-  const ref = useRef(null);
+// ─── HoloCard ─────────────────────────────────────────────────────────────────
+// Completely self-contained — handles its own mouse tracking via DOM events
+// NOT React synthetic events (avoids conflicts with onPointerDown drag handler)
+const HoloCard = ({ children }) => {
+  const wrapRef = useRef(null);
+  const rafRef  = useRef(null);
+  const stateRef = useRef({ x: 0.5, y: 0.5, active: false });
 
-  // Gyro subscription
-  useEffect(() => {
-    const fn = (x, y) => {
-      if (raf.current) cancelAnimationFrame(raf.current);
-      raf.current = requestAnimationFrame(() => setPos({ x, y, on: true }));
-    };
-    gyroSubs.add(fn);
-    return () => { gyroSubs.delete(fn); if (raf.current) cancelAnimationFrame(raf.current); };
+  // Apply styles directly to DOM — no React re-render needed
+  const applyStyles = useCallback((x, y, active) => {
+    const el = wrapRef.current;
+    if (!el) return;
+
+    const rx  =  (y - 0.5) * 20;
+    const ry  = -(x - 0.5) * 20;
+    const hue =  x * 360;
+
+    if (active) {
+      el.style.transform = `perspective(800px) rotateX(${rx}deg) rotateY(${ry}deg) scale(1.02)`;
+      el.style.transition = 'transform 0.08s linear, box-shadow 0.08s linear';
+      el.style.boxShadow  = `${-ry * 0.8}px ${rx * 0.8 + 8}px 30px rgba(0,0,0,0.15)`;
+
+      // Foil overlay
+      const foil = el.querySelector('.holo-foil');
+      if (foil) {
+        foil.style.opacity = '1';
+        foil.style.background = `linear-gradient(
+          ${120 + ry * 2}deg,
+          hsla(${hue},100%,60%,1) 0%,
+          hsla(${hue+60},100%,60%,1) 17%,
+          hsla(${hue+120},100%,60%,1) 34%,
+          hsla(${hue+180},100%,60%,1) 51%,
+          hsla(${hue+240},100%,60%,1) 68%,
+          hsla(${hue+300},100%,60%,1) 85%,
+          hsla(${hue+360},100%,60%,1) 100%
+        )`;
+        foil.style.transition = 'none';
+      }
+
+      const shine = el.querySelector('.holo-shine');
+      if (shine) {
+        shine.style.opacity = '1';
+        shine.style.background = `radial-gradient(circle at ${x*100}% ${y*100}%, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.05) 35%, transparent 65%)`;
+        shine.style.transition = 'none';
+      }
+    } else {
+      el.style.transform  = 'perspective(800px) rotateX(0deg) rotateY(0deg) scale(1)';
+      el.style.transition = 'transform 0.6s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.6s ease';
+      el.style.boxShadow  = '0 2px 10px rgba(0,0,0,0.07)';
+
+      const foil = el.querySelector('.holo-foil');
+      if (foil) { foil.style.opacity = '0'; foil.style.transition = 'opacity 0.5s ease'; }
+
+      const shine = el.querySelector('.holo-shine');
+      if (shine) { shine.style.opacity = '0'; shine.style.transition = 'opacity 0.5s ease'; }
+    }
   }, []);
 
-  function onMouseMove(e) {
-    if (gyroOn) return;
-    if (raf.current) cancelAnimationFrame(raf.current);
-    raf.current = requestAnimationFrame(() => {
-      if (!ref.current) return;
-      const r = ref.current.getBoundingClientRect();
-      setPos({
-        x: Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)),
-        y: Math.max(0, Math.min(1, (e.clientY - r.top)  / r.height)),
-        on: true,
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+
+    // Use native DOM events — completely bypasses React event system
+    const onMove = (e) => {
+      if (gyroOn) return;
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        const r = el.getBoundingClientRect();
+        const x = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+        const y = Math.max(0, Math.min(1, (e.clientY - r.top)  / r.height));
+        stateRef.current = { x, y, active: true };
+        applyStyles(x, y, true);
       });
-    });
-  }
+    };
 
-  function onMouseLeave() {
-    if (gyroOn) return;
-    if (raf.current) cancelAnimationFrame(raf.current);
-    setPos({ x: 0.5, y: 0.5, on: false });
-  }
+    const onLeave = () => {
+      if (gyroOn) return;
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      stateRef.current = { x: 0.5, y: 0.5, active: false };
+      applyStyles(0.5, 0.5, false);
+    };
 
-  const rx  =  (pos.y - 0.5) * 16;
-  const ry  = -(pos.x - 0.5) * 16;
-  const hue =   pos.x * 360;
+    // Also reset when page regains focus (tab switch fix)
+    const onVisibility = () => {
+      if (document.hidden) {
+        stateRef.current = { x: 0.5, y: 0.5, active: false };
+        applyStyles(0.5, 0.5, false);
+      }
+    };
 
-  return {
-    ref,
-    onMouseMove,
-    onMouseLeave,
-    on: pos.on,
-    // The tilt wrapper style — perspective lives here, separate from drag transform
-    innerStyle: {
-      transform: pos.on
-        ? `perspective(900px) rotateX(${rx}deg) rotateY(${ry}deg) scale(1.018)`
-        : 'perspective(900px) rotateX(0deg) rotateY(0deg) scale(1)',
-      transition: pos.on
-        ? 'transform 0.07s linear, box-shadow 0.07s linear'
-        : 'transform 0.65s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.65s ease',
-      boxShadow: pos.on
-        ? `${-ry * 1.2}px ${rx * 1.2 + 8}px 36px rgba(0,0,0,0.16)`
-        : '0 2px 10px rgba(0,0,0,0.06)',
-      borderRadius: 24,
-      willChange: pos.on ? 'transform' : 'auto',
-      position: 'relative',
-    },
-    // Rainbow foil — screen blend, low opacity
-    foilStyle: {
-      position:'absolute', inset:0, borderRadius:22,
-      pointerEvents:'none', zIndex:15,
-      mixBlendMode:'screen',
-      opacity: pos.on ? 0.18 : 0,
-      transition: pos.on ? 'none' : 'opacity 0.7s ease',
-      background: pos.on ? `linear-gradient(
-        ${115 + ry * 3}deg,
-        hsla(${hue},100%,70%,1) 0%,
-        hsla(${hue+60},100%,70%,1) 20%,
-        hsla(${hue+120},100%,70%,1) 40%,
-        hsla(${hue+180},100%,70%,1) 60%,
-        hsla(${hue+240},100%,70%,1) 80%,
-        hsla(${hue+300},100%,70%,1) 100%
-      )` : 'none',
-    },
-    // Specular shine
-    shineStyle: {
-      position:'absolute', inset:0, borderRadius:22,
-      pointerEvents:'none', zIndex:16,
-      opacity: pos.on ? 0.45 : 0,
-      transition: pos.on ? 'none' : 'opacity 0.7s ease',
-      background: pos.on ? `radial-gradient(
-        circle at ${pos.x*100}% ${pos.y*100}%,
-        rgba(255,255,255,0.65) 0%,
-        rgba(255,255,255,0.05) 35%,
-        transparent 65%
-      )` : 'none',
-    },
-  };
-}
+    el.addEventListener('mousemove', onMove);
+    el.addEventListener('mouseleave', onLeave);
+    document.addEventListener('visibilitychange', onVisibility);
 
-// ─── Recommender helper ───────────────────────────────────────────────────────
+    // Gyro subscription
+    const gyroFn = (x, y) => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => applyStyles(x, y, true));
+    };
+    gyroSubs.add(gyroFn);
+
+    return () => {
+      el.removeEventListener('mousemove', onMove);
+      el.removeEventListener('mouseleave', onLeave);
+      document.removeEventListener('visibilitychange', onVisibility);
+      gyroSubs.delete(gyroFn);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [applyStyles]);
+
+  return (
+    <div
+      ref={wrapRef}
+      style={{
+        position: 'relative',
+        borderRadius: 24,
+        transform: 'perspective(800px) rotateX(0deg) rotateY(0deg) scale(1)',
+        transition: 'transform 0.6s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.6s ease',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.07)',
+        willChange: 'transform',
+        cursor: 'default',
+      }}
+    >
+      {children}
+
+      {/* Foil layer — always in DOM, opacity controlled via JS */}
+      <div
+        className="holo-foil"
+        style={{
+          position: 'absolute', inset: 0, borderRadius: 22,
+          pointerEvents: 'none', zIndex: 10,
+          mixBlendMode: 'color-dodge',
+          opacity: 0,
+        }}
+      />
+
+      {/* Shine layer */}
+      <div
+        className="holo-shine"
+        style={{
+          position: 'absolute', inset: 0, borderRadius: 22,
+          pointerEvents: 'none', zIndex: 11,
+          opacity: 0,
+        }}
+      />
+    </div>
+  );
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function getRecommenderInfo(r) {
   const isSystem  = r.recommendedBy === "系統探索" || r.recommendedBy === "系統推薦";
   const isThreads = r.source === "threads_mention" || r.source === "manual_threads_import" || !!r.threadsUrl;
   const isManual  = !isThreads && !isSystem;
   const handle    = r.sourceAuthor || r.recommendedBy?.replace("@","") || "";
-  const link      = isThreads && r.threadsUrl ? r.threadsUrl
-                  : isThreads && handle ? `https://www.threads.net/@${handle}`
-                  : "https://www.threads.com/@fabrica_tw";
-  const label     = isSystem ? "@fabrica_tw" : (isThreads && handle) ? `@${handle}` : "手動加入";
-  const avatar    = isManual ? "✎" : handle ? handle[0].toUpperCase() : "F";
+  const link = isThreads && r.threadsUrl ? r.threadsUrl
+             : isThreads && handle ? `https://www.threads.net/@${handle}`
+             : "https://www.threads.com/@fabrica_tw";
+  const label  = isSystem ? "@fabrica_tw" : (isThreads && handle) ? `@${handle}` : "手動加入";
+  const avatar = isManual ? "✎" : handle ? handle[0].toUpperCase() : "F";
   return { link, label, avatar, isManual };
 }
 
@@ -183,9 +218,8 @@ export const RestaurantCard = ({
   onPointerDown, onDelete, onShare,
 }) => {
   const isDragging = draggingId === restaurant.id;
-  const cat  = getSmartTag(restaurant.name, restaurant.category);
-  const rec  = getRecommenderInfo(restaurant);
-  const holo = useHolo();
+  const cat = getSmartTag(restaurant.name, restaurant.category);
+  const rec = getRecommenderInfo(restaurant);
 
   let ty = 0;
   if (dragState.draggingId && dragState.hoveredIndex !== -1 && !isDragging) {
@@ -196,29 +230,20 @@ export const RestaurantCard = ({
 
   return (
     <div
-      ref={holo.ref}
       data-sort-index={index}
       data-restaurant-id={restaurant.id}
       onPointerDown={e => onPointerDown(e, restaurant, index)}
-      onMouseMove={holo.onMouseMove}
-      onMouseLeave={holo.onMouseLeave}
+      className="select-none w-full animate-card-appear"
       style={{
-        animationDelay:`${Math.min(index*60,400)}ms`,
+        animationDelay: `${Math.min(index*60,400)}ms`,
         transform: isDragging ? 'none' : `translate3d(0,${ty}%,0)`,
         transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.25,1,0.5,1)',
-        touchAction: 'pan-y',
         opacity: isDragging ? 0.55 : 1,
-        width:'100%',
+        touchAction: 'pan-y',
+        cursor: 'grab',
       }}
-      className="select-none cursor-grab active:cursor-grabbing animate-card-appear"
     >
-      {/* Holo tilt wrapper — perspective lives here, separate from drag translate */}
-      <div style={holo.innerStyle}>
-        {/* Overlay layers — only show when active */}
-        <div style={holo.foilStyle} />
-        <div style={holo.shineStyle} />
-
-        {/* Card body */}
+      <HoloCard>
         <div style={{
           background:'white', borderRadius:22,
           border:'1px solid #E5E5EA', padding:8,
@@ -226,69 +251,44 @@ export const RestaurantCard = ({
         }}>
           {/* Image */}
           <div style={{ width:'100%', height:216, position:'relative', borderRadius:16, overflow:'hidden', background:'#111' }}>
-            <img
-              draggable={false}
+            <img draggable={false}
               src={getFoodImage(restaurant)}
               onError={e => { e.target.onerror=null; e.target.src="https://images.unsplash.com/photo-1414235077428-338988692309?q=80&w=800&auto=format&fit=crop"; }}
               alt={restaurant.name}
               style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }}
             />
             <div style={{ position:'absolute', inset:0, background:'linear-gradient(to top, rgba(0,0,0,0.82) 0%, transparent 50%, rgba(0,0,0,0.18) 100%)' }} />
-
-            {/* Category */}
-            <div style={{ position:'absolute', top:12, left:12, background:'rgba(0,0,0,0.32)', backdropFilter:'blur(8px)', WebkitBackdropFilter:'blur(8px)', color:'white', fontSize:10, fontWeight:700, padding:'4px 10px', borderRadius:6, border:'1px solid rgba(255,255,255,0.2)' }}>
-              {cat}
-            </div>
-
-            {/* Recommender */}
-            <a href={rec.link} target="_blank" rel="noopener noreferrer"
-              onClick={e => e.stopPropagation()}
+            <div style={{ position:'absolute', top:12, left:12, background:'rgba(0,0,0,0.32)', backdropFilter:'blur(8px)', WebkitBackdropFilter:'blur(8px)', color:'white', fontSize:10, fontWeight:700, padding:'4px 10px', borderRadius:6, border:'1px solid rgba(255,255,255,0.2)' }}>{cat}</div>
+            <a href={rec.link} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()}
               style={{ position:'absolute', top:12, right:12, background:'rgba(255,255,255,0.95)', borderRadius:999, padding:'5px 10px', display:'flex', alignItems:'center', gap:5, fontSize:10, fontWeight:700, color:'#1D1D1F', textDecoration:'none' }}>
-              <div style={{ width:14, height:14, borderRadius:'50%', background: rec.isManual ? 'linear-gradient(135deg,#9CA3AF,#6B7280)' : 'linear-gradient(135deg,#8B5CF6,#F97316)', color:'white', fontSize:8, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                {rec.avatar}
-              </div>
+              <div style={{ width:14, height:14, borderRadius:'50%', background: rec.isManual ? 'linear-gradient(135deg,#9CA3AF,#6B7280)' : 'linear-gradient(135deg,#8B5CF6,#F97316)', color:'white', fontSize:8, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>{rec.avatar}</div>
               {rec.label}
             </a>
-
-            {/* Name + address */}
             <div style={{ position:'absolute', bottom:12, left:16, right:16 }}>
-              <div style={{ color:'white', fontSize:20, fontWeight:700, marginBottom:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', textShadow:'0 2px 8px rgba(0,0,0,0.5)' }}>
-                {restaurant.name}
-              </div>
+              <div style={{ color:'white', fontSize:20, fontWeight:700, marginBottom:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', textShadow:'0 2px 8px rgba(0,0,0,0.5)' }}>{restaurant.name}</div>
               <div style={{ display:'flex', alignItems:'center', gap:3, color:'rgba(255,255,255,0.88)', fontSize:11, fontWeight:500 }}>
-                <svg width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{flexShrink:0}}>
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-                  <circle cx="12" cy="11" r="3" strokeWidth="2"/>
-                </svg>
+                <svg width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{flexShrink:0}}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3" strokeWidth="2"/></svg>
                 <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{restaurant.address}</span>
               </div>
             </div>
           </div>
 
-          {/* Note + actions */}
+          {/* Body */}
           <div style={{ padding:'12px 14px 10px', position:'relative', zIndex:20 }}>
-            {restaurant.note && (
-              <p style={{ fontSize:13, color:'#3C3C43', lineHeight:1.6, margin:'0 0 10px', fontWeight:500 }}>{restaurant.note}</p>
-            )}
+            {restaurant.note && <p style={{ fontSize:13, color:'#3C3C43', lineHeight:1.6, margin:'0 0 10px', fontWeight:500 }}>{restaurant.note}</p>}
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', borderTop:'1px solid #F0F0F0', paddingTop:10 }}>
-              <AppleButton onClick={e => { e.stopPropagation(); onDelete(restaurant.id); }}
-                className="flex items-center gap-1.5 text-xs font-bold text-[#FF3B30] hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                </svg>
+              <AppleButton onClick={e=>{e.stopPropagation();onDelete(restaurant.id);}} className="flex items-center gap-1.5 text-xs font-bold text-[#FF3B30] hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                 刪除
               </AppleButton>
-              <AppleButton onClick={e => { e.stopPropagation(); onShare(restaurant); }}
-                className="flex items-center gap-1 text-xs font-bold text-neutral-800 hover:bg-neutral-50 px-3 py-1.5 rounded-lg ml-auto transition-colors">
+              <AppleButton onClick={e=>{e.stopPropagation();onShare(restaurant);}} className="flex items-center gap-1 text-xs font-bold text-neutral-800 hover:bg-neutral-50 px-3 py-1.5 rounded-lg ml-auto transition-colors">
                 分享名單
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7"/>
-                </svg>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7"/></svg>
               </AppleButton>
             </div>
           </div>
         </div>
-      </div>
+      </HoloCard>
     </div>
   );
 };
