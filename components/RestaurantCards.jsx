@@ -76,7 +76,7 @@ function useHolo() {
   const raf = useRef(null);
   const ref = useRef(null);
 
-  // Gyro
+  // Gyro subscription
   useEffect(() => {
     const fn = (x, y) => {
       if (raf.current) cancelAnimationFrame(raf.current);
@@ -86,7 +86,6 @@ function useHolo() {
     return () => { gyroSubs.delete(fn); if (raf.current) cancelAnimationFrame(raf.current); };
   }, []);
 
-  // Mouse (desktop only — don't bind on touch devices to avoid scroll conflict)
   function onMouseMove(e) {
     if (gyroOn) return;
     if (raf.current) cancelAnimationFrame(raf.current);
@@ -107,21 +106,17 @@ function useHolo() {
     setPos({ x: 0.5, y: 0.5, on: false });
   }
 
-  const rx  =  (pos.y - 0.5) * 18;   // max ±9° — subtle
-  const ry  = -(pos.x - 0.5) * 18;
+  const rx  =  (pos.y - 0.5) * 16;
+  const ry  = -(pos.x - 0.5) * 16;
   const hue =   pos.x * 360;
-
-  // Reduced opacity for all layers — more subtle, less garish
-  const FOIL_OPACITY  = 0.18;  // was 0.30
-  const SHINE_OPACITY = 0.40;  // was 0.55
-  const EDGE_OPACITY  = 0.7;
 
   return {
     ref,
     onMouseMove,
     onMouseLeave,
     on: pos.on,
-    wrapStyle: {
+    // The tilt wrapper style — perspective lives here, separate from drag transform
+    innerStyle: {
       transform: pos.on
         ? `perspective(900px) rotateX(${rx}deg) rotateY(${ry}deg) scale(1.018)`
         : 'perspective(900px) rotateX(0deg) rotateY(0deg) scale(1)',
@@ -132,52 +127,39 @@ function useHolo() {
         ? `${-ry * 1.2}px ${rx * 1.2 + 8}px 36px rgba(0,0,0,0.16)`
         : '0 2px 10px rgba(0,0,0,0.06)',
       borderRadius: 24,
-      willChange: 'transform',
+      willChange: pos.on ? 'transform' : 'auto',
       position: 'relative',
     },
-    // Foil: subtle rainbow, only visible when tilting
+    // Rainbow foil — screen blend, low opacity
     foilStyle: {
       position:'absolute', inset:0, borderRadius:22,
       pointerEvents:'none', zIndex:15,
       mixBlendMode:'screen',
-      opacity: pos.on ? FOIL_OPACITY : 0,
+      opacity: pos.on ? 0.18 : 0,
       transition: pos.on ? 'none' : 'opacity 0.7s ease',
       background: pos.on ? `linear-gradient(
         ${115 + ry * 3}deg,
-        hsla(${hue},     100%,70%,1) 0%,
-        hsla(${hue+ 60}, 100%,70%,1) 20%,
-        hsla(${hue+120}, 100%,70%,1) 40%,
-        hsla(${hue+180}, 100%,70%,1) 60%,
-        hsla(${hue+240}, 100%,70%,1) 80%,
-        hsla(${hue+300}, 100%,70%,1) 100%
-      )` : 'transparent',
+        hsla(${hue},100%,70%,1) 0%,
+        hsla(${hue+60},100%,70%,1) 20%,
+        hsla(${hue+120},100%,70%,1) 40%,
+        hsla(${hue+180},100%,70%,1) 60%,
+        hsla(${hue+240},100%,70%,1) 80%,
+        hsla(${hue+300},100%,70%,1) 100%
+      )` : 'none',
     },
-    // Specular shine spot
+    // Specular shine
     shineStyle: {
       position:'absolute', inset:0, borderRadius:22,
       pointerEvents:'none', zIndex:16,
-      opacity: pos.on ? SHINE_OPACITY : 0,
+      opacity: pos.on ? 0.45 : 0,
       transition: pos.on ? 'none' : 'opacity 0.7s ease',
       background: pos.on ? `radial-gradient(
         circle at ${pos.x*100}% ${pos.y*100}%,
-        rgba(255,255,255,0.6) 0%,
-        rgba(255,255,255,0.08) 35%,
+        rgba(255,255,255,0.65) 0%,
+        rgba(255,255,255,0.05) 35%,
         transparent 65%
-      )` : 'transparent',
+      )` : 'none',
     },
-    // Edge glint — ONLY on the side facing "light source", not the bottom
-    // Use a thin border highlight, not a bottom bar
-    edgeStyle: pos.on ? {
-      position:'absolute', inset:0, borderRadius:22,
-      pointerEvents:'none', zIndex:17,
-      boxShadow: `
-        inset ${ry > 0 ? ry * 2 : 0}px 0 8px rgba(${
-          Math.round(255 * Math.abs(Math.sin(hue*Math.PI/180)))|0},
-          ${Math.round(200 * Math.abs(Math.cos(hue*Math.PI/180)))|0},
-          255, ${EDGE_OPACITY * 0.4})
-      `,
-      opacity: 1,
-    } : { position:'absolute', inset:0, pointerEvents:'none', opacity:0 },
   };
 }
 
@@ -230,19 +212,17 @@ export const RestaurantCard = ({
       }}
       className="select-none cursor-grab active:cursor-grabbing animate-card-appear"
     >
-      {/* Holo wrapper — perspective + tilt lives here */}
-      <div style={holo.wrapStyle}>
-        {/* Overlay layers */}
+      {/* Holo tilt wrapper — perspective lives here, separate from drag translate */}
+      <div style={holo.innerStyle}>
+        {/* Overlay layers — only show when active */}
         <div style={holo.foilStyle} />
         <div style={holo.shineStyle} />
-        <div style={holo.edgeStyle} />
 
-        {/* Card */}
+        {/* Card body */}
         <div style={{
           background:'white', borderRadius:22,
           border:'1px solid #E5E5EA', padding:8,
           position:'relative', overflow:'hidden',
-          transform: 'translateZ(0)', // force GPU layer
         }}>
           {/* Image */}
           <div style={{ width:'100%', height:216, position:'relative', borderRadius:16, overflow:'hidden', background:'#111' }}>
