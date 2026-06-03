@@ -214,27 +214,24 @@ export const RestaurantCard = ({
 
   return (
     <div
+      ref={holo.ref}
       data-sort-index={index}
       data-restaurant-id={restaurant.id}
       onPointerDown={e => onPointerDown(e, restaurant, index)}
+      onMouseMove={holo.onMouseMove}
+      onMouseLeave={holo.onMouseLeave}
       style={{
         animationDelay:`${Math.min(index*60,400)}ms`,
         transform: isDragging ? 'none' : `translate3d(0,${ty}%,0)`,
         transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.25,1,0.5,1)',
-        // KEY FIX: allow vertical scroll on touch, only capture pointer for drag
         touchAction: 'pan-y',
         opacity: isDragging ? 0.55 : 1,
         width:'100%',
       }}
       className="select-none cursor-grab active:cursor-grabbing animate-card-appear"
     >
-      {/* Holo wrapper — mouse events only, no touch events */}
-      <div
-        ref={holo.ref}
-        style={holo.wrapStyle}
-        onMouseMove={holo.onMouseMove}
-        onMouseLeave={holo.onMouseLeave}
-      >
+      {/* Holo wrapper — perspective + tilt lives here */}
+      <div style={holo.wrapStyle}>
         {/* Overlay layers */}
         <div style={holo.foilStyle} />
         <div style={holo.shineStyle} />
@@ -245,6 +242,7 @@ export const RestaurantCard = ({
           background:'white', borderRadius:22,
           border:'1px solid #E5E5EA', padding:8,
           position:'relative', overflow:'hidden',
+          transform: 'translateZ(0)', // force GPU layer
         }}>
           {/* Image */}
           <div style={{ width:'100%', height:216, position:'relative', borderRadius:16, overflow:'hidden', background:'#111' }}>
