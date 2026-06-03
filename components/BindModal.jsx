@@ -33,19 +33,41 @@ export default function BindModal({ show, onClose, firebaseUser }) {
     if (!clean || !bindCode) return;
     setBindStep("verifying");
     setBindError("");
+
+    // ── 確認 Google UID 存在 ──────────────────────────────────────────────────
+    const googleUid = firebaseUser?.uid;
+    if (!googleUid) {
+      setBindStep("code_shown");
+      setBindError("找不到 Google 帳號資訊，請重新登入後再試。");
+      return;
+    }
+
+    // Threads 用戶不應該來綁定（uid 已經是 threads_ 開頭）
+    if (googleUid.startsWith("threads_")) {
+      setBindStep("code_shown");
+      setBindError("請先用 Google 登入後再綁定 Threads 帳號。");
+      return;
+    }
+
     try {
-      const res  = await fetch("/api/verify-crawler", {
+      const res = await fetch("/api/verify-crawler", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ username: clean, expectedCode: bindCode, uid: firebaseUser?.uid }),
+        body: JSON.stringify({
+          username:     clean,
+          expectedCode: bindCode,
+          uid:          googleUid,  // ← 必須傳 Google UID，讓 server 寫 threadMappings
+        }),
       });
       const data = await res.json().catch(() => ({}));
+
       if (data.success) {
+        // 綁定成功：把 Threads username 存進 localStorage
         if (typeof window !== "undefined") {
           window.localStorage.setItem("fabrica_threads_username", clean);
         }
         setBindStep("done");
-        // Give the success animation time to play, then close
+        // 等成功動畫播完再關
         setTimeout(() => { onClose(clean); reset(); }, 2200);
       } else {
         setBindStep("code_shown");
@@ -84,7 +106,7 @@ export default function BindModal({ show, onClose, firebaseUser }) {
 
         <div className="space-y-4">
 
-          {/* ── Step 0 ── */}
+          {/* ── Step 0: 輸入帳號 ── */}
           {bindStep === "idle" && (
             <form onSubmit={handleGenerateCode} className="space-y-4 animate-fade-in">
               <div className="bg-black/5 rounded-xl p-3 text-xs text-[#666] font-medium leading-relaxed">
@@ -97,9 +119,7 @@ export default function BindModal({ show, onClose, firebaseUser }) {
                   placeholder="輸入 Threads 帳號"
                   value={bindUsername}
                   onChange={(e) => setBindUsername(e.target.value.replace("@", ""))}
-                  className="w-full bg-black/5 text-sm font-bold rounded-2xl py-4 pl-12 pr-5
-                    border border-transparent focus:bg-white focus:border-black focus:ring-2 focus:ring-black/20
-                    outline-none transition-all duration-300"
+                  className="w-full bg-black/5 text-sm font-bold rounded-2xl py-4 pl-12 pr-5 border border-transparent focus:bg-white focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all duration-300"
                 />
               </div>
               {bindError && <p className="text-xs font-bold text-[#FF3B30] animate-shake">{bindError}</p>}
@@ -109,16 +129,14 @@ export default function BindModal({ show, onClose, firebaseUser }) {
             </form>
           )}
 
-          {/* ── Step 1 ── */}
+          {/* ── Step 1: 顯示驗證碼 ── */}
           {bindStep === "code_shown" && (
             <form onSubmit={handleVerify} className="space-y-4 animate-fade-in">
               <div className="rounded-2xl border border-black/10 bg-white/80 p-4 space-y-3">
                 <p className="text-[11px] font-bold uppercase tracking-wider text-[#86868B]">到 Threads 發布以下公開貼文</p>
                 <div
                   onClick={() => navigator.clipboard?.writeText(`${FABRICA_THREADS_HANDLE} verify ${bindCode}`)}
-                  className="rounded-xl bg-black px-4 py-3 font-mono text-sm font-bold text-white
-                    text-center select-all tracking-wide cursor-copy
-                    transition-all duration-200 active:scale-[0.98]">
+                  className="rounded-xl bg-black px-4 py-3 font-mono text-sm font-bold text-white text-center select-all tracking-wide cursor-copy transition-all duration-200 active:scale-[0.98]">
                   {FABRICA_THREADS_HANDLE} verify {bindCode}
                 </div>
                 <p className="text-xs text-[#666] leading-relaxed font-medium">
