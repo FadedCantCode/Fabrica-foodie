@@ -37,7 +37,7 @@ export default function App() {
     isGoogleAuthPending, loginStep, verificationCode, loginError,
     inputUsername, setInputUsername, isGlobalTransitioning,
     handleGenerateCode, handleVerifyCrawler, handleResetLogin,
-    handleGoogleSignIn, handleLogout,
+    handleGoogleSignIn, handleLogout, handleFullLogout,
   } = auth_;
 
   // ── Toast ─────────────────────────────────────────────────────────────────
@@ -305,10 +305,25 @@ export default function App() {
                   </div>
                   <h1 className="text-lg font-bold tracking-tight text-black mt-0.5 truncate">{threadsUsername}</h1>
                 </div>
-                <AppleButton onClick={handleLogout}
-                  className="flex-shrink-0 text-xs font-semibold text-[#555] hover:text-black bg-white/40 backdrop-blur-md border border-white/50 px-3.5 py-1.5 rounded-full shadow-sm transition-all duration-300 hover:bg-white/70">
-                  登出
-                </AppleButton>
+                {firebaseUser?.uid?.startsWith("threads_") ? (
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {/* 暫離：保留 Firebase session，下次自動登入不需重新發文 */}
+                    <AppleButton onClick={handleLogout}
+                      className="text-xs font-semibold text-[#555] hover:text-black bg-white/40 backdrop-blur-md border border-white/50 px-3 py-1.5 rounded-full shadow-sm transition-all duration-300 hover:bg-white/70">
+                      暫離
+                    </AppleButton>
+                    {/* 登出：完全清除 session，下次需要重新發文驗證 */}
+                    <AppleButton onClick={handleFullLogout}
+                      className="text-xs font-semibold text-[#FF3B30] hover:text-white hover:bg-[#FF3B30] bg-white/40 backdrop-blur-md border border-[#FF3B30]/40 px-3 py-1.5 rounded-full shadow-sm transition-all duration-300">
+                      登出
+                    </AppleButton>
+                  </div>
+                ) : (
+                  <AppleButton onClick={handleLogout}
+                    className="flex-shrink-0 text-xs font-semibold text-[#555] hover:text-black bg-white/40 backdrop-blur-md border border-white/50 px-3.5 py-1.5 rounded-full shadow-sm transition-all duration-300 hover:bg-white/70">
+                    登出
+                  </AppleButton>
+                )}
               </div>
             </header>
 
