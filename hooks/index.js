@@ -122,16 +122,17 @@ export function useAuth() {
           window.localStorage.removeItem('fabrica_auth_mode');
         }
 
-        // If Threads user, resolve masterUid BEFORE setting isLoggedIn
-        // This ensures Firestore listener uses the correct masterUid (Google UID if bound)
+        // Threads user: resolve masterUid FIRST, then set isLoggedIn
+        // This ensures Firestore listener uses the correct UID from the start
         if (isThreadsUser && cleanUsername) {
           getMasterUid(cleanUsername).then(resolved => {
             if (!mountedRef.current) return;
+            // resolved is Google UID if bound, otherwise threads_xxx
             setMasterUid(resolved);
             setIsLoggedIn(true);
           }).catch(() => {
             if (!mountedRef.current) return;
-            setMasterUid(user.uid); // fallback to threads_ uid
+            setMasterUid(user.uid);
             setIsLoggedIn(true);
           });
         } else {
@@ -274,26 +275,21 @@ export function useAuth() {
   };
 
   // ── Logout ────────────────────────────────────────────────────────────────
-  // Threads 用戶：只清 UI state，Firebase session 保留
-  //   → 下次進來 onAuthStateChanged 自動恢復，不需重新發文
-  // Google 用戶：完全登出，清掉所有資料
+  // Threads users: keep Firebase session → auto-login next time, no re-verification
+  // Google users: full signOut
   const handleLogout = () => {
     setIsGlobalTransitioning(true);
     setTimeout(async () => {
       const isThreadsUser = firebaseUser?.uid?.startsWith("threads_");
-
       if (typeof window !== 'undefined') {
         window.localStorage.removeItem('fabrica_auth_mode');
         if (!isThreadsUser) {
           window.localStorage.removeItem('fabrica_threads_username');
         }
       }
-
       if (!isThreadsUser) {
         await signOut(auth).catch(console.error);
       }
-      // Threads 用戶不呼叫 signOut → Firebase session 持久化
-
       if (!mountedRef.current) return;
       setIsGoogleAuthPending(false);
       setIsLoggedIn(false);
