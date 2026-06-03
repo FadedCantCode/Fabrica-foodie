@@ -4,6 +4,64 @@ import React from 'react';
 import { AppleButton, BlurVignette } from './ui';
 import { getFoodImage, getFreeMapAppUrl, getSmartTag } from '../lib/helpers';
 
+// ─── Helper: 判斷推薦來源 ──────────────────────────────────────────────────────
+function getRecommenderInfo(restaurant) {
+  const source = restaurant.source || "";
+  const recommendedBy = restaurant.recommendedBy || "";
+  const sourceAuthor = restaurant.sourceAuthor || "";
+  const threadsUrl = restaurant.threadsUrl || "";
+
+  // 系統探索
+  const isSystemRec =
+    recommendedBy === "系統探索" || recommendedBy === "系統推薦";
+
+  // 透過 Threads（webhook 或手動匯入含 threadsUrl）
+  const isFromThreads =
+    source === "threads_mention" ||
+    source === "manual_threads_import" ||
+    !!threadsUrl;
+
+  // 手動新增
+  const isManual =
+    source === "" || source === "manual" || (!isFromThreads && !isSystemRec);
+
+  // 顯示的 handle
+  const handle = sourceAuthor || recommendedBy.replace("@", "") || "";
+
+  // 點擊連結
+  let linkUrl = "";
+  if (isSystemRec) {
+    linkUrl = "https://www.threads.com/@fabrica_tw";
+  } else if (isFromThreads && threadsUrl) {
+    linkUrl = threadsUrl; // 直接帶到那篇貼文
+  } else if (isFromThreads && handle) {
+    linkUrl = `https://www.threads.net/@${handle}`;
+  } else {
+    // 手動新增 → 帶到 @fabrica_tw
+    linkUrl = "https://www.threads.com/@fabrica_tw";
+  }
+
+  // Badge 顯示文字
+  let badgeLabel = "";
+  if (isSystemRec) {
+    badgeLabel = "@fabrica_tw";
+  } else if (isFromThreads && handle) {
+    badgeLabel = `@${handle}`;
+  } else {
+    badgeLabel = "手動加入";
+  }
+
+  // Badge 頭像初始字
+  let avatarChar = "F";
+  if (!isSystemRec && !isManual && handle) {
+    avatarChar = handle.charAt(0).toUpperCase();
+  } else if (isManual && !isSystemRec) {
+    avatarChar = "✎";
+  }
+
+  return { badgeLabel, linkUrl, avatarChar, isManual: isManual && !isSystemRec };
+}
+
 // ─── Single restaurant card ───────────────────────────────────────────────────
 export const RestaurantCard = ({
   restaurant, index,
@@ -11,10 +69,8 @@ export const RestaurantCard = ({
   onPointerDown, onDelete, onShare, onSelect,
 }) => {
   const isDraggingThis = draggingId === restaurant.id;
-  const recommenderHandle = restaurant.sourceAuthor || restaurant.recommendedBy?.replace('@', '') || "";
-  const recommenderUrl = restaurant.threadsUrl || `https://www.threads.net/@${recommenderHandle || "fabrica_tw"}`;
   const smartCategory = getSmartTag(restaurant.name, restaurant.category);
-  const isSystemRec = restaurant.recommendedBy === "系統探索" || restaurant.recommendedBy === "系統推薦";
+  const { badgeLabel, linkUrl, avatarChar, isManual } = getRecommenderInfo(restaurant);
 
   let translateY = 0;
   if (dragState.draggingId && dragState.hoveredIndex !== -1 && !isDraggingThis) {
@@ -48,28 +104,32 @@ export const RestaurantCard = ({
             src={getFoodImage(restaurant)}
             onError={(e) => { e.target.onerror = null; e.target.src = "https://images.unsplash.com/photo-1414235077428-338988692309?q=80&w=800&auto=format&fit=crop"; }}
             alt={restaurant.name}
-            className="w-full h-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:scale-108"
+            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.08]"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/25 opacity-85 pointer-events-none"/>
 
           {/* Category badge */}
-          <span className="absolute top-3 left-3 text-[10px] font-bold text-white bg-black/30 backdrop-blur-md px-2.5 py-1 rounded-md border border-white/20 shadow-sm z-10
-            transition-all duration-300 group-hover:bg-black/50">
+          <span className="absolute top-3 left-3 text-[10px] font-bold text-white bg-black/30 backdrop-blur-md px-2.5 py-1 rounded-md border border-white/20 shadow-sm z-10 transition-all duration-300 group-hover:bg-black/50">
             {smartCategory}
           </span>
 
           {/* Recommender badge */}
-          {restaurant.recommendedBy && (
-            <a href={recommenderUrl} target="_blank" rel="noopener noreferrer"
-              onClick={e => e.stopPropagation()}
-              className="absolute top-3 right-3 z-20 bg-white/95 backdrop-blur-md px-2.5 py-1.5 rounded-full flex items-center gap-1.5 text-[10px] font-bold text-neutral-900 shadow-md
-                hover:scale-110 active:scale-90 transition-all duration-200 pointer-events-auto">
-              <div className="w-3.5 h-3.5 rounded-full bg-gradient-to-br from-purple-500 to-orange-400 flex items-center justify-center text-white text-[8px] flex-shrink-0">
-                {isSystemRec ? "F" : recommenderHandle.charAt(0).toUpperCase()}
-              </div>
-              @{isSystemRec ? "fabrica_tw" : recommenderHandle}
-            </a>
-          )}
+          <a
+            href={linkUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            className="absolute top-3 right-3 z-20 bg-white/95 backdrop-blur-md px-2.5 py-1.5 rounded-full flex items-center gap-1.5 text-[10px] font-bold text-neutral-900 shadow-md hover:scale-110 active:scale-90 transition-all duration-200 pointer-events-auto"
+          >
+            <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-white text-[8px] flex-shrink-0
+              ${isManual
+                ? 'bg-gradient-to-br from-neutral-400 to-neutral-600'
+                : 'bg-gradient-to-br from-purple-500 to-orange-400'
+              }`}>
+              {avatarChar}
+            </div>
+            {badgeLabel}
+          </a>
 
           {/* Name + address */}
           <div className="absolute bottom-3 left-4 right-4 z-10 transition-transform duration-300 group-hover:-translate-y-1">
@@ -90,16 +150,21 @@ export const RestaurantCard = ({
             <p className="text-[13px] text-neutral-800 font-medium leading-relaxed">{restaurant.note}</p>
           )}
           <div className="flex justify-between items-center pt-3 mt-2 border-t border-neutral-100">
-            <AppleButton onClick={(e) => { e.stopPropagation(); onDelete(restaurant.id); }}
+            <AppleButton
+              onClick={(e) => { e.stopPropagation(); onDelete(restaurant.id); }}
               className="flex items-center gap-1.5 text-xs font-bold text-[#FF3B30] hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors">
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-              </svg>刪除
+              </svg>
+              刪除
             </AppleButton>
-            <AppleButton onClick={(e) => { e.stopPropagation(); onShare(restaurant); }}
+            <AppleButton
+              onClick={(e) => { e.stopPropagation(); onShare(restaurant); }}
               className="flex items-center gap-1 text-xs font-bold text-neutral-800 hover:bg-neutral-50 px-3 py-1.5 rounded-lg ml-auto transition-colors">
               分享名單
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7"/></svg>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7"/>
+              </svg>
             </AppleButton>
           </div>
         </article>
@@ -132,7 +197,9 @@ export const RecommendationCard = ({ rec, animatingRecId, onDismiss, onSave }) =
         <AppleButton dark onClick={() => onSave(rec)}
           className="flex-1 py-2 text-[11px] font-bold text-white bg-[#0071E3] rounded-xl flex items-center justify-center gap-1 shadow-sm hover:bg-[#0066CC] transition-colors">
           實體化
-          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7"/></svg>
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7"/>
+          </svg>
         </AppleButton>
       </div>
     </article>
@@ -143,19 +210,32 @@ export const RecommendationCard = ({ rec, animatingRecId, onDismiss, onSave }) =
 export const RestaurantDetailModal = ({ restaurant, onClose }) => {
   if (!restaurant) return null;
   return (
-    <div className="fixed inset-0 z-[140] flex items-center justify-center px-4 bg-black/50 backdrop-blur-md animate-fade-in"
-      onClick={onClose}>
-      <div className="bg-white/95 backdrop-blur-3xl w-full max-w-sm rounded-[32px] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.3)] relative animate-bounce-in max-h-[85vh] flex flex-col border border-white/50"
-        onClick={e => e.stopPropagation()}>
-        <AppleButton onClick={onClose}
-          className="absolute top-4 right-4 z-30 w-8 h-8 bg-black/40 backdrop-blur-md text-white rounded-full flex items-center justify-center hover:bg-black/60 transition-colors">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
-        </AppleButton>
+    <div
+      className="fixed inset-0 z-[140] flex items-center justify-center px-4 bg-black/50 backdrop-blur-md animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white/95 backdrop-blur-3xl w-full max-w-sm rounded-[32px] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.3)] relative animate-bounce-in max-h-[85vh] flex flex-col border border-white/50"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* ── Close button — 確保在最上層，不被圖片擋住 ── */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 z-[200] w-9 h-9 bg-black/50 backdrop-blur-md text-white rounded-full flex items-center justify-center hover:bg-black/70 active:scale-90 transition-all duration-200 shadow-lg"
+          style={{ touchAction: 'manipulation' }}
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
 
         <BlurVignette blur="8px" className="h-56 w-full flex-shrink-0 bg-black/5">
-          <img src={getFoodImage(restaurant)}
+          <img
+            src={getFoodImage(restaurant)}
             onError={(e) => { e.target.onerror = null; e.target.src = "https://images.unsplash.com/photo-1414235077428-338988692309?q=80&w=800&auto=format&fit=crop"; }}
-            className="w-full h-full object-cover" alt="food"/>
+            className="w-full h-full object-cover"
+            alt="food"
+          />
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 z-10"/>
           <div className="absolute bottom-5 left-5 right-5 z-20">
             <span className="text-[10px] font-bold text-white bg-white/20 backdrop-blur-md px-2.5 py-1 rounded-md inline-block mb-2 border border-white/20 shadow-sm">
@@ -182,13 +262,15 @@ export const RestaurantDetailModal = ({ restaurant, onClose }) => {
         </div>
 
         <div className="p-5 bg-white/80 backdrop-blur-xl border-t border-black/5 flex-shrink-0">
-          <AppleButton dark onClick={() => window.open(getFreeMapAppUrl(restaurant.name, restaurant.address), "_blank")}
-            className="w-full flex items-center justify-center gap-2 py-4 bg-black/95 text-white font-bold rounded-2xl shadow-xl">
+          <button
+            onClick={() => window.open(getFreeMapAppUrl(restaurant.name, restaurant.address), "_blank")}
+            className="w-full flex items-center justify-center gap-2 py-4 bg-black/95 text-white font-bold rounded-2xl shadow-xl active:scale-[0.97] transition-all duration-200 hover:bg-black"
+          >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
             </svg>
             查看地點
-          </AppleButton>
+          </button>
         </div>
       </div>
     </div>
