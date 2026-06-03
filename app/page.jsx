@@ -510,7 +510,7 @@ export default function App() {
       )}
      
       {/* ── Toast ── */}
-      <GyroPermissionButton /> <Toast message={toastMessage} type={toastType} />
+      <GyroPermissionButton isLoggedIn={isLoggedIn} /> <Toast message={toastMessage} type={toastType} />
     </div>
   );
 }
