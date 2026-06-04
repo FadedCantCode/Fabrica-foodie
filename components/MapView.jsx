@@ -159,11 +159,17 @@ export default function MapView({ restaurants, isOpen, onClose, userLocation }) 
       if (!img) el.textContent = '🍽';
 
       el.addEventListener('mouseenter', () => {
-        el.style.transform = 'scale(1.25)';
+        el.style.width = '48px';
+        el.style.height = '48px';
+        el.style.marginLeft = '-4px';
+        el.style.marginTop = '-4px';
         el.style.boxShadow = '0 8px 24px rgba(0,0,0,0.6)';
       });
       el.addEventListener('mouseleave', () => {
-        el.style.transform = 'scale(1)';
+        el.style.width = '40px';
+        el.style.height = '40px';
+        el.style.marginLeft = '0';
+        el.style.marginTop = '0';
         el.style.boxShadow = '0 4px 16px rgba(0,0,0,0.5)';
       });
       el.addEventListener('click', e => {
