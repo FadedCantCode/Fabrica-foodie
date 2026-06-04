@@ -20,7 +20,7 @@ const FABRICA_MENTION = '@fabrica_tw';
 // User must write "@fabrica_tw 存起來" or "@fabrica_tw 幫我存" etc.
 const TRIGGER_PHRASES = ['存起來', '幫我存', '收藏', '存下來', 'save'];
 const INSTAGRAM_API = 'https://i.instagram.com';
-const MOBILE_UA     = 'Barcelona 289.0.0.77.109 Android';
+const MOBILE_UA     = 'Barcelona 337.0.0.29.118 Android';
 
 // ─── Trigger check ───────────────────────────────────────────────────────────
 function isTriggered(text) {
@@ -32,11 +32,14 @@ function isTriggered(text) {
 // ─── Threads client (inline, no npm install needed) ──────────────────────────
 function makeHeaders(sessionId, csrfToken) {
   return {
-    'cookie':         `sessionid=${sessionId}; csrftoken=${csrfToken}`,
-    'x-csrftoken':    csrfToken,
-    'x-ig-app-id':   '238260118697367',
-    'user-agent':     MOBILE_UA,
-    'accept':         '*/*',
+    'cookie':          `sessionid=${sessionId}; csrftoken=${csrfToken}`,
+    'x-csrftoken':     csrfToken,
+    'x-ig-app-id':     '238260118697367',
+    'user-agent':      MOBILE_UA,
+    'sec-fetch-site':  'same-origin',
+    'sec-fetch-mode':  'cors',
+    'sec-fetch-dest':  'empty',
+    'accept':          '*/*',
   };
 }
 
@@ -44,8 +47,15 @@ async function igGet(path, sessionId, csrfToken) {
   const res = await fetch(`${INSTAGRAM_API}${path}`, {
     headers: makeHeaders(sessionId, csrfToken),
   });
-  if (!res.ok) throw new Error(`IG API ${res.status}: ${path}`);
-  return res.json();
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`IG API ${res.status}: ${path} | ${body.slice(0, 150)}`);
+  }
+  const text = await res.text();
+  if (text.startsWith('<!DOCTYPE') || text.startsWith('<html')) {
+    throw new Error(`Auth failed (got HTML): ${path}`);
+  }
+  return JSON.parse(text);
 }
 
 async function igPost(path, body, sessionId, csrfToken) {
@@ -63,14 +73,18 @@ async function igPost(path, body, sessionId, csrfToken) {
 
 // Get user ID from handle
 async function getUserId(handle, sessionId, csrfToken) {
+  // Use env var directly if available (avoids one API call)
+  const envUserId = process.env.THREADS_USER_ID;
+  if (envUserId && handle.toLowerCase() === FABRICA_HANDLE.toLowerCase()) {
+    return envUserId;
+  }
   const data = await igGet(
     `/api/v1/users/search/?q=${encodeURIComponent(handle)}`,
     sessionId, csrfToken
   );
-  const user = (data.users || []).find(
-    u => u.username?.toLowerCase() === handle.toLowerCase()
-  );
-  return user?.pk || user?.id || null;
+  const users = data.users || [];
+  const user = users.find(u => u.username?.toLowerCase() === handle.toLowerCase());
+  return user ? String(user.pk || user.id) : null;
 }
 
 // Get recent posts for a user
