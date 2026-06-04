@@ -183,7 +183,7 @@ export const VerticalMarquee = ({ direction = "up", text = "WELCOME TO FOODIE" }
 );
 
 // ─── StepPips ─────────────────────────────────────────────────────────────────
-export const StepPips = ({ currentStep }) => {
+export const StepPips = ({ currentStep, dark = false }) => {
   const steps     = ["輸入帳號", "發文驗證", "確認身分"];
   const stepIndex = currentStep === "idle" ? 0 : currentStep === "code_shown" ? 1 : 2;
   return (
@@ -195,19 +195,19 @@ export const StepPips = ({ currentStep }) => {
               w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold
               transition-all duration-500
               ${i < stepIndex  ? "bg-[#34C759] text-white"
-              : i === stepIndex ? "bg-black text-white scale-110 shadow-[0_0_12px_rgba(0,0,0,0.18)]"
-              :                   "bg-black/10 text-[#86868B]"}
+              : i === stepIndex ? (dark ? "bg-white text-black scale-110" : "bg-black text-white scale-110 shadow-[0_0_12px_rgba(0,0,0,0.18)]")
+              :                   (dark ? "bg-white/10 text-white/30" : "bg-black/10 text-[#86868B]")}
             `}>
               {i < stepIndex
                 ? <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg>
                 : i + 1}
             </div>
-            <span className={`text-[9px] font-semibold transition-colors duration-300 ${i === stepIndex ? "text-black" : "text-[#86868B]"}`}>
+            <span className={`text-[9px] font-semibold transition-colors duration-300 ${i === stepIndex ? (dark ? "text-white/60" : "text-black") : (dark ? "text-white/20" : "text-[#86868B]")}`}>
               {label}
             </span>
           </div>
           {i < steps.length - 1 && (
-            <div className={`h-px w-8 mb-4 transition-all duration-500 ${i < stepIndex ? "bg-[#34C759]" : "bg-black/10"}`} />
+            <div className={`h-px w-8 mb-4 transition-all duration-500 ${i < stepIndex ? "bg-[#34C759]" : (dark ? "bg-white/10" : "bg-black/10")}`} />
           )}
         </React.Fragment>
       ))}
