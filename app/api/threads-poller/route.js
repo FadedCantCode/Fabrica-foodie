@@ -88,20 +88,55 @@ async function getUserId(handle, sessionId, csrfToken) {
 }
 
 // Get recent posts for a user
-async function getUserPosts(userId, sessionId, csrfToken) {
+async function getUserPosts(userId, sessionId, csrfToken, returnRaw = false) {
   const data = await igGet(
     `/api/v1/text_feed/${userId}/profile/`,
     sessionId, csrfToken
   );
-  const items = data.media_or_ads || data.items || [];
-  return items.map(item => ({
-    id:     String(item.pk || item.id || ''),
-    code:   item.code || '',
-    text:   item.caption?.text || '',
-    author: item.user?.username || '',
-    authorId: String(item.user?.pk || ''),
-    timestamp: item.taken_at || 0,
-  }));
+  if (returnRaw) return data; // for debug
+
+  // Handle all possible response structures (threads, items, medias)
+  const threads = data.threads || data.items || data.medias || data.media_or_ads || [];
+  const posts = [];
+
+  for (const thread of threads) {
+    // Structure 1: thread has thread_items array
+    if (thread.thread_items?.length > 0) {
+      const post = thread.thread_items[0].post || thread.thread_items[0];
+      posts.push({
+        id:       String(post.pk || post.id || ''),
+        code:     post.code || '',
+        text:     post.caption?.text || post.text || '',
+        author:   post.user?.username || '',
+        authorId: String(post.user?.pk || ''),
+        timestamp: post.taken_at || 0,
+      });
+    }
+    // Structure 2: thread.post
+    else if (thread.post) {
+      const post = thread.post;
+      posts.push({
+        id:       String(post.pk || post.id || ''),
+        code:     post.code || '',
+        text:     post.caption?.text || post.text || '',
+        author:   post.user?.username || '',
+        authorId: String(post.user?.pk || ''),
+        timestamp: post.taken_at || 0,
+      });
+    }
+    // Structure 3: thread itself is the post
+    else if (thread.pk || thread.code) {
+      posts.push({
+        id:       String(thread.pk || thread.id || ''),
+        code:     thread.code || '',
+        text:     thread.caption?.text || thread.text || '',
+        author:   thread.user?.username || '',
+        authorId: String(thread.user?.pk || ''),
+        timestamp: thread.taken_at || 0,
+      });
+    }
+  }
+  return posts;
 }
 
 // Reply to a post
@@ -218,6 +253,11 @@ export async function GET(request) {
       }
 
       try {
+        const rawPosts = await getUserPosts(fabrica_uid, sessionId, csrfToken, true);
+        // Show raw keys to understand structure
+        debugInfo.rawPostsKeys = Object.keys(rawPosts);
+        debugInfo.rawPostsSample = JSON.stringify(rawPosts).slice(0, 500);
+        // Also try parsed
         const posts = await getUserPosts(fabrica_uid, sessionId, csrfToken);
         debugInfo.ownPosts = posts.slice(0, 5).map(p => ({
           id: p.id, author: p.author,
