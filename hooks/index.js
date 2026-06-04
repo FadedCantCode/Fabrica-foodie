@@ -374,7 +374,10 @@ export function useDrag(setDisplayRestaurants, setSelectedRestaurant) {
   const [dragState, setDragState]   = useState({ draggingId: null, startIndex: -1, hoveredIndex: -1 });
 
   const handlePointerDown = (e, restaurant, index) => {
+    // Don't intercept clicks on interactive elements or editable fields
     if (e.target.closest("button") || e.target.closest("a")) return;
+    if (e.target.closest("input") || e.target.closest("textarea")) return;
+    if (e.target.closest("[data-editable]")) return;
     e.preventDefault();
     const cardEl = e.currentTarget;
     const startX = e.clientX;
