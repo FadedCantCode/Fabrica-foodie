@@ -14,10 +14,20 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Vercel max for hobby plan
 
 const APP_ID      = 'fabrica-foodie-app';
-const FABRICA_HANDLE = 'fabrica_tw';
+const FABRICA_HANDLE  = 'fabrica_tw';
 const FABRICA_MENTION = '@fabrica_tw';
+// Only process posts that contain these trigger phrases (case-insensitive)
+// User must write "@fabrica_tw 存起來" or "@fabrica_tw 幫我存" etc.
+const TRIGGER_PHRASES = ['存起來', '幫我存', '收藏', '存下來', 'save'];
 const INSTAGRAM_API = 'https://i.instagram.com';
 const MOBILE_UA     = 'Barcelona 289.0.0.77.109 Android';
+
+// ─── Trigger check ───────────────────────────────────────────────────────────
+function isTriggered(text) {
+  const lower = text.toLowerCase();
+  if (!lower.includes(FABRICA_MENTION.toLowerCase())) return false;
+  return TRIGGER_PHRASES.some(phrase => lower.includes(phrase.toLowerCase()));
+}
 
 // ─── Threads client (inline, no npm install needed) ──────────────────────────
 function makeHeaders(sessionId, csrfToken) {
@@ -143,11 +153,14 @@ async function analyzeFood(text, geminiKey) {
 
 // ─── Main handler ─────────────────────────────────────────────────────────────
 export async function GET(request) {
-  // Allow both Vercel Cron and manual trigger
-  const authHeader = request.headers.get('authorization');
+  // Allow Vercel Cron, Authorization header, or ?secret= query param
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (cronSecret) {
+    const authHeader = request.headers.get('authorization');
+    const urlSecret  = new URL(request.url).searchParams.get('secret');
+    if (authHeader !== `Bearer ${cronSecret}` && urlSecret !== cronSecret) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
   }
 
   const sessionId = process.env.THREADS_SESSION_ID;
@@ -182,7 +195,7 @@ export async function GET(request) {
       );
       const stories = notifData.new_stories || notifData.old_stories || [];
       mentionPosts = stories
-        .filter(s => s.args?.text?.toLowerCase().includes(FABRICA_MENTION.toLowerCase()))
+        .filter(s => isTriggered(s.args?.text || ''))
         .map(s => ({
           id:       String(s.args?.media?.id || s.args?.inline_follow?.media_id || ''),
           code:     s.args?.media?.code || '',
@@ -202,7 +215,7 @@ export async function GET(request) {
       const ownPosts = await getUserPosts(fabrica_uid, sessionId, csrfToken);
       // For each recent post, check if it's a reply from another user mentioning fabrica
       for (const post of ownPosts.slice(0, 10)) {
-        if (post.text.toLowerCase().includes(FABRICA_MENTION.toLowerCase()) &&
+        if (isTriggered(post.text) &&
             post.author.toLowerCase() !== FABRICA_HANDLE.toLowerCase()) {
           mentionPosts.push(post);
         }
