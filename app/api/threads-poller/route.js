@@ -200,6 +200,83 @@ async function analyzeFood(text, geminiKey) {
   }
 }
 
+// ─── Web scraping helpers ─────────────────────────────────────────────────────
+async function fetchThreadsPage(url, sessionId, csrfToken) {
+  const res = await fetch(url, {
+    headers: {
+      'cookie':       `sessionid=${sessionId}; csrftoken=${csrfToken}`,
+      'user-agent':   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+      'accept':       'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'accept-language': 'zh-TW,zh;q=0.9,en-US;q=0.8',
+      'referer':      'https://www.threads.net/',
+    },
+  });
+  if (!res.ok) throw new Error(`Web ${res.status}: ${url}`);
+  return res.text();
+}
+
+function parseThreadsMentionsFromHtml(html) {
+  // Extract __NEXT_DATA__ or similar JSON embedded in the page
+  const nextDataMatch = html.match(/<script[^>]+id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
+  if (!nextDataMatch) return [];
+  try {
+    const data = JSON.parse(nextDataMatch[1]);
+    // Navigate the Next.js page props to find notification items
+    const pageProps = data?.props?.pageProps || {};
+    const notifications = pageProps?.notifications || 
+                          pageProps?.initialData?.notifications || [];
+    return notifications
+      .filter(n => n?.type === 'mention' || n?.args?.text?.includes('@fabrica_tw'))
+      .map(n => ({
+        id:       String(n.args?.media?.id || ''),
+        code:     n.args?.media?.code || '',
+        text:     n.args?.text || '',
+        author:   n.args?.profile_name || '',
+        authorId: String(n.args?.sender_id || ''),
+        timestamp: n.args?.timestamp || 0,
+      }))
+      .filter(p => p.id && p.text);
+  } catch { return []; }
+}
+
+async function fetchThreadsGraphQL(userId, sessionId, csrfToken) {
+  // Threads web uses a GraphQL endpoint for notifications
+  const res = await fetch('https://www.threads.net/api/graphql', {
+    method: 'POST',
+    headers: {
+      'cookie':          `sessionid=${sessionId}; csrftoken=${csrfToken}`,
+      'x-csrftoken':     csrfToken,
+      'x-ig-app-id':     '238260118697367',
+      'content-type':    'application/x-www-form-urlencoded',
+      'user-agent':      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+      'x-fb-friendly-name': 'BarcelonaNotificationsListQuery',
+    },
+    body: new URLSearchParams({
+      variables: JSON.stringify({ first: 20 }),
+      doc_id: '7358236884218726', // Threads notifications query doc ID
+    }).toString(),
+  });
+  if (!res.ok) throw new Error(`GraphQL ${res.status}`);
+  const data = await res.json();
+  
+  const edges = data?.data?.viewer?.threadsNotifications?.edges || [];
+  return edges
+    .map(e => {
+      const n = e?.node;
+      const text = n?.text?.text || n?.narrative_text?.text || '';
+      const mediaId = n?.media?.id || '';
+      return {
+        id:       String(mediaId),
+        code:     n?.media?.code || '',
+        text,
+        author:   n?.user?.username || '',
+        authorId: String(n?.user?.id || ''),
+        timestamp: n?.taken_at || 0,
+      };
+    })
+    .filter(p => p.id && p.text);
+}
+
 // ─── Main handler ─────────────────────────────────────────────────────────────
 export async function GET(request) {
   // Allow Vercel Cron, Authorization header, or ?secret= query param
@@ -267,53 +344,57 @@ export async function GET(request) {
         debugInfo.ownPostsError = e.message;
       }
 
-      // Also try searching for posts mentioning @fabrica_tw
+      // Test web scraping
       try {
-        const searchData = await igGet(
-          `/api/v1/tags/search/?q=${encodeURIComponent('fabrica_tw')}&count=10`,
+        const html = await fetchThreadsPage(
+          'https://www.threads.net/notifications/',
           sessionId, csrfToken
         );
-        debugInfo.tagSearch = searchData;
+        debugInfo.notifHtmlLength = html.length;
+        debugInfo.hasNextData = html.includes('__NEXT_DATA__');
+        debugInfo.webMentions = parseThreadsMentionsFromHtml(html).slice(0, 3);
       } catch(e) {
-        debugInfo.tagSearchError = e.message;
+        debugInfo.webScrapeError = e.message;
+      }
+      
+      // Test GraphQL
+      try {
+        const gqlMentions = await fetchThreadsGraphQL(fabrica_uid, sessionId, csrfToken);
+        debugInfo.gqlMentions = gqlMentions.slice(0, 3);
+      } catch(e) {
+        debugInfo.gqlError = e.message;
       }
 
       return NextResponse.json({ debug: true, ...debugInfo });
     }
 
-    // 2. Find mentions
+    // 2. Find mentions via Threads web scraping
+    // Instagram mobile API inbox is blocked (500), so we scrape the web notifications
     let mentionPosts = [];
-    
-    // Try notifications inbox
+
+    // Strategy: scrape https://www.threads.net/notifications/
+    // This requires the session cookie and returns HTML with notification data
     try {
-      const notifData = await igGet('/api/v1/news/inbox/', sessionId, csrfToken);
-      const stories = [...(notifData.new_stories || []), ...(notifData.old_stories || [])];
-      mentionPosts = stories
-        .filter(s => isTriggered(s.args?.text || ''))
-        .map(s => ({
-          id:        String(s.args?.media?.id || s.args?.inline_follow?.media_id || ''),
-          code:      s.args?.media?.code || '',
-          text:      s.args?.text || '',
-          author:    s.args?.profile_name || String(s.args?.sender_id || ''),
-          authorId:  String(s.args?.sender_id || ''),
-          timestamp: s.args?.timestamp || 0,
-        }))
-        .filter(p => p.id && p.author);
-      console.log(`Inbox: ${stories.length} stories, ${mentionPosts.length} triggered`);
-    } catch (e) {
-      console.log('Inbox unavailable:', e.message);
+      const notifHtml = await fetchThreadsPage(
+        'https://www.threads.net/notifications/',
+        sessionId, csrfToken
+      );
+      const webMentions = parseThreadsMentionsFromHtml(notifHtml);
+      mentionPosts = webMentions.filter(p => isTriggered(p.text));
+      console.log(`Web scrape: ${webMentions.length} mentions found, ${mentionPosts.length} triggered`);
+    } catch(e) {
+      console.log('Web scrape failed:', e.message);
     }
 
-    // Fallback: scan own profile posts
+    // Fallback: try graphql endpoint that Threads web uses
     if (mentionPosts.length === 0) {
-      const ownPosts = await getUserPosts(fabrica_uid, sessionId, csrfToken);
-      for (const post of ownPosts.slice(0, 20)) {
-        if (isTriggered(post.text) &&
-            post.author.toLowerCase() !== FABRICA_HANDLE.toLowerCase()) {
-          mentionPosts.push(post);
-        }
+      try {
+        const gqlMentions = await fetchThreadsGraphQL(fabrica_uid, sessionId, csrfToken);
+        mentionPosts = gqlMentions.filter(p => isTriggered(p.text));
+        console.log(`GraphQL: ${gqlMentions.length} mentions, ${mentionPosts.length} triggered`);
+      } catch(e) {
+        console.log('GraphQL failed:', e.message);
       }
-      console.log(`Profile scan: ${ownPosts.length} posts, ${mentionPosts.length} triggered`);
     }
 
     // 3. Process each mention
