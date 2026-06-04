@@ -87,6 +87,45 @@ async function getUserId(handle, sessionId, csrfToken) {
   return user ? String(user.pk || user.id) : null;
 }
 
+// Parse threads from any API response (reusable)
+function parseThreadPosts(data) {
+  const threads = data.threads || data.items || data.medias || data.media_or_ads || [];
+  const posts = [];
+  for (const thread of threads) {
+    if (thread.thread_items?.length > 0) {
+      const post = thread.thread_items[0].post || thread.thread_items[0];
+      if (post) posts.push({
+        id:        String(post.pk || post.id || ''),
+        code:      post.code || '',
+        text:      post.caption?.text || post.text || '',
+        author:    post.user?.username || '',
+        authorId:  String(post.user?.pk || ''),
+        timestamp: post.taken_at || 0,
+      });
+    } else if (thread.post) {
+      const post = thread.post;
+      posts.push({
+        id:        String(post.pk || post.id || ''),
+        code:      post.code || '',
+        text:      post.caption?.text || post.text || '',
+        author:    post.user?.username || '',
+        authorId:  String(post.user?.pk || ''),
+        timestamp: post.taken_at || 0,
+      });
+    } else if (thread.pk || thread.code) {
+      posts.push({
+        id:        String(thread.pk || thread.id || ''),
+        code:      thread.code || '',
+        text:      thread.caption?.text || thread.text || '',
+        author:    thread.user?.username || '',
+        authorId:  String(thread.user?.pk || ''),
+        timestamp: thread.taken_at || 0,
+      });
+    }
+  }
+  return posts;
+}
+
 // Get recent posts for a user
 async function getUserPosts(userId, sessionId, csrfToken, returnRaw = false) {
   const data = await igGet(
@@ -344,56 +383,92 @@ export async function GET(request) {
         debugInfo.ownPostsError = e.message;
       }
 
-      // Test web scraping
-      try {
-        const html = await fetchThreadsPage(
-          'https://www.threads.net/notifications/',
-          sessionId, csrfToken
-        );
-        debugInfo.notifHtmlLength = html.length;
-        debugInfo.hasNextData = html.includes('__NEXT_DATA__');
-        debugInfo.webMentions = parseThreadsMentionsFromHtml(html).slice(0, 3);
-      } catch(e) {
-        debugInfo.webScrapeError = e.message;
-      }
-      
-      // Test GraphQL
-      try {
-        const gqlMentions = await fetchThreadsGraphQL(fabrica_uid, sessionId, csrfToken);
-        debugInfo.gqlMentions = gqlMentions.slice(0, 3);
-      } catch(e) {
-        debugInfo.gqlError = e.message;
+      // Test new endpoints
+      for (const ep of [
+        `/api/v1/text_feed/${fabrica_uid}/profile_audience/`,
+        `/api/v1/text_feed/${fabrica_uid}/mentions/`,
+        '/api/v1/news/mentions/',
+      ]) {
+        try {
+          const data = await igGet(ep, sessionId, csrfToken);
+          const posts = parseThreadPosts(data);
+          debugInfo[ep] = { keys: Object.keys(data), postCount: posts.length, sample: posts.slice(0,2) };
+        } catch(e) {
+          debugInfo[ep] = { error: e.message };
+        }
       }
 
       return NextResponse.json({ debug: true, ...debugInfo });
     }
 
-    // 2. Find mentions via Threads web scraping
-    // Instagram mobile API inbox is blocked (500), so we scrape the web notifications
+    // 2. Find mentions via multiple API endpoints
     let mentionPosts = [];
 
-    // Strategy: scrape https://www.threads.net/notifications/
-    // This requires the session cookie and returns HTML with notification data
-    try {
-      const notifHtml = await fetchThreadsPage(
-        'https://www.threads.net/notifications/',
-        sessionId, csrfToken
-      );
-      const webMentions = parseThreadsMentionsFromHtml(notifHtml);
-      mentionPosts = webMentions.filter(p => isTriggered(p.text));
-      console.log(`Web scrape: ${webMentions.length} mentions found, ${mentionPosts.length} triggered`);
-    } catch(e) {
-      console.log('Web scrape failed:', e.message);
+    // Strategy A: profile_audience — posts that mention/reply to @fabrica_tw
+    const audienceEndpoints = [
+      `/api/v1/text_feed/${fabrica_uid}/profile_audience/`,
+      `/api/v1/text_feed/${fabrica_uid}/mentions/`,
+    ];
+
+    for (const endpoint of audienceEndpoints) {
+      if (mentionPosts.length > 0) break;
+      try {
+        const data = await igGet(endpoint, sessionId, csrfToken);
+        const posts = parseThreadPosts(data);
+        mentionPosts = posts.filter(p =>
+          isTriggered(p.text) &&
+          p.author.toLowerCase() !== FABRICA_HANDLE.toLowerCase()
+        );
+        console.log(`${endpoint}: ${posts.length} posts, ${mentionPosts.length} triggered`);
+      } catch(e) {
+        console.log(`${endpoint} failed:`, e.message);
+      }
     }
 
-    // Fallback: try graphql endpoint that Threads web uses
+    // Strategy B: news/mentions endpoint (different from inbox)
     if (mentionPosts.length === 0) {
       try {
-        const gqlMentions = await fetchThreadsGraphQL(fabrica_uid, sessionId, csrfToken);
-        mentionPosts = gqlMentions.filter(p => isTriggered(p.text));
-        console.log(`GraphQL: ${gqlMentions.length} mentions, ${mentionPosts.length} triggered`);
+        const data = await igGet('/api/v1/news/mentions/', sessionId, csrfToken);
+        const stories = data.new_stories || data.old_stories || data.stories || [];
+        mentionPosts = stories
+          .filter(s => isTriggered(s.args?.text || ''))
+          .map(s => ({
+            id:        String(s.args?.media?.id || ''),
+            code:      s.args?.media?.code || '',
+            text:      s.args?.text || '',
+            author:    s.args?.profile_name || String(s.args?.username || ''),
+            authorId:  String(s.args?.sender_id || ''),
+            timestamp: s.args?.timestamp || 0,
+          }))
+          .filter(p => p.id && p.author);
+        console.log(`news/mentions: ${stories.length} stories, ${mentionPosts.length} triggered`);
       } catch(e) {
-        console.log('GraphQL failed:', e.message);
+        console.log('news/mentions failed:', e.message);
+      }
+    }
+
+    // Strategy C: check recent replies on fabrica_tw's own posts
+    // Users often reply with @fabrica_tw 存起來 under a food post
+    if (mentionPosts.length === 0) {
+      try {
+        const ownPosts = await getUserPosts(fabrica_uid, sessionId, csrfToken);
+        for (const post of ownPosts.slice(0, 5)) {
+          if (!post.id) continue;
+          const repliesData = await igGet(
+            `/api/v1/text_feed/${post.id}/replies/`,
+            sessionId, csrfToken
+          );
+          const replies = parseThreadPosts(repliesData);
+          for (const reply of replies) {
+            if (isTriggered(reply.text) &&
+                reply.author.toLowerCase() !== FABRICA_HANDLE.toLowerCase()) {
+              mentionPosts.push(reply);
+            }
+          }
+        }
+        console.log(`Reply scan: ${mentionPosts.length} triggered replies found`);
+      } catch(e) {
+        console.log('Reply scan failed:', e.message);
       }
     }
 
