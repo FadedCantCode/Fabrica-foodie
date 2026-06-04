@@ -335,7 +335,7 @@ export default function App() {
         </BlurVignette>
       )}
       {!isLoggedIn && (
-        <div ref={canvasContainerRef} className={`fixed inset-0 z-0 w-screen h-screen pointer-events-auto transition-opacity duration-1000 ${isGlobalTransitioning ? 'opacity-0 invisible' : 'opacity-100 visible'}`} />
+        <div ref={canvasContainerRef} className={`fixed inset-0 z-[15] w-screen h-screen pointer-events-none transition-opacity duration-1000 ${isLoggedIn ? 'opacity-0 invisible' : isGlobalTransitioning ? 'opacity-0 invisible' : 'opacity-100 visible'}`} />
       )}
 
       {/* Global loader */}
