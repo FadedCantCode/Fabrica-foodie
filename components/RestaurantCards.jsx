@@ -157,28 +157,26 @@ const HoloCard = ({ children }) => {
   }, []);
 
   return (
-    // NO willChange here — it creates a stacking context that breaks mix-blend-mode
     <div style={{ position: 'relative', borderRadius: 24 }}>
 
-      {/* Card first — foil/shine after so they can use z-index to paint on top */}
+      {/* Card FIRST — rendered below foil/shine in paint order */}
       <div ref={cardRef} style={{
         borderRadius:22,
         transform: 'perspective(800px) rotateX(0deg) rotateY(0deg) scale(1)',
         transition: 'transform 0.6s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.6s ease',
         boxShadow: '0 2px 10px rgba(0,0,0,0.07)',
-        // No willChange here either until active
       }}>
         {children}
       </div>
 
-      {/* Foil — z-index paints over card's stacking context */}
+      {/* Foil AFTER card — zIndex:2 paints over card's overflow:hidden stacking context */}
       <div ref={foilRef} style={{
         position:'absolute', inset:0, borderRadius:22,
         pointerEvents:'none', zIndex:2,
         opacity:0,
       }} />
 
-      {/* Shine */}
+      {/* Shine AFTER foil */}
       <div ref={shineRef} style={{
         position:'absolute', inset:0, borderRadius:22,
         pointerEvents:'none', zIndex:3,
@@ -331,20 +329,6 @@ export const RestaurantDetailModal = ({ restaurant, onClose }) => {
           </button>
         </div>
       </div>
-
-      {/* Foil — z-index paints over card's stacking context */}
-      <div ref={foilRef} style={{
-        position:'absolute', inset:0, borderRadius:22,
-        pointerEvents:'none', zIndex:2,
-        opacity:0,
-      }} />
-
-      {/* Shine */}
-      <div ref={shineRef} style={{
-        position:'absolute', inset:0, borderRadius:22,
-        pointerEvents:'none', zIndex:3,
-        opacity:0,
-      }} />
     </div>
   );
 };
