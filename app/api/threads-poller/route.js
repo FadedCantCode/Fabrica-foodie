@@ -190,50 +190,90 @@ export async function GET(request) {
   const db = getAdminDb();
   const results = { processed: 0, skipped: 0, errors: [] };
 
+  const isDebug = new URL(request.url).searchParams.get('debug') === '1';
+
   try {
     // 1. Get @fabrica_tw user ID
     const fabrica_uid = await getUserId(FABRICA_HANDLE, sessionId, csrfToken);
     if (!fabrica_uid) throw new Error('Cannot find @fabrica_tw user ID');
 
-    // 2. Get recent posts that mention @fabrica_tw
-    //    Strategy: scrape @fabrica_tw profile to find tagged posts
-    //    (mentions show up as replies to @fabrica_tw's own posts,
-    //     or we poll the notification mentions endpoint)
-    
-    // Try notifications / mentions endpoint
+    if (isDebug) {
+      // Debug mode: return raw API data to diagnose what's available
+      const debugInfo = { fabrica_uid, inbox: null, inboxError: null, ownPosts: [], userPosts: [] };
+      
+      try {
+        const notifData = await igGet('/api/v1/news/inbox/', sessionId, csrfToken);
+        const stories = [...(notifData.new_stories || []), ...(notifData.old_stories || [])];
+        debugInfo.inbox = {
+          storyCount: stories.length,
+          sample: stories.slice(0, 3).map(s => ({
+            type: s.type,
+            text: s.args?.text?.slice(0, 100),
+            profile_name: s.args?.profile_name,
+            media_id: s.args?.media?.id,
+          })),
+        };
+      } catch(e) {
+        debugInfo.inboxError = e.message;
+      }
+
+      try {
+        const posts = await getUserPosts(fabrica_uid, sessionId, csrfToken);
+        debugInfo.ownPosts = posts.slice(0, 5).map(p => ({
+          id: p.id, author: p.author,
+          text: p.text?.slice(0, 80),
+        }));
+      } catch(e) {
+        debugInfo.ownPostsError = e.message;
+      }
+
+      // Also try searching for posts mentioning @fabrica_tw
+      try {
+        const searchData = await igGet(
+          `/api/v1/tags/search/?q=${encodeURIComponent('fabrica_tw')}&count=10`,
+          sessionId, csrfToken
+        );
+        debugInfo.tagSearch = searchData;
+      } catch(e) {
+        debugInfo.tagSearchError = e.message;
+      }
+
+      return NextResponse.json({ debug: true, ...debugInfo });
+    }
+
+    // 2. Find mentions
     let mentionPosts = [];
+    
+    // Try notifications inbox
     try {
-      const notifData = await igGet(
-        '/api/v1/news/inbox/',
-        sessionId, csrfToken
-      );
-      const stories = notifData.new_stories || notifData.old_stories || [];
+      const notifData = await igGet('/api/v1/news/inbox/', sessionId, csrfToken);
+      const stories = [...(notifData.new_stories || []), ...(notifData.old_stories || [])];
       mentionPosts = stories
         .filter(s => isTriggered(s.args?.text || ''))
         .map(s => ({
-          id:       String(s.args?.media?.id || s.args?.inline_follow?.media_id || ''),
-          code:     s.args?.media?.code || '',
-          text:     s.args?.text || '',
-          author:   s.args?.profile_name || s.args?.sender_id || '',
-          authorId: String(s.args?.sender_id || ''),
+          id:        String(s.args?.media?.id || s.args?.inline_follow?.media_id || ''),
+          code:      s.args?.media?.code || '',
+          text:      s.args?.text || '',
+          author:    s.args?.profile_name || String(s.args?.sender_id || ''),
+          authorId:  String(s.args?.sender_id || ''),
           timestamp: s.args?.timestamp || 0,
         }))
         .filter(p => p.id && p.author);
+      console.log(`Inbox: ${stories.length} stories, ${mentionPosts.length} triggered`);
     } catch (e) {
-      // Fallback: inbox not available, use profile scan
-      console.log('Inbox unavailable, falling back to profile scan:', e.message);
+      console.log('Inbox unavailable:', e.message);
     }
 
-    // Fallback: scan @fabrica_tw's own posts for replies
+    // Fallback: scan own profile posts
     if (mentionPosts.length === 0) {
       const ownPosts = await getUserPosts(fabrica_uid, sessionId, csrfToken);
-      // For each recent post, check if it's a reply from another user mentioning fabrica
-      for (const post of ownPosts.slice(0, 10)) {
+      for (const post of ownPosts.slice(0, 20)) {
         if (isTriggered(post.text) &&
             post.author.toLowerCase() !== FABRICA_HANDLE.toLowerCase()) {
           mentionPosts.push(post);
         }
       }
+      console.log(`Profile scan: ${ownPosts.length} posts, ${mentionPosts.length} triggered`);
     }
 
     // 3. Process each mention
