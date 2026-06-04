@@ -51,43 +51,43 @@ export const GyroPermissionButton = ({ isLoggedIn }) => {
 
 // ─── HoloCard ─────────────────────────────────────────────────────────────────
 const HoloCard = ({ children }) => {
-  const wrapRef  = useRef(null);
-  const cardRef  = useRef(null);
+  const cardRef  = useRef(null);  // outer tilt div — also the bbox ref
   const foilRef  = useRef(null);
   const shineRef = useRef(null);
   const rafRef   = useRef(null);
   const insideRef = useRef(false);
 
   useEffect(() => {
-    // Refs needed inline for stable closure references
-    const getEls = () => ({
-      card:  cardRef.current,
-      foil:  foilRef.current,
-      shine: shineRef.current,
-    });
+    const card  = cardRef.current;
+    const foil  = foilRef.current;
+    const shine = shineRef.current;
+    if (!card || !foil || !shine) return;
 
     const apply = (x, y) => {
-      const { card, foil, shine } = getEls();
-      if (!card || !foil || !shine) return;
-      const rx  =  (y - 0.5) * 18;
-      const ry  = -(x - 0.5) * 18;
+      const rx  =  (y - 0.5) * 14;
+      const ry  = -(x - 0.5) * 14;
       const hue =   x * 360;
-      card.style.transform  = `perspective(800px) rotateX(${rx}deg) rotateY(${ry}deg) scale(1.02)`;
-      card.style.transition = 'transform 0.08s linear, box-shadow 0.08s linear';
-      card.style.boxShadow  = `${-ry}px ${rx + 8}px 30px rgba(0,0,0,0.16)`;
+      card.style.transform  = `perspective(900px) rotateX(${rx}deg) rotateY(${ry}deg) scale(1.02)`;
+      card.style.transition = 'transform 0.06s linear, box-shadow 0.06s linear';
+      card.style.boxShadow  = `${-ry*1.2}px ${rx*1.2+6}px 28px rgba(0,0,0,0.14)`;
       foil.style.opacity    = '1';
       foil.style.transition = 'none';
-      foil.style.background = `linear-gradient(${120 + ry * 2}deg,hsla(${hue},100%,65%,0.22) 0%,hsla(${hue+60},100%,65%,0.18) 17%,hsla(${hue+120},100%,65%,0.20) 34%,hsla(${hue+180},100%,65%,0.18) 51%,hsla(${hue+240},100%,65%,0.20) 68%,hsla(${hue+300},100%,65%,0.18) 85%,hsla(${hue+360},100%,65%,0.22) 100%)`;
+      foil.style.background = `linear-gradient(
+        ${105 + ry * 3}deg,
+        hsla(${hue-30},90%,65%,0.10) 0%,
+        hsla(${hue},90%,65%,0.15) 25%,
+        hsla(${hue+60},90%,65%,0.12) 50%,
+        hsla(${hue+120},90%,65%,0.10) 75%,
+        hsla(${hue+180},90%,65%,0.08) 100%
+      )`;
       shine.style.opacity    = '1';
       shine.style.transition = 'none';
-      shine.style.background = `radial-gradient(circle at ${x*100}% ${y*100}%,rgba(255,255,255,0.45) 0%,rgba(255,255,255,0.05) 35%,transparent 65%)`;
+      shine.style.background = `radial-gradient(circle at ${x*100}% ${y*100}%,rgba(255,255,255,0.38) 0%,rgba(255,255,255,0.06) 28%,transparent 55%)`;
     };
 
     const reset = () => {
-      const { card, foil, shine } = getEls();
-      if (!card || !foil || !shine) return;
-      card.style.transform   = 'perspective(800px) rotateX(0deg) rotateY(0deg) scale(1)';
-      card.style.transition  = 'transform 0.6s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.6s ease';
+      card.style.transform   = 'perspective(900px) rotateX(0deg) rotateY(0deg) scale(1)';
+      card.style.transition  = 'transform 0.65s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.65s ease';
       card.style.boxShadow   = '0 2px 10px rgba(0,0,0,0.07)';
       foil.style.transition  = 'opacity 0.5s ease';
       foil.style.opacity     = '0';
@@ -98,8 +98,6 @@ const HoloCard = ({ children }) => {
 
     const onDocMove = (e) => {
       if (gyroOn) return;
-      const card = cardRef.current;
-      if (!card) return;
       const r = card.getBoundingClientRect();
       const isIn = e.clientX >= r.left && e.clientX <= r.right &&
                    e.clientY >= r.top  && e.clientY <= r.bottom;
@@ -140,25 +138,31 @@ const HoloCard = ({ children }) => {
     };
   }, []);
 
+  // KEY ARCHITECTURE:
+  // cardRef is the outermost div — it gets the perspective transform
+  // foil/shine are INSIDE cardRef, position:absolute, high z-index
+  // overflow:hidden on cardRef clips foil/shine to card shape
+  // No stacking context conflict because foil is INSIDE the transformed element
   return (
-    <div ref={wrapRef} style={{ position: 'relative', borderRadius: 24 }}>
-      {/* Card first — foil/shine render after with zIndex to paint on top */}
-      <div ref={cardRef} style={{
-        borderRadius: 22,
-        transform: 'perspective(800px) rotateX(0deg) rotateY(0deg) scale(1)',
-        transition: 'transform 0.6s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.6s ease',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.07)',
-      }}>
-        {children}
-      </div>
-      {/* zIndex:2/3 overcomes the card's overflow:hidden stacking context */}
+    <div ref={cardRef} style={{
+      position: 'relative',
+      borderRadius: 22,
+      overflow: 'hidden',
+      transform: 'perspective(900px) rotateX(0deg) rotateY(0deg) scale(1)',
+      transition: 'transform 0.65s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.65s ease',
+      boxShadow: '0 2px 10px rgba(0,0,0,0.07)',
+    }}>
+      {children}
+      {/* Foil/shine INSIDE cardRef — no stacking context issue */}
       <div ref={foilRef} style={{
-        position: 'absolute', inset: 0, borderRadius: 22,
-        pointerEvents: 'none', zIndex: 2, opacity: 0,
+        position: 'absolute', inset: 0,
+        pointerEvents: 'none', zIndex: 100,
+        opacity: 0,
       }} />
       <div ref={shineRef} style={{
-        position: 'absolute', inset: 0, borderRadius: 22,
-        pointerEvents: 'none', zIndex: 3, opacity: 0,
+        position: 'absolute', inset: 0,
+        pointerEvents: 'none', zIndex: 101,
+        opacity: 0,
       }} />
     </div>
   );
@@ -210,7 +214,7 @@ export const RestaurantCard = ({
       }}
     >
       <HoloCard>
-        <div style={{ background:'white', borderRadius:22, border:'1px solid #E5E5EA', padding:8, overflow:'hidden' }}>
+        <div style={{ background:'white', borderRadius:22, border:'1px solid #E5E5EA', padding:8 }}>
           <div style={{ width:'100%', height:216, position:'relative', borderRadius:16, overflow:'hidden', background:'#111' }}>
             <img draggable={false}
               src={getFoodImage(restaurant)}
