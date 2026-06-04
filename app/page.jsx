@@ -163,6 +163,16 @@ export default function App() {
     } catch (err) { console.error(err); }
   };
 
+  const handleUpdateRestaurant = async (id, fields) => {
+    try {
+      await updateDoc(doc(db, 'artifacts', APP_ID, 'users', masterUid, 'restaurants', id), fields);
+    } catch (err) {
+      console.error(err);
+      showToast("更新失敗，請稍後再試", "error");
+      throw err;
+    }
+  };
+
   const saveRecommendation = async (rec) => {
     if (isDuplicate(rec.name)) { showToast(`⚠️ ${rec.name} 已在您的口袋名單中！`, "error"); return; }
     setAnimatingRecId(rec.id);
@@ -384,6 +394,7 @@ export default function App() {
                       onPointerDown={handlePointerDown}
                       onDelete={handleDeleteRestaurant}
                       onShare={handleShare}
+                      onUpdate={handleUpdateRestaurant}
                       onSelect={setSelectedRestaurant}
                     />
                   ))
