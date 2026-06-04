@@ -35,16 +35,26 @@ export default function MapView({ restaurants, isOpen, onClose, userLocation }) 
 
   // ── Geocode ────────────────────────────────────────────────────────────────
   const geocode = useCallback(async (name, address) => {
-    if (!address || address === '僅提供店名定位') return null;
-    try {
-      const q = encodeURIComponent(`${name} ${address} 台灣`);
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1&countrycodes=tw`,
-        { headers: { 'Accept-Language': 'zh-TW,zh;q=0.9' } }
-      );
-      const data = await res.json();
-      if (data[0]) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-    } catch {}
+    // Try address first, fall back to name-only search
+    const queries = [];
+    if (address && address !== '僅提供店名定位' && address.trim()) {
+      queries.push(`${name} ${address} 台灣`);
+    }
+    if (name) {
+      queries.push(`${name} 台灣`);
+      queries.push(`${name} restaurant Taiwan`);
+    }
+
+    for (const q of queries) {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=tw`,
+          { headers: { 'Accept-Language': 'zh-TW,zh;q=0.9' } }
+        );
+        const data = await res.json();
+        if (data[0]) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+      } catch {}
+    }
     return null;
   }, []);
 
@@ -69,12 +79,18 @@ export default function MapView({ restaurants, isOpen, onClose, userLocation }) 
 
     map.addControl(new mt.NavigationControl({ showCompass: false }), 'top-right');
 
+    // Store restaurants in ref so the load callback always gets latest value
+    const restsSnapshot = restaurants;
+    const locSnapshot = userLocation;
+
     map.on('load', () => {
       mapRef.current = map;
-      addRestaurantMarkers(map, restaurants);
-      if (userLocation) {
-        addUserMarker(map, userLocation);
-        fetchNearby(userLocation);
+      console.log('[MapView] map loaded, restaurants:', restsSnapshot.length);
+      restsSnapshot.forEach(r => console.log(' -', r.name, '|', r.address));
+      addRestaurantMarkers(map, restsSnapshot);
+      if (locSnapshot) {
+        addUserMarker(map, locSnapshot);
+        fetchNearby(locSnapshot);
       }
     });
 
