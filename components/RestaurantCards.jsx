@@ -51,49 +51,81 @@ export const GyroPermissionButton = ({ isLoggedIn }) => {
 
 // ─── HoloCard ─────────────────────────────────────────────────────────────────
 const HoloCard = ({ children }) => {
-  const cardRef  = useRef(null);  // outer tilt div — also the bbox ref
-  const foilRef  = useRef(null);
-  const shineRef = useRef(null);
-  const rafRef   = useRef(null);
+  const cardRef   = useRef(null);
+  const canvasRef = useRef(null);
+  const rafRef    = useRef(null);
   const insideRef = useRef(false);
 
   useEffect(() => {
-    const card  = cardRef.current;
-    const foil  = foilRef.current;
-    const shine = shineRef.current;
-    if (!card || !foil || !shine) return;
+    const card   = cardRef.current;
+    const canvas = canvasRef.current;
+    if (!card || !canvas) return;
+
+    const ctx = canvas.getContext('2d');
+
+    const sizeCanvas = () => {
+      canvas.width  = card.offsetWidth;
+      canvas.height = card.offsetHeight;
+    };
+    sizeCanvas();
+
+    const drawFoil = (x, y) => {
+      const w = canvas.width, h = canvas.height;
+      const hue = x * 360;
+      const ry  = -(x - 0.5) * 14;
+      ctx.clearRect(0, 0, w, h);
+      // Rainbow gradient
+      const grd = ctx.createLinearGradient(0, 0, w, h);
+      const angle = (105 + ry * 3) * Math.PI / 180;
+      const cos = Math.cos(angle), sin = Math.sin(angle);
+      const stops = [
+        [0.00, hue - 30],
+        [0.25, hue],
+        [0.50, hue + 60],
+        [0.75, hue + 120],
+        [1.00, hue + 180],
+      ];
+      const grd2 = ctx.createLinearGradient(
+        w/2 - cos*w/2, h/2 - sin*h/2,
+        w/2 + cos*w/2, h/2 + sin*h/2
+      );
+      stops.forEach(([pos, h]) => {
+        grd2.addColorStop(pos, `hsla(${h},90%,65%,0.13)`);
+      });
+      ctx.fillStyle = grd2;
+      ctx.fillRect(0, 0, w, h);
+      // Shine spot
+      const grd3 = ctx.createRadialGradient(x*w, y*h, 0, x*w, y*h, Math.max(w,h)*0.55);
+      grd3.addColorStop(0,   'rgba(255,255,255,0.40)');
+      grd3.addColorStop(0.3, 'rgba(255,255,255,0.06)');
+      grd3.addColorStop(1,   'rgba(255,255,255,0)');
+      ctx.fillStyle = grd3;
+      ctx.fillRect(0, 0, w, h);
+    };
+
+    const clearFoil = () => {
+      if (canvas.width > 0 && canvas.height > 0)
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    };
 
     const apply = (x, y) => {
-      const rx  =  (y - 0.5) * 14;
-      const ry  = -(x - 0.5) * 14;
-      const hue =   x * 360;
+      const rx =  (y - 0.5) * 14;
+      const ry = -(x - 0.5) * 14;
       card.style.transform  = `perspective(900px) rotateX(${rx}deg) rotateY(${ry}deg) scale(1.02)`;
       card.style.transition = 'transform 0.06s linear, box-shadow 0.06s linear';
       card.style.boxShadow  = `${-ry*1.2}px ${rx*1.2+6}px 28px rgba(0,0,0,0.14)`;
-      foil.style.opacity    = '1';
-      foil.style.transition = 'none';
-      foil.style.background = `linear-gradient(
-        ${105 + ry * 3}deg,
-        hsla(${hue-30},90%,65%,0.10) 0%,
-        hsla(${hue},90%,65%,0.15) 25%,
-        hsla(${hue+60},90%,65%,0.12) 50%,
-        hsla(${hue+120},90%,65%,0.10) 75%,
-        hsla(${hue+180},90%,65%,0.08) 100%
-      )`;
-      shine.style.opacity    = '1';
-      shine.style.transition = 'none';
-      shine.style.background = `radial-gradient(circle at ${x*100}% ${y*100}%,rgba(255,255,255,0.38) 0%,rgba(255,255,255,0.06) 28%,transparent 55%)`;
+      canvas.style.opacity  = '1';
+      canvas.style.transition = 'none';
+      drawFoil(x, y);
     };
 
     const reset = () => {
-      card.style.transform   = 'perspective(900px) rotateX(0deg) rotateY(0deg) scale(1)';
-      card.style.transition  = 'transform 0.65s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.65s ease';
-      card.style.boxShadow   = '0 2px 10px rgba(0,0,0,0.07)';
-      foil.style.transition  = 'opacity 0.5s ease';
-      foil.style.opacity     = '0';
-      shine.style.transition = 'opacity 0.5s ease';
-      shine.style.opacity    = '0';
-      insideRef.current      = false;
+      card.style.transform  = 'perspective(900px) rotateX(0deg) rotateY(0deg) scale(1)';
+      card.style.transition = 'transform 0.65s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.65s ease';
+      card.style.boxShadow  = '0 2px 10px rgba(0,0,0,0.07)';
+      canvas.style.transition = 'opacity 0.5s ease';
+      canvas.style.opacity  = '0';
+      insideRef.current = false;
     };
 
     const onDocMove = (e) => {
@@ -134,34 +166,24 @@ const HoloCard = ({ children }) => {
       window.removeEventListener('focus', onReset);
       gyroSubs.delete(gyroFn);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      reset();
     };
   }, []);
 
-  // KEY ARCHITECTURE:
-  // cardRef is the outermost div — it gets the perspective transform
-  // foil/shine are INSIDE cardRef, position:absolute, high z-index
-  // overflow:hidden on cardRef clips foil/shine to card shape
-  // No stacking context conflict because foil is INSIDE the transformed element
   return (
     <div ref={cardRef} style={{
       position: 'relative',
       borderRadius: 22,
-      overflow: 'hidden',
       transform: 'perspective(900px) rotateX(0deg) rotateY(0deg) scale(1)',
       transition: 'transform 0.65s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.65s ease',
       boxShadow: '0 2px 10px rgba(0,0,0,0.07)',
     }}>
       {children}
-      {/* Foil/shine INSIDE cardRef — no stacking context issue */}
-      <div ref={foilRef} style={{
+      {/* Canvas overlay — 2D canvas always renders on top, no z-index/stacking issues */}
+      <canvas ref={canvasRef} style={{
         position: 'absolute', inset: 0,
-        pointerEvents: 'none', zIndex: 100,
-        opacity: 0,
-      }} />
-      <div ref={shineRef} style={{
-        position: 'absolute', inset: 0,
-        pointerEvents: 'none', zIndex: 101,
+        width: '100%', height: '100%',
+        borderRadius: 22,
+        pointerEvents: 'none',
         opacity: 0,
       }} />
     </div>
