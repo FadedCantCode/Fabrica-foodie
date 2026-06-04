@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { AppleButton, BlurVignette } from './ui';
 import { getFoodImage, getFreeMapAppUrl, getSmartTag } from '../lib/helpers';
 
@@ -194,6 +194,14 @@ const HoloCard = ({ children }) => {
   );
 };
 
+// ─── Pencil icon ─────────────────────────────────────────────────────────────
+const PencilIcon = () => (
+  <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+  </svg>
+);
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function getRecommenderInfo(r) {
   const isSystem  = r.recommendedBy === "系統探索" || r.recommendedBy === "系統推薦";
@@ -211,11 +219,39 @@ function getRecommenderInfo(r) {
 // ─── RestaurantCard ───────────────────────────────────────────────────────────
 export const RestaurantCard = ({
   restaurant, index, draggingId, dragState,
-  onPointerDown, onDelete, onShare,
+  onPointerDown, onDelete, onShare, onUpdate,
 }) => {
   const isDragging = draggingId === restaurant.id;
   const cat = getSmartTag(restaurant.name, restaurant.category);
   const rec = getRecommenderInfo(restaurant);
+
+  // Inline edit state
+  const [editing, setEditing] = useState(null); // 'name' | 'address' | 'note' | null
+  const [editVal, setEditVal] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const startEdit = useCallback((e, field) => {
+    e.stopPropagation();
+    setEditing(field);
+    setEditVal(restaurant[field] || '');
+  }, [restaurant]);
+
+  const saveEdit = useCallback(async (e) => {
+    e?.stopPropagation();
+    if (!editing || editVal === restaurant[editing]) { setEditing(null); return; }
+    setSaving(true);
+    try {
+      await onUpdate(restaurant.id, { [editing]: editVal });
+    } finally {
+      setSaving(false);
+      setEditing(null);
+    }
+  }, [editing, editVal, restaurant, onUpdate]);
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && editing !== 'note') { e.preventDefault(); saveEdit(); }
+    if (e.key === 'Escape') { setEditing(null); }
+  };
 
   let ty = 0;
   if (dragState.draggingId && dragState.hoveredIndex !== -1 && !isDragging) {
@@ -224,19 +260,46 @@ export const RestaurantCard = ({
     else if (s > h && index < s && index >= h) ty = 105;
   }
 
+  // Shared edit input style
+  const inputStyle = {
+    width: '100%', background: '#F5F5F7', border: '1.5px solid #0071E3',
+    borderRadius: 8, padding: '4px 8px', fontSize: 13, fontWeight: 500,
+    color: '#1D1D1F', outline: 'none', fontFamily: 'inherit',
+  };
+
+  // Editable field wrapper
+  const EditableField = ({ field, children, style }) => (
+    <div
+      style={{ position: 'relative', display: 'inline-flex', alignItems: 'center',
+        gap: 4, ...style, cursor: editing ? 'default' : 'text' }}
+      onClick={e => { if (!editing) startEdit(e, field); }}
+    >
+      {children}
+      {!editing && (
+        <span style={{ opacity: 0.4, flexShrink: 0, display: 'inline-flex',
+          transition: 'opacity 0.15s' }}
+          onMouseOver={e => e.currentTarget.style.opacity = '1'}
+          onMouseOut={e => e.currentTarget.style.opacity = '0.4'}
+        >
+          <PencilIcon />
+        </span>
+      )}
+    </div>
+  );
+
   return (
     <div
       data-sort-index={index}
       data-restaurant-id={restaurant.id}
-      onPointerDown={e => onPointerDown(e, restaurant, index)}
+      onPointerDown={e => { if (editing) return; onPointerDown(e, restaurant, index); }}
       className="select-none w-full animate-card-appear"
       style={{
         animationDelay: `${Math.min(index*60,400)}ms`,
         transform: isDragging ? 'none' : `translate3d(0,${ty}%,0)`,
         transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.25,1,0.5,1)',
         opacity: isDragging ? 0.55 : 1,
-        touchAction: 'pan-y',
-        cursor: isDragging ? 'grabbing' : 'grab',
+        touchAction: editing ? 'auto' : 'pan-y',
+        cursor: isDragging ? 'grabbing' : editing ? 'default' : 'grab',
       }}
     >
       <HoloCard>
@@ -255,16 +318,79 @@ export const RestaurantCard = ({
               <div style={{ width:14, height:14, borderRadius:'50%', background: rec.isManual ? 'linear-gradient(135deg,#9CA3AF,#6B7280)' : 'linear-gradient(135deg,#8B5CF6,#F97316)', color:'white', fontSize:8, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>{rec.avatar}</div>
               {rec.label}
             </a>
+            {/* Name — editable */}
             <div style={{ position:'absolute', bottom:12, left:16, right:16 }}>
-              <div style={{ color:'white', fontSize:20, fontWeight:700, marginBottom:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', textShadow:'0 2px 8px rgba(0,0,0,0.5)' }}>{restaurant.name}</div>
-              <div style={{ display:'flex', alignItems:'center', gap:3, color:'rgba(255,255,255,0.88)', fontSize:11, fontWeight:500 }}>
-                <svg width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{flexShrink:0}}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3" strokeWidth="2"/></svg>
-                <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{restaurant.address}</span>
-              </div>
+              {editing === 'name' ? (
+                <div onClick={e => e.stopPropagation()}>
+                  <input
+                    autoFocus
+                    value={editVal}
+                    onChange={e => setEditVal(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    onBlur={saveEdit}
+                    style={{ ...inputStyle, fontSize:16, fontWeight:700, marginBottom:4 }}
+                  />
+                </div>
+              ) : (
+                <EditableField field="name">
+                  <div style={{ color:'white', fontSize:20, fontWeight:700, marginBottom:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', textShadow:'0 2px 8px rgba(0,0,0,0.5)' }}>
+                    {restaurant.name}
+                  </div>
+                </EditableField>
+              )}
+              {/* Address — editable */}
+              {editing === 'address' ? (
+                <div onClick={e => e.stopPropagation()}>
+                  <input
+                    autoFocus
+                    value={editVal}
+                    onChange={e => setEditVal(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    onBlur={saveEdit}
+                    style={{ ...inputStyle, fontSize:11 }}
+                  />
+                </div>
+              ) : (
+                <EditableField field="address" style={{ display:'flex', alignItems:'center', gap:3, color:'rgba(255,255,255,0.88)', fontSize:11, fontWeight:500, width:'100%' }}>
+                  <svg width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{flexShrink:0}}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3" strokeWidth="2"/></svg>
+                  <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{restaurant.address}</span>
+                </EditableField>
+              )}
             </div>
           </div>
+
           <div style={{ padding:'12px 14px 10px' }}>
-            {restaurant.note && <p style={{ fontSize:13, color:'#3C3C43', lineHeight:1.6, margin:'0 0 10px', fontWeight:500 }}>{restaurant.note}</p>}
+            {/* Note — editable */}
+            {editing === 'note' ? (
+              <div onClick={e => e.stopPropagation()}>
+                <textarea
+                  autoFocus
+                  value={editVal}
+                  onChange={e => setEditVal(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onBlur={saveEdit}
+                  rows={3}
+                  style={{ ...inputStyle, resize:'none', lineHeight:1.6, marginBottom:10 }}
+                />
+                <div style={{ display:'flex', gap:6, marginBottom:8 }}>
+                  <button onClick={e => { e.stopPropagation(); saveEdit(); }}
+                    style={{ flex:1, padding:'6px', background:'#0071E3', color:'white', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer', opacity: saving ? 0.6 : 1 }}>
+                    {saving ? '儲存中...' : '✓ 儲存'}
+                  </button>
+                  <button onClick={e => { e.stopPropagation(); setEditing(null); }}
+                    style={{ padding:'6px 12px', background:'#F2F2F7', color:'#555', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                    取消
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <EditableField field="note" style={{ display:'block', width:'100%', marginBottom: restaurant.note ? 10 : 0 }}>
+                <p style={{ fontSize:13, color:'#3C3C43', lineHeight:1.6, margin:0, fontWeight:500 }}>
+                  {restaurant.note || <span style={{ color:'#C7C7CC', fontStyle:'italic' }}>點此新增筆記...</span>}
+                </p>
+              </EditableField>
+            )}
+
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', borderTop:'1px solid #F0F0F0', paddingTop:10 }}>
               <AppleButton onClick={e=>{e.stopPropagation();onDelete(restaurant.id);}} className="flex items-center gap-1.5 text-xs font-bold text-[#FF3B30] hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors">
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
