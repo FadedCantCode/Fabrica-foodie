@@ -164,8 +164,23 @@ const HoloCard = ({ children }) => {
       doReset();
     };
 
-    el.addEventListener('mousemove', onMove, { passive: true });
-    el.addEventListener('mouseleave', onLeave, { passive: true });
+    // Use document-level mousemove — most reliable across all browsers
+    // Check if mouse is inside our card's bounding rect
+    let isInside = false;
+    const onDocMove = (e) => {
+      if (gyroOn) return;
+      const r = el.getBoundingClientRect();
+      const inside = e.clientX >= r.left && e.clientX <= r.right &&
+                     e.clientY >= r.top  && e.clientY <= r.bottom;
+      if (inside) {
+        if (!isInside) isInside = true;
+        onMove(e);
+      } else if (isInside) {
+        isInside = false;
+        onLeave();
+      }
+    };
+    document.addEventListener('mousemove', onDocMove, { passive: true });
     // visibilitychange fires when tab is hidden/shown
     document.addEventListener('visibilitychange', onReset);
     // window focus fires when user returns from another window/tab
@@ -190,8 +205,7 @@ const HoloCard = ({ children }) => {
     gyroSubs.add(gyroFn);
 
     return () => {
-      el.removeEventListener('mousemove', onMove);
-      el.removeEventListener('mouseleave', onLeave);
+      document.removeEventListener('mousemove', onDocMove);
       document.removeEventListener('visibilitychange', onReset);
       window.removeEventListener('focus', onReset);
       gyroSubs.delete(gyroFn);
