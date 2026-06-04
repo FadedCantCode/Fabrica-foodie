@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { gsap } from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import * as THREE from 'three';
 
 // ── Lib ───────────────────────────────────────────────────────────────────────
@@ -26,6 +28,10 @@ import MapView from '../components/MapView';
 
 // ── Firebase imports for food actions ────────────────────────────────────────
 import { addDoc, updateDoc, deleteDoc, doc, collection, serverTimestamp } from 'firebase/firestore';
+
+if (typeof window !== 'undefined') {
+  gsap.registerPlugin(ScrollTrigger);
+}
 
 export default function App() {
   // ── Auth ──────────────────────────────────────────────────────────────────
@@ -95,13 +101,66 @@ export default function App() {
   const vertexShaderLogin = `uniform float u_intensity;uniform float u_time;uniform float u_noiseScale;uniform float u_noiseSpeed;varying vec2 vUv;varying float vDisplacement;vec4 permute(vec4 x){return mod(((x*34.0)+1.0)*x,289.0);}vec4 taylorInvSqrt(vec4 r){return 1.79284291400159-0.85373472095314*r;}vec3 fade(vec3 t){return t*t*t*(t*(t*6.0-15.0)+10.0);}float cnoise(vec3 P){vec3 Pi0=floor(P);vec3 Pi1=Pi0+vec3(1.0);Pi0=mod(Pi0,289.0);Pi1=mod(Pi1,289.0);vec3 Pf0=fract(P);vec3 Pf1=Pf0-vec3(1.0);vec4 ix=vec4(Pi0.x,Pi1.x,Pi0.x,Pi1.x);vec4 iy=vec4(Pi0.yy,Pi1.yy);vec4 iz0=Pi0.zzzz;vec4 iz1=Pi1.zzzz;vec4 ixy=permute(permute(ix)+iy);vec4 ixy0=permute(ixy+iz0);vec4 ixy1=permute(ixy+iz1);vec4 gx0=ixy0/7.0;vec4 gy0=fract(floor(gx0)/7.0)-0.5;gx0=fract(gx0);vec4 gz0=vec4(0.5)-abs(gx0)-abs(gy0);vec4 sz0=step(gz0,vec4(0.0));gx0-=sz0*(step(0.0,gx0)-0.5);gy0-=sz0*(step(0.0,gy0)-0.5);vec4 gx1=ixy1/7.0;vec4 gy1=fract(floor(gx1)/7.0)-0.5;gx1=fract(gx1);vec4 gz1=vec4(0.5)-abs(gx1)-abs(gy1);vec4 sz1=step(gz1,vec4(0.0));gx1-=sz1*(step(0.0,gx1)-0.5);gy1-=sz1*(step(0.0,gy1)-0.5);vec3 g000=vec3(gx0.x,gy0.x,gz0.x);vec3 g100=vec3(gx0.y,gy0.y,gz0.y);vec3 g010=vec3(gx0.z,gy0.z,gz0.z);vec3 g110=vec3(gx0.w,gy0.w,gz0.w);vec3 g001=vec3(gx1.x,gy1.x,gz1.x);vec3 g101=vec3(gx1.y,gy1.y,gz1.y);vec3 g011=vec3(gx1.z,gy1.z,gz1.z);vec3 g111=vec3(gx1.w,gy1.w,gz1.w);vec4 norm0=taylorInvSqrt(vec4(dot(g000,g000),dot(g010,g010),dot(g100,g100),dot(g110,g110)));g000*=norm0.x;g010*=norm0.y;g100*=norm0.z;g110*=norm0.w;vec4 norm1=taylorInvSqrt(vec4(dot(g001,g001),dot(g011,g011),dot(g101,g101),dot(g111,g111)));g001*=norm1.x;g011*=norm1.y;g101*=norm1.z;g111*=norm1.w;float n000=dot(g000,Pf0);float n100=dot(g100,vec3(Pf1.x,Pf0.yz));float n010=dot(g010,vec3(Pf0.x,Pf1.y,Pf0.z));float n110=dot(g110,vec3(Pf1.xy,Pf0.z));float n001=dot(g001,vec3(Pf0.xy,Pf1.z));float n101=dot(g101,vec3(Pf1.x,Pf0.y,Pf1.z));float n011=dot(g011,vec3(Pf0.x,Pf1.yz));float n111=dot(g111,Pf1);vec3 fade_xyz=fade(Pf0);vec4 n_z=mix(vec4(n000,n100,n010,n110),vec4(n001,n101,n011,n111),fade_xyz.z);vec2 n_yz=mix(n_z.xy,n_z.zw,fade_xyz.y);float n_xyz=mix(n_yz.x,n_yz.y,fade_xyz.x);return 2.2*n_xyz;}float turbulence(vec3 p){float t=0.0;float f=1.0;float a=1.0;for(int i=0;i<4;i++){t+=abs(cnoise(p*f))*a;f*=2.0;a*=0.5;}return t;}void main(){vUv=uv;float n1=cnoise(position*u_noiseScale+vec3(u_time*u_noiseSpeed));float n2=cnoise(position*(u_noiseScale*2.0)+vec3(u_time*u_noiseSpeed*1.5))*0.5;float tn=turbulence(position+vec3(u_time))*0.3;vDisplacement=n1+n2+tn;vec3 np=position+normal*(u_intensity*vDisplacement);vec4 mp=modelMatrix*vec4(np,1.0);gl_Position=projectionMatrix*viewMatrix*mp;}`;
   const fragmentShaderLogin = `uniform float u_intensity;uniform float u_time;varying vec2 vUv;varying float vDisplacement;void main(){float d=2.0*vDisplacement*u_intensity*sin(vUv.y*10.0+u_time);vec3 bc=vec3(0.96,0.96,0.97);vec3 wc=vec3(0.05,0.05,0.06);vec3 color=mix(bc,wc,clamp(abs(d)*1.8,0.0,1.0));gl_FragColor=vec4(color,1.0);}`;
 
+  // GSAP refs
+  const mainRef       = useRef(null);
+  const cardsRef      = useRef(null);
+  const headerRef     = useRef(null);
+  const sidebarRef    = useRef(null);
+
   useEffect(() => {
     setMounted(true);
-    // Inject MapTiler key for client-side access
     if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_MAPTILER_KEY) {
       window._maptilerKey = process.env.NEXT_PUBLIC_MAPTILER_KEY;
     }
   }, []);
+
+  // GSAP: header shrink on scroll
+  useEffect(() => {
+    if (!isLoggedIn || !headerRef.current) return;
+    const ctx = gsap.context(() => {
+      ScrollTrigger.create({
+        start: 'top top-=60',
+        onUpdate: (self) => {
+          if (!headerRef.current) return;
+          const shrink = self.progress > 0;
+          gsap.to(headerRef.current, {
+            paddingTop: shrink ? '8px' : '16px',
+            paddingBottom: shrink ? '8px' : '16px',
+            duration: 0.3,
+            ease: 'power2.out',
+          });
+        },
+      });
+    });
+    return () => ctx.revert();
+  }, [isLoggedIn]);
+
+  // GSAP: sidebar entrance
+  useEffect(() => {
+    if (!isLoggedIn || !sidebarRef.current) return;
+    const ctx = gsap.context(() => {
+      gsap.from(sidebarRef.current, {
+        x: -40, opacity: 0, duration: 0.7,
+        ease: 'power3.out', delay: 0.1,
+      });
+    });
+    return () => ctx.revert();
+  }, [isLoggedIn]);
+
+  // GSAP: cards stagger on load / filter change
+  useEffect(() => {
+    if (!cardsRef.current || !isLoggedIn) return;
+    const ctx = gsap.context(() => {
+      const cards = cardsRef.current.querySelectorAll('[data-restaurant-id]');
+      if (!cards.length) return;
+      gsap.fromTo(cards,
+        { opacity: 0, y: 24 },
+        { opacity: 1, y: 0, duration: 0.45, stagger: 0.06,
+          ease: 'power3.out', clearProps: 'opacity,y' }
+      );
+    }, cardsRef);
+    return () => ctx.revert();
+  }, [displayRestaurants, isLoggedIn]);
 
   useEffect(() => {
     if (!mounted || isLoggedIn) return;
@@ -307,8 +366,8 @@ export default function App() {
           <div className="w-full min-h-screen flex flex-col items-center">
 
             {/* Header */}
-            <header className="w-full sticky top-0 z-40 bg-white/40 backdrop-blur-2xl border-b border-white/30 px-6 py-4 shadow-[0_4px_30px_rgba(0,0,0,0.05)] flex justify-center">
-              <div className="w-full max-w-md flex justify-between items-center gap-3">
+            <header ref={headerRef} className="w-full sticky top-0 z-40 bg-white/40 backdrop-blur-2xl border-b border-white/30 px-6 py-4 shadow-[0_4px_30px_rgba(0,0,0,0.05)] flex justify-center transition-all duration-300">
+              <div className="w-full max-w-6xl flex justify-between items-center gap-3">
                 <div className="flex flex-col animate-bounce-in min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="text-[10px] font-bold tracking-wider text-[#555] uppercase">FABRICA MAPS</span>
@@ -346,10 +405,64 @@ export default function App() {
               </div>
             </header>
 
-            <main className="w-full max-w-md px-4 mt-6 space-y-6 relative z-10">
+            <main ref={mainRef} className="w-full max-w-6xl px-4 lg:px-8 mt-6 relative z-10">
 
-              {/* Action buttons */}
-              <div className="grid grid-cols-2 gap-3">
+              {/* ── Desktop: 2-col layout ── */}
+              <div className="flex flex-col lg:flex-row lg:gap-8 lg:items-start">
+
+                {/* ── Sidebar (desktop only) ── */}
+                <aside ref={sidebarRef} className="hidden lg:flex flex-col gap-4 w-72 flex-shrink-0 sticky top-24">
+                  {/* Actions */}
+                  <div className="flex flex-col gap-3">
+                    <LiquidGlassCard onClick={() => setShowAddModal(true)} className="py-4 text-sm font-bold text-[#1D1D1F] flex items-center justify-center gap-2 bg-white/30">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4"/></svg>
+                      手動新增
+                    </LiquidGlassCard>
+                    <LiquidGlassCard onClick={() => setShowImportModal(true)} className="py-4 text-sm font-bold text-white flex items-center justify-center gap-2 bg-black/90">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                      Threads 匯入
+                    </LiquidGlassCard>
+                  </div>
+
+                  {/* Search */}
+                  <div className="relative flex items-center w-full group">
+                    <svg className="w-4 h-4 text-[#86868B] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none transition-colors group-focus-within:text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+                    <input type="text" placeholder="搜尋餐廳..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full bg-white/60 backdrop-blur-xl text-sm font-medium rounded-2xl py-3 pl-10 pr-4 border border-white/50 focus:bg-white/90 focus:ring-2 focus:ring-black/10 outline-none transition-all duration-300 shadow-sm placeholder-[#86868B]"/>
+                  </div>
+
+                  {/* Category filter */}
+                  <div className="flex flex-col gap-1.5">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#86868B] px-1">分類</p>
+                    {categories.map(cat => (
+                      <LiquidGlassCard key={cat} onClick={() => setSelectedCategory(cat)}
+                        className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 text-left ${selectedCategory === cat ? 'bg-black/90 text-white shadow-md border-transparent' : 'bg-white/40 text-[#555] border-white/45'}`}>
+                        {cat}
+                      </LiquidGlassCard>
+                    ))}
+                  </div>
+
+                  {/* Stats */}
+                  <div className="bg-white/40 backdrop-blur-xl rounded-2xl border border-white/50 p-4 mt-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#86868B] mb-3">收藏統計</p>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-[#555] font-medium">總收藏</span>
+                        <span className="text-sm font-bold text-black">{restaurants.length} 間</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-[#555] font-medium">已篩選</span>
+                        <span className="text-sm font-bold text-black">{displayRestaurants.length} 間</span>
+                      </div>
+                    </div>
+                  </div>
+                </aside>
+
+                {/* ── Main content ── */}
+                <div className="flex-1 min-w-0 space-y-6">
+
+              {/* Mobile: Action buttons */}
+              <div className="grid grid-cols-2 gap-3 lg:hidden">
                 <LiquidGlassCard onClick={() => setShowAddModal(true)} className="py-4 text-sm font-bold text-[#1D1D1F] flex items-center justify-center gap-2 bg-white/30">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4"/></svg>
                   手動新增
@@ -360,8 +473,8 @@ export default function App() {
                 </LiquidGlassCard>
               </div>
 
-              {/* Search + filter */}
-              <section className="space-y-4">
+              {/* Mobile: Search + filter */}
+              <section className="space-y-4 lg:hidden">
                 <div className="relative flex items-center w-full group">
                   <svg className="w-4 h-4 text-[#86868B] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none transition-colors group-focus-within:text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
                   <input type="text" placeholder="搜尋餐廳、地址或推薦人..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
@@ -395,11 +508,12 @@ export default function App() {
               )}
 
               {/* Restaurant list */}
-              <section className="space-y-4 pb-10">
+              <section className="pb-10">
                 {isLoading ? (
                   <div className="text-center py-10"><div className="w-6 h-6 border-2 border-black border-t-transparent rounded-full animate-spin mx-auto opacity-50"/></div>
                 ) : displayRestaurants.length > 0 ? (
-                  displayRestaurants.map((restaurant, index) => (
+                  <div ref={cardsRef} className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                  {displayRestaurants.map((restaurant, index) => (
                     <RestaurantCard
                       key={restaurant.id}
                       restaurant={restaurant}
@@ -412,7 +526,8 @@ export default function App() {
                       onUpdate={handleUpdateRestaurant}
                       onSelect={setSelectedRestaurant}
                     />
-                  ))
+                  ))}
+                  </div>
                 ) : (
                   <div className="text-center py-16 px-4 bg-white rounded-[24px] border border-[#E5E5EA] animate-fade-in">
                     <div className="w-16 h-16 bg-neutral-100 rounded-full mx-auto flex items-center justify-center mb-4">
@@ -428,6 +543,9 @@ export default function App() {
                 <p className="font-black tracking-widest text-[11px] uppercase mb-1">FABRICA FOODIE</p>
                 <p className="font-semibold">© Fabrica All Rights Reserved.</p>
               </footer>
+
+                </div>{/* end main content */}
+              </div>{/* end 2-col */}
             </main>
           </div>
         )}
