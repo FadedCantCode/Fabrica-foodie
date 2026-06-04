@@ -51,102 +51,98 @@ export const GyroPermissionButton = ({ isLoggedIn }) => {
 
 // ─── HoloCard ─────────────────────────────────────────────────────────────────
 const HoloCard = ({ children }) => {
-  const wrapRef  = useRef(null);  // outer wrapper — used for mouse tracking
-  const cardRef  = useRef(null);  // inner card — gets the tilt transform
-  const foilRef  = useRef(null);  // rainbow overlay
-  const shineRef = useRef(null);  // specular highlight
+  const wrapRef  = useRef(null);
+  const cardRef  = useRef(null);
+  const foilRef  = useRef(null);
+  const shineRef = useRef(null);
   const rafRef   = useRef(null);
+  const insideRef = useRef(false);
 
   useEffect(() => {
-    // Wait a frame to ensure all refs are populated after mount
-    const frame = requestAnimationFrame(() => {
-      const wrap  = wrapRef.current;
-      const card  = cardRef.current;
-      const foil  = foilRef.current;
-      const shine = shineRef.current;
-      if (!wrap || !card || !foil || !shine) return;
-
-      const apply = (x, y) => {
-        const rx  =  (y - 0.5) * 18;
-        const ry  = -(x - 0.5) * 18;
-        const hue =   x * 360;
-        card.style.transform  = `perspective(800px) rotateX(${rx}deg) rotateY(${ry}deg) scale(1.02)`;
-        card.style.transition = 'transform 0.08s linear, box-shadow 0.08s linear';
-        card.style.boxShadow  = `${-ry}px ${rx + 8}px 30px rgba(0,0,0,0.16)`;
-        foil.style.opacity    = '1';
-        foil.style.transition = 'none';
-        foil.style.background = `linear-gradient(${120 + ry * 2}deg,hsla(${hue},100%,65%,0.22) 0%,hsla(${hue+60},100%,65%,0.18) 17%,hsla(${hue+120},100%,65%,0.20) 34%,hsla(${hue+180},100%,65%,0.18) 51%,hsla(${hue+240},100%,65%,0.20) 68%,hsla(${hue+300},100%,65%,0.18) 85%,hsla(${hue+360},100%,65%,0.22) 100%)`;
-        shine.style.opacity    = '1';
-        shine.style.transition = 'none';
-        shine.style.background = `radial-gradient(circle at ${x*100}% ${y*100}%,rgba(255,255,255,0.45) 0%,rgba(255,255,255,0.05) 35%,transparent 65%)`;
-      };
-
-      const reset = () => {
-        card.style.transform  = 'perspective(800px) rotateX(0deg) rotateY(0deg) scale(1)';
-        card.style.transition = 'transform 0.6s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.6s ease';
-        card.style.boxShadow  = '0 2px 10px rgba(0,0,0,0.07)';
-        foil.style.transition  = 'opacity 0.5s ease';
-        foil.style.opacity     = '0';
-        shine.style.transition = 'opacity 0.5s ease';
-        shine.style.opacity    = '0';
-      };
-
-      let inside = false;
-      const onDocMove = (e) => {
-        if (gyroOn) return;
-        const r = card.getBoundingClientRect();
-        const isIn = e.clientX >= r.left && e.clientX <= r.right &&
-                     e.clientY >= r.top  && e.clientY <= r.bottom;
-        if (isIn) {
-          inside = true;
-          if (rafRef.current) cancelAnimationFrame(rafRef.current);
-          rafRef.current = requestAnimationFrame(() =>
-            apply((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height)
-          );
-        } else if (inside) {
-          inside = false;
-          if (rafRef.current) cancelAnimationFrame(rafRef.current);
-          reset();
-        }
-      };
-
-      const onReset = () => {
-        if (rafRef.current) cancelAnimationFrame(rafRef.current);
-        inside = false;
-        reset();
-      };
-
-      const gyroFn = (x, y) => {
-        if (rafRef.current) cancelAnimationFrame(rafRef.current);
-        rafRef.current = requestAnimationFrame(() => apply(x, y));
-      };
-
-      document.addEventListener('mousemove', onDocMove, { passive: true });
-      document.addEventListener('visibilitychange', onReset);
-      window.addEventListener('focus', onReset);
-      gyroSubs.add(gyroFn);
-
-      // Store cleanup on the wrap element
-      wrap._holoCleanup = () => {
-        document.removeEventListener('mousemove', onDocMove);
-        document.removeEventListener('visibilitychange', onReset);
-        window.removeEventListener('focus', onReset);
-        gyroSubs.delete(gyroFn);
-        if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      };
+    // Refs needed inline for stable closure references
+    const getEls = () => ({
+      card:  cardRef.current,
+      foil:  foilRef.current,
+      shine: shineRef.current,
     });
 
-    return () => {
-      cancelAnimationFrame(frame);
-      const wrap = wrapRef.current;
-      if (wrap?._holoCleanup) wrap._holoCleanup();
+    const apply = (x, y) => {
+      const { card, foil, shine } = getEls();
+      if (!card || !foil || !shine) return;
+      const rx  =  (y - 0.5) * 18;
+      const ry  = -(x - 0.5) * 18;
+      const hue =   x * 360;
+      card.style.transform  = `perspective(800px) rotateX(${rx}deg) rotateY(${ry}deg) scale(1.02)`;
+      card.style.transition = 'transform 0.08s linear, box-shadow 0.08s linear';
+      card.style.boxShadow  = `${-ry}px ${rx + 8}px 30px rgba(0,0,0,0.16)`;
+      foil.style.opacity    = '1';
+      foil.style.transition = 'none';
+      foil.style.background = `linear-gradient(${120 + ry * 2}deg,hsla(${hue},100%,65%,0.22) 0%,hsla(${hue+60},100%,65%,0.18) 17%,hsla(${hue+120},100%,65%,0.20) 34%,hsla(${hue+180},100%,65%,0.18) 51%,hsla(${hue+240},100%,65%,0.20) 68%,hsla(${hue+300},100%,65%,0.18) 85%,hsla(${hue+360},100%,65%,0.22) 100%)`;
+      shine.style.opacity    = '1';
+      shine.style.transition = 'none';
+      shine.style.background = `radial-gradient(circle at ${x*100}% ${y*100}%,rgba(255,255,255,0.45) 0%,rgba(255,255,255,0.05) 35%,transparent 65%)`;
+    };
+
+    const reset = () => {
+      const { card, foil, shine } = getEls();
+      if (!card || !foil || !shine) return;
+      card.style.transform   = 'perspective(800px) rotateX(0deg) rotateY(0deg) scale(1)';
+      card.style.transition  = 'transform 0.6s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.6s ease';
+      card.style.boxShadow   = '0 2px 10px rgba(0,0,0,0.07)';
+      foil.style.transition  = 'opacity 0.5s ease';
+      foil.style.opacity     = '0';
+      shine.style.transition = 'opacity 0.5s ease';
+      shine.style.opacity    = '0';
+      insideRef.current      = false;
+    };
+
+    const onDocMove = (e) => {
+      if (gyroOn) return;
+      const card = cardRef.current;
+      if (!card) return;
+      const r = card.getBoundingClientRect();
+      const isIn = e.clientX >= r.left && e.clientX <= r.right &&
+                   e.clientY >= r.top  && e.clientY <= r.bottom;
+      if (isIn) {
+        insideRef.current = true;
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        rafRef.current = requestAnimationFrame(() =>
+          apply((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height)
+        );
+      } else if (insideRef.current) {
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        reset();
+      }
+    };
+
+    const onReset = () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      reset();
+    };
+
+    const gyroFn = (x, y) => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => apply(x, y));
+    };
+
+    document.addEventListener('mousemove', onDocMove, { passive: true });
+    document.addEventListener('visibilitychange', onReset);
+    window.addEventListener('focus', onReset);
+    gyroSubs.add(gyroFn);
+
+    return () => {
+      document.removeEventListener('mousemove', onDocMove);
+      document.removeEventListener('visibilitychange', onReset);
+      window.removeEventListener('focus', onReset);
+      gyroSubs.delete(gyroFn);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      reset();
     };
   }, []);
 
   return (
     <div ref={wrapRef} style={{ position: 'relative', borderRadius: 24 }}>
-      {/* Card first in DOM — foil/shine after with explicit z-index to paint on top */}
+      {/* Card first — foil/shine render after with zIndex to paint on top */}
       <div ref={cardRef} style={{
         borderRadius: 22,
         transform: 'perspective(800px) rotateX(0deg) rotateY(0deg) scale(1)',
@@ -155,12 +151,11 @@ const HoloCard = ({ children }) => {
       }}>
         {children}
       </div>
-      {/* Foil — zIndex:2 overcomes card's overflow:hidden stacking context */}
+      {/* zIndex:2/3 overcomes the card's overflow:hidden stacking context */}
       <div ref={foilRef} style={{
         position: 'absolute', inset: 0, borderRadius: 22,
         pointerEvents: 'none', zIndex: 2, opacity: 0,
       }} />
-      {/* Shine */}
       <div ref={shineRef} style={{
         position: 'absolute', inset: 0, borderRadius: 22,
         pointerEvents: 'none', zIndex: 3, opacity: 0,
