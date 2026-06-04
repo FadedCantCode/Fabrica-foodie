@@ -75,15 +75,16 @@ const HoloCard = ({ children }) => {
 
       foil.style.opacity    = '1';
       foil.style.transition = 'none';
+      // No mix-blend-mode — foil paints directly over card with rgba transparency
       foil.style.background = `linear-gradient(
         ${120 + ry * 2}deg,
-        hsla(${hue},100%,65%,0.25) 0%,
-        hsla(${hue+60},100%,65%,0.20) 17%,
-        hsla(${hue+120},100%,65%,0.22) 34%,
-        hsla(${hue+180},100%,65%,0.20) 51%,
-        hsla(${hue+240},100%,65%,0.22) 68%,
-        hsla(${hue+300},100%,65%,0.20) 85%,
-        hsla(${hue+360},100%,65%,0.25) 100%
+        hsla(${hue},100%,65%,0.18) 0%,
+        hsla(${hue+60},100%,65%,0.14) 17%,
+        hsla(${hue+120},100%,65%,0.16) 34%,
+        hsla(${hue+180},100%,65%,0.14) 51%,
+        hsla(${hue+240},100%,65%,0.16) 68%,
+        hsla(${hue+300},100%,65%,0.14) 85%,
+        hsla(${hue+360},100%,65%,0.18) 100%
       )`;
 
       shine.style.opacity    = '1';
@@ -157,35 +158,31 @@ const HoloCard = ({ children }) => {
   }, []);
 
   return (
-    // NO willChange here — it creates a stacking context that breaks mix-blend-mode
     <div style={{ position: 'relative', borderRadius: 24 }}>
 
-      {/* Foil: mix-blend-mode:screen — must be OUTSIDE the transformed card */}
-      {/* Use pointer-events:none so clicks pass through */}
-      <div ref={foilRef} style={{
-        position:'absolute', inset:0, borderRadius:22,
-        pointerEvents:'none', zIndex:20,
-        mixBlendMode:'screen',
-        opacity:0,
-      }} />
-
-      {/* Shine: normal overlay */}
-      <div ref={shineRef} style={{
-        position:'absolute', inset:0, borderRadius:22,
-        pointerEvents:'none', zIndex:21,
-        opacity:0,
-      }} />
-
-      {/* Card — this is what gets perspective transform */}
+      {/* Card — gets perspective transform, rendered FIRST so foil/shine paint on top */}
       <div ref={cardRef} style={{
         borderRadius:22,
         transform: 'perspective(800px) rotateX(0deg) rotateY(0deg) scale(1)',
         transition: 'transform 0.6s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.6s ease',
         boxShadow: '0 2px 10px rgba(0,0,0,0.07)',
-        // No willChange here either until active
       }}>
         {children}
       </div>
+
+      {/* Foil: rendered AFTER card so it paints on top — no blend mode needed */}
+      <div ref={foilRef} style={{
+        position:'absolute', inset:0, borderRadius:22,
+        pointerEvents:'none',
+        opacity:0,
+      }} />
+
+      {/* Shine: rendered last, always on top */}
+      <div ref={shineRef} style={{
+        position:'absolute', inset:0, borderRadius:22,
+        pointerEvents:'none',
+        opacity:0,
+      }} />
     </div>
   );
 };
