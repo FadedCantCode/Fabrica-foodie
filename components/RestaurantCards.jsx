@@ -33,8 +33,12 @@ export const GyroPermissionButton = ({ isLoggedIn }) => {
   useEffect(() => {
     if (!isLoggedIn) return;
     const iOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    const Android = /Android/.test(navigator.userAgent);
+    // iOS: show permission button
     if (iOS && typeof DeviceOrientationEvent?.requestPermission === 'function' && !gyroOn) setShow(true);
-    else if (!iOS && typeof DeviceOrientationEvent !== 'undefined' && !gyroOn) enableGyro();
+    // Android only: auto-start (NOT desktop Chrome which also has DeviceOrientationEvent)
+    else if (Android && !iOS && typeof DeviceOrientationEvent !== 'undefined' && !gyroOn) enableGyro();
+    // Desktop: never auto-start gyro
   }, [isLoggedIn]);
   if (!show) return null;
   return (
@@ -129,7 +133,7 @@ const HoloCard = ({ children }) => {
     };
 
     const onDocMove = (e) => {
-      if (gyroOn) return;
+      // Mouse events always work on desktop regardless of gyro state
       const r = card.getBoundingClientRect();
       const isIn = e.clientX >= r.left && e.clientX <= r.right &&
                    e.clientY >= r.top  && e.clientY <= r.bottom;
