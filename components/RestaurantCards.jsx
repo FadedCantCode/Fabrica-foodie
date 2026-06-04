@@ -270,9 +270,11 @@ export const RestaurantCard = ({
   // Editable field wrapper
   const EditableField = ({ field, children, style }) => (
     <div
+      data-editable="true"
       style={{ position: 'relative', display: 'inline-flex', alignItems: 'center',
         gap: 4, ...style, cursor: editing ? 'default' : 'text' }}
-      onClick={e => { if (!editing) startEdit(e, field); }}
+      onClick={e => { e.stopPropagation(); if (!editing) startEdit(e, field); }}
+      onPointerDown={e => e.stopPropagation()}
     >
       {children}
       {!editing && (
