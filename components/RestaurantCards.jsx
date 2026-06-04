@@ -58,9 +58,12 @@ const HoloCard = ({ children }) => {
 
   useEffect(() => {
     const card  = cardRef.current;
-    const foil  = foilRef.current;
-    const shine = shineRef.current;
-    if (!card || !foil || !shine) return;
+    if (!card) return;
+    // querySelector is more reliable than refs for siblings
+    const wrapper = card.parentElement;
+    const foil  = wrapper?.children[1];
+    const shine = wrapper?.children[2];
+    if (!foil || !shine) return;
 
     const apply = (x, y) => {
       const rx  =  (y - 0.5) * 18;
@@ -157,31 +160,35 @@ const HoloCard = ({ children }) => {
   }, []);
 
   return (
+    // NO willChange here — it creates a stacking context that breaks mix-blend-mode
     <div style={{ position: 'relative', borderRadius: 24 }}>
 
-      {/* Card FIRST — rendered below foil/shine in paint order */}
+      {/* Foil: mix-blend-mode:screen — must be OUTSIDE the transformed card */}
+      {/* Use pointer-events:none so clicks pass through */}
+      <div ref={foilRef} style={{
+        position:'absolute', inset:0, borderRadius:22,
+        pointerEvents:'none', zIndex:20,
+        mixBlendMode:'screen',
+        opacity:0,
+      }} />
+
+      {/* Shine: normal overlay */}
+      <div ref={shineRef} style={{
+        position:'absolute', inset:0, borderRadius:22,
+        pointerEvents:'none', zIndex:21,
+        opacity:0,
+      }} />
+
+      {/* Card — this is what gets perspective transform */}
       <div ref={cardRef} style={{
         borderRadius:22,
         transform: 'perspective(800px) rotateX(0deg) rotateY(0deg) scale(1)',
         transition: 'transform 0.6s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.6s ease',
         boxShadow: '0 2px 10px rgba(0,0,0,0.07)',
+        // No willChange here either until active
       }}>
         {children}
       </div>
-
-      {/* Foil AFTER card — zIndex:2 paints over card's overflow:hidden stacking context */}
-      <div ref={foilRef} style={{
-        position:'absolute', inset:0, borderRadius:22,
-        pointerEvents:'none', zIndex:2,
-        opacity:0,
-      }} />
-
-      {/* Shine AFTER foil */}
-      <div ref={shineRef} style={{
-        position:'absolute', inset:0, borderRadius:22,
-        pointerEvents:'none', zIndex:3,
-        opacity:0,
-      }} />
     </div>
   );
 };
