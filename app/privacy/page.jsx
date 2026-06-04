@@ -6,7 +6,7 @@ export default function PrivacyPolicy() {
   return (
     <main style={{ maxWidth: 760, margin: "0 auto", padding: "48px 20px", lineHeight: 1.7 }}>
       <h1>Privacy Policy</h1>
-      <p>Last updated: June 1, 2026</p>
+      <p>Last updated: June 4, 2026</p>
 
       <h2>What Fabrica Foodie Does</h2>
       <p>
@@ -44,7 +44,7 @@ export default function PrivacyPolicy() {
 
       <h2>Contact</h2>
       <p>
-        For privacy questions or deletion requests, contact: your-email@example.com
+        For privacy questions or deletion requests, contact: @fabrica_tw on THREADS.
       </p>
     </main>
   );
