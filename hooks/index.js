@@ -5,7 +5,6 @@ import {
   onAuthStateChanged,
   signInWithCustomToken,
   signInWithPopup,
-  signInWithRedirect,
   signOut,
 } from 'firebase/auth';
 import { collection, onSnapshot, serverTimestamp } from 'firebase/firestore';
@@ -294,11 +293,22 @@ export function useAuth() {
   const handleLogout = () => {
     setIsGlobalTransitioning(true);
     setTimeout(async () => {
+      const isThreadsUser = auth.currentUser?.uid?.startsWith("threads_");
+
       if (typeof window !== 'undefined') {
         window.localStorage.removeItem('fabrica_auth_mode');
-        window.localStorage.removeItem('fabrica_threads_username');
+        // Keep threads_username so next visit auto-restores session
+        if (!isThreadsUser) {
+          window.localStorage.removeItem('fabrica_threads_username');
+        }
       }
-      await signOut(auth).catch(console.error);
+
+      // Threads users: preserve Firebase session so next visit auto-logs in
+      // Google users: full signOut
+      if (!isThreadsUser) {
+        await signOut(auth).catch(console.error);
+      }
+
       if (!mountedRef.current) return;
       setIsGoogleAuthPending(false);
       setIsLoggedIn(false);
