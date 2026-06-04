@@ -35,12 +35,23 @@ export default function MapView({ restaurants, isOpen, onClose, userLocation }) 
 
   // ── Geocode via Nominatim ──────────────────────────────────────────────────
   const geocode = useCallback(async (name, address) => {
+    // Parse Taiwan address formats like "811高雄市楠梓區外環西路57號"
+    const cleanAddr = address
+      ? address.replace(/^\d{3,6}/, '').trim() // remove postal code
+      : '';
+    // Extract city+district and street separately
+    const cityMatch = cleanAddr.match(/^(.*?[市縣])(.*?[鄉鎮市區])(.*)/);
+    const city     = cityMatch ? cityMatch[1] + cityMatch[2] : '';
+    const street   = cityMatch ? cityMatch[3].replace(/^.*?里/, '') : cleanAddr;
+
     const queries = [];
-    if (address && address !== '僅提供店名定位' && address.trim()) {
-      queries.push(address);
-      queries.push(`${name} ${address}`);
+    if (cleanAddr && cleanAddr !== '僅提供店名定位') {
+      queries.push(cleanAddr);                          // 高雄市楠梓區外環西路57號
+      if (city && street) queries.push(`${street} ${city}`); // 外環西路57號 高雄市楠梓區
+      if (street)         queries.push(`${name} ${street}`); // 午七廚房 外環西路57號
     }
     queries.push(`${name} 台灣`);
+    queries.push(`${name} kaohsiung`);
 
     for (const q of queries) {
       try {
@@ -50,11 +61,11 @@ export default function MapView({ restaurants, isOpen, onClose, userLocation }) 
         );
         const data = await res.json();
         if (data[0]) {
-          console.log(`[geocode] ✅ ${name}: ${data[0].lat}, ${data[0].lon}`);
+          console.log(`[geocode] ✅ ${name}: ${data[0].lat}, ${data[0].lon} (q: ${q})`);
           return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
         }
       } catch (e) {
-        console.log(`[geocode] ❌ ${name}:`, e.message);
+        console.log(`[geocode] error:`, e.message);
       }
     }
     console.log(`[geocode] ❌ ${name}: no results`);
