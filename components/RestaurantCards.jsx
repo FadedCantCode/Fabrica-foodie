@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { AppleButton, BlurVignette } from './ui';
 import { getFoodImage, getFreeMapAppUrl, getSmartTag } from '../lib/helpers';
 
@@ -49,159 +49,101 @@ export const GyroPermissionButton = ({ isLoggedIn }) => {
   );
 };
 
-// ─── applyHolo / resetHolo — pure DOM manipulation ───────────────────────────
-function applyHolo(el, x, y) {
-  if (!el) return;
-  const rx  =  (y - 0.5) * 20;
-  const ry  = -(x - 0.5) * 20;
-  const hue =  x * 360;
-
-  el.style.transform  = `perspective(800px) rotateX(${rx}deg) rotateY(${ry}deg) scale(1.02)`;
-  el.style.boxShadow  = `${-ry * 0.8}px ${rx * 0.8 + 8}px 30px rgba(0,0,0,0.15)`;
-
-  const foil  = el._holoFoil;
-  const shine = el._holoShine;
-
-  if (foil) {
-    foil.style.opacity    = '0.15';
-    foil.style.transition = 'none';
-    foil.style.backgroundImage = `linear-gradient(
-      ${120 + ry * 2}deg,
-      hsl(${hue},100%,60%) 0%,
-      hsl(${hue+51},100%,60%) 14%,
-      hsl(${hue+102},100%,60%) 28%,
-      hsl(${hue+153},100%,60%) 42%,
-      hsl(${hue+204},100%,60%) 57%,
-      hsl(${hue+255},100%,60%) 71%,
-      hsl(${hue+306},100%,60%) 85%,
-      hsl(${hue+357},100%,60%) 100%
-    )`;
-  }
-  if (shine) {
-    shine.style.opacity    = '1';
-    shine.style.transition = 'none';
-    shine.style.backgroundImage = `radial-gradient(circle at ${x*100}% ${y*100}%, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.08) 40%, transparent 70%)`;
-  }
-}
-
-function resetHolo(el) {
-  if (!el) return;
-  el.style.transform  = 'perspective(800px) rotateX(0deg) rotateY(0deg) scale(1)';
-  el.style.transition = 'transform 0.6s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.6s ease';
-  el.style.boxShadow  = '0 2px 10px rgba(0,0,0,0.07)';
-
-  const foil  = el._holoFoil;
-  const shine = el._holoShine;
-  if (foil)  { foil.style.transition  = 'opacity 0.5s ease'; foil.style.opacity  = '0'; }
-  if (shine) { shine.style.transition = 'opacity 0.5s ease'; shine.style.opacity = '0'; }
-}
-
 // ─── HoloCard ─────────────────────────────────────────────────────────────────
 const HoloCard = ({ children }) => {
-  const wrapRef = useRef(null);
-  const rafRef  = useRef(null);
-  const foilRef = useRef(null);
+  const cardRef  = useRef(null);  // the white card div
+  const rafRef   = useRef(null);
+  const foilRef  = useRef(null);
   const shineRef = useRef(null);
 
   useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return;
+    const card  = cardRef.current;
+    const foil  = foilRef.current;
+    const shine = shineRef.current;
+    if (!card || !foil || !shine) return;
 
-    // querySelector is safer than ref — guaranteed to find after mount
-    el._holoFoil  = el.querySelector('.holo-foil');
-    el._holoShine = el.querySelector('.holo-shine');
+    const apply = (x, y) => {
+      const rx  =  (y - 0.5) * 18;
+      const ry  = -(x - 0.5) * 18;
+      const hue =   x * 360;
 
-    // Native DOM events — bypasses React entirely
-    // Get foil/shine once after mount — querySelector on wrapRef children
-    const foilEl  = wrapRef.current.querySelector('.holo-foil');
-    const shineEl = wrapRef.current.querySelector('.holo-shine');
+      // Apply perspective on the CARD itself, not a wrapper
+      // This avoids stacking context issues with mix-blend-mode
+      card.style.transform  = `perspective(800px) rotateX(${rx}deg) rotateY(${ry}deg) scale(1.02)`;
+      card.style.transition = 'transform 0.08s linear, box-shadow 0.08s linear';
+      card.style.boxShadow  = `${-ry}px ${rx + 8}px 30px rgba(0,0,0,0.16)`;
 
-    const onMove = (e) => {
-      if (gyroOn) return;
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(() => {
-        const r = el.getBoundingClientRect();
-        const x = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
-        const y = Math.max(0, Math.min(1, (e.clientY - r.top)  / r.height));
-        const rx  =  (y - 0.5) * 20;
-        const ry  = -(x - 0.5) * 20;
-        const hue =   x * 360;
+      foil.style.opacity    = '1';
+      foil.style.transition = 'none';
+      foil.style.background = `linear-gradient(
+        ${120 + ry * 2}deg,
+        hsla(${hue},100%,65%,0.25) 0%,
+        hsla(${hue+60},100%,65%,0.20) 17%,
+        hsla(${hue+120},100%,65%,0.22) 34%,
+        hsla(${hue+180},100%,65%,0.20) 51%,
+        hsla(${hue+240},100%,65%,0.22) 68%,
+        hsla(${hue+300},100%,65%,0.20) 85%,
+        hsla(${hue+360},100%,65%,0.25) 100%
+      )`;
 
-        el.style.transform  = `perspective(800px) rotateX(${rx}deg) rotateY(${ry}deg) scale(1.02)`;
-        el.style.transition = 'transform 0.08s linear, box-shadow 0.08s linear';
-        el.style.boxShadow  = `${-ry * 0.8}px ${rx * 0.8 + 8}px 30px rgba(0,0,0,0.15)`;
-
-        if (foilEl) {
-          foilEl.style.transition = 'none';
-          foilEl.style.opacity = '0.15';
-          foilEl.style.backgroundImage = `linear-gradient(${120 + ry * 2}deg,hsl(${hue},100%,60%),hsl(${hue+60},100%,60%),hsl(${hue+120},100%,60%),hsl(${hue+180},100%,60%),hsl(${hue+240},100%,60%),hsl(${hue+300},100%,60%))`;
-        }
-        if (shineEl) {
-          shineEl.style.transition = 'none';
-          shineEl.style.opacity = '0.7';
-          shineEl.style.backgroundImage = `radial-gradient(circle at ${x*100}% ${y*100}%,rgba(255,255,255,0.55) 0%,rgba(255,255,255,0.05) 40%,transparent 70%)`;
-        }
-      });
+      shine.style.opacity    = '1';
+      shine.style.transition = 'none';
+      shine.style.background = `radial-gradient(
+        circle at ${x*100}% ${y*100}%,
+        rgba(255,255,255,0.45) 0%,
+        rgba(255,255,255,0.05) 35%,
+        transparent 65%
+      )`;
     };
 
-    const doReset = () => {
-      el.style.transform  = 'perspective(800px) rotateX(0deg) rotateY(0deg) scale(1)';
-      el.style.transition = 'transform 0.6s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.6s ease';
-      el.style.boxShadow  = '0 2px 10px rgba(0,0,0,0.07)';
-      if (foilEl)  { foilEl.style.transition  = 'opacity 0.5s ease'; foilEl.style.opacity  = '0'; }
-      if (shineEl) { shineEl.style.transition = 'opacity 0.5s ease'; shineEl.style.opacity = '0'; }
+    const reset = () => {
+      card.style.transform  = 'perspective(800px) rotateX(0deg) rotateY(0deg) scale(1)';
+      card.style.transition = 'transform 0.6s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.6s ease';
+      card.style.boxShadow  = '0 2px 10px rgba(0,0,0,0.07)';
+      foil.style.transition  = 'opacity 0.5s ease';
+      foil.style.opacity     = '0';
+      shine.style.transition = 'opacity 0.5s ease';
+      shine.style.opacity    = '0';
     };
 
-    const onLeave = () => {
-      if (gyroOn) return;
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      doReset();
-    };
-
-    // Reset on any focus change or tab switch
-    const onReset = () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      doReset();
-    };
-
-    // Use document-level mousemove — most reliable across all browsers
-    // Check if mouse is inside our card's bounding rect
-    let isInside = false;
+    // document-level mousemove — most reliable
+    let inside = false;
     const onDocMove = (e) => {
       if (gyroOn) return;
-      const r = el.getBoundingClientRect();
-      const inside = e.clientX >= r.left && e.clientX <= r.right &&
-                     e.clientY >= r.top  && e.clientY <= r.bottom;
-      if (inside) {
-        if (!isInside) isInside = true;
-        onMove(e);
-      } else if (isInside) {
-        isInside = false;
-        onLeave();
+      const r = card.getBoundingClientRect();
+      const isIn = e.clientX >= r.left && e.clientX <= r.right &&
+                   e.clientY >= r.top  && e.clientY <= r.bottom;
+      if (isIn) {
+        inside = true;
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        rafRef.current = requestAnimationFrame(() => {
+          apply(
+            (e.clientX - r.left) / r.width,
+            (e.clientY - r.top)  / r.height
+          );
+        });
+      } else if (inside) {
+        inside = false;
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        reset();
       }
     };
-    document.addEventListener('mousemove', onDocMove, { passive: true });
-    // visibilitychange fires when tab is hidden/shown
-    document.addEventListener('visibilitychange', onReset);
-    // window focus fires when user returns from another window/tab
-    window.addEventListener('focus', onReset);
+
+    const onReset = () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      inside = false;
+      reset();
+    };
 
     // Gyro
     const gyroFn = (x, y) => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(() => {
-        const rx  =  (y - 0.5) * 20;
-        const ry  = -(x - 0.5) * 20;
-        const hue =   x * 360;
-        el.style.transform = `perspective(800px) rotateX(${rx}deg) rotateY(${ry}deg) scale(1.02)`;
-        el.style.transition = 'transform 0.08s linear';
-        if (foilEl) {
-          foilEl.style.opacity = '0.15';
-          foilEl.style.backgroundImage = `linear-gradient(${120+ry*2}deg,hsl(${hue},100%,60%),hsl(${hue+60},100%,60%),hsl(${hue+120},100%,60%),hsl(${hue+180},100%,60%),hsl(${hue+240},100%,60%),hsl(${hue+300},100%,60%))`;
-        }
-        if (shineEl) { shineEl.style.opacity = '0.5'; }
-      });
+      rafRef.current = requestAnimationFrame(() => apply(x, y));
     };
+
+    document.addEventListener('mousemove', onDocMove, { passive: true });
+    document.addEventListener('visibilitychange', onReset);
+    window.addEventListener('focus', onReset);
     gyroSubs.add(gyroFn);
 
     return () => {
@@ -210,39 +152,40 @@ const HoloCard = ({ children }) => {
       window.removeEventListener('focus', onReset);
       gyroSubs.delete(gyroFn);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      // Always clean up on unmount
-      doReset();
+      reset();
     };
   }, []);
 
   return (
-    <div
-      ref={wrapRef}
-      style={{
-        position: 'relative',
-        borderRadius: 24,
-        transform: 'perspective(800px) rotateX(0deg) rotateY(0deg) scale(1)',
-        transition: 'transform 0.6s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.6s ease',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.07)',
-        willChange: 'transform',
-      }}
-    >
-      {children}
+    // NO willChange here — it creates a stacking context that breaks mix-blend-mode
+    <div style={{ position: 'relative', borderRadius: 24 }}>
 
-      {/* Foil: screen blend — shows colour without blowing out whites */}
+      {/* Foil: mix-blend-mode:screen — must be OUTSIDE the transformed card */}
+      {/* Use pointer-events:none so clicks pass through */}
       <div ref={foilRef} style={{
         position:'absolute', inset:0, borderRadius:22,
-        pointerEvents:'none', zIndex:10,
+        pointerEvents:'none', zIndex:20,
         mixBlendMode:'screen',
         opacity:0,
       }} />
 
-      {/* Shine: normal blend */}
+      {/* Shine: normal overlay */}
       <div ref={shineRef} style={{
         position:'absolute', inset:0, borderRadius:22,
-        pointerEvents:'none', zIndex:11,
+        pointerEvents:'none', zIndex:21,
         opacity:0,
       }} />
+
+      {/* Card — this is what gets perspective transform */}
+      <div ref={cardRef} style={{
+        borderRadius:22,
+        transform: 'perspective(800px) rotateX(0deg) rotateY(0deg) scale(1)',
+        transition: 'transform 0.6s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.6s ease',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.07)',
+        // No willChange here either until active
+      }}>
+        {children}
+      </div>
     </div>
   );
 };
@@ -288,13 +231,12 @@ export const RestaurantCard = ({
         transform: isDragging ? 'none' : `translate3d(0,${ty}%,0)`,
         transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.25,1,0.5,1)',
         opacity: isDragging ? 0.55 : 1,
-        // pan-y on mobile only — desktop needs pointer events free
         touchAction: 'pan-y',
         cursor: isDragging ? 'grabbing' : 'grab',
       }}
     >
       <HoloCard>
-        <div style={{ background:'white', borderRadius:22, border:'1px solid #E5E5EA', padding:8, position:'relative', overflow:'hidden' }}>
+        <div style={{ background:'white', borderRadius:22, border:'1px solid #E5E5EA', padding:8, overflow:'hidden' }}>
           <div style={{ width:'100%', height:216, position:'relative', borderRadius:16, overflow:'hidden', background:'#111' }}>
             <img draggable={false}
               src={getFoodImage(restaurant)}
@@ -317,7 +259,7 @@ export const RestaurantCard = ({
               </div>
             </div>
           </div>
-          <div style={{ padding:'12px 14px 10px', position:'relative', zIndex:20 }}>
+          <div style={{ padding:'12px 14px 10px' }}>
             {restaurant.note && <p style={{ fontSize:13, color:'#3C3C43', lineHeight:1.6, margin:'0 0 10px', fontWeight:500 }}>{restaurant.note}</p>}
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', borderTop:'1px solid #F0F0F0', paddingTop:10 }}>
               <AppleButton onClick={e=>{e.stopPropagation();onDelete(restaurant.id);}} className="flex items-center gap-1.5 text-xs font-bold text-[#FF3B30] hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors">
