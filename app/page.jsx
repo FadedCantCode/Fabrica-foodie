@@ -78,6 +78,15 @@ export default function App() {
   // ── Drag ──────────────────────────────────────────────────────────────────
   const { draggingId, dragState, handlePointerDown } = useDrag(setDisplayRestaurants, setSelectedRestaurant);
 
+  // ── Store Firebase token for bookmarklet ─────────────────────────────────
+  useEffect(() => {
+    if (!isLoggedIn || !auth.currentUser) return;
+    auth.currentUser.getIdToken().then(token => {
+      const exp = Math.floor(Date.now() / 1000) + 3500; // ~1hr
+      localStorage.setItem('fabrica_fb_token', JSON.stringify({ token, exp }));
+    }).catch(() => {});
+  }, [isLoggedIn]);
+
   // ── Login 3D bg ───────────────────────────────────────────────────────────
   const canvasContainerRef = useRef(null);
 
