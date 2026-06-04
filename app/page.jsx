@@ -22,6 +22,7 @@ import {
 import LoginPage from '../components/LoginPage';
 import BindModal from '../components/BindModal';
 import { RestaurantCard, RecommendationCard, RestaurantDetailModal, GyroPermissionButton } from '../components/RestaurantCards';
+import MapView from '../components/MapView';
 
 // ── Firebase imports for food actions ────────────────────────────────────────
 import { addDoc, updateDoc, deleteDoc, doc, collection, serverTimestamp } from 'firebase/firestore';
@@ -60,6 +61,7 @@ export default function App() {
   const [showBindModal, setShowBindModal] = useState(false);
   const [userLocation, setUserLocation] = useState(null);
   const [mounted, setMounted] = useState(false);
+  const [showMap, setShowMap] = useState(false);
 
   // ── Add form state ────────────────────────────────────────────────────────
   const [newRestName, setNewRestName] = useState("");
@@ -324,10 +326,17 @@ export default function App() {
                   </div>
                   <h1 className="text-lg font-bold tracking-tight text-black mt-0.5 truncate">{threadsUsername}</h1>
                 </div>
-                <AppleButton onClick={handleLogout}
-                  className="flex-shrink-0 text-xs font-semibold text-[#555] hover:text-black bg-white/40 backdrop-blur-md border border-white/50 px-3.5 py-1.5 rounded-full shadow-sm transition-all duration-300 hover:bg-white/70">
-                  登出
-                </AppleButton>
+                <div className="flex items-center gap-2">
+                  <AppleButton onClick={() => setShowMap(true)}
+                    className="flex-shrink-0 text-xs font-semibold text-[#555] hover:text-black bg-white/40 backdrop-blur-md border border-white/50 px-3 py-1.5 rounded-full shadow-sm transition-all duration-300 hover:bg-white/70 flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+                    地圖
+                  </AppleButton>
+                  <AppleButton onClick={handleLogout}
+                    className="flex-shrink-0 text-xs font-semibold text-[#555] hover:text-black bg-white/40 backdrop-blur-md border border-white/50 px-3.5 py-1.5 rounded-full shadow-sm transition-all duration-300 hover:bg-white/70">
+                    登出
+                  </AppleButton>
+                </div>
               </div>
             </header>
 
@@ -529,6 +538,14 @@ export default function App() {
         <RestaurantDetailModal restaurant={selectedRestaurant} onClose={() => setSelectedRestaurant(null)} />
       )}
      
+      {/* ── Map View ── */}
+      <MapView
+        restaurants={restaurants}
+        isOpen={showMap}
+        onClose={() => setShowMap(false)}
+        userLocation={userLocation}
+      />
+
       {/* ── Toast ── */}
       <GyroPermissionButton isLoggedIn={isLoggedIn} /> <Toast message={toastMessage} type={toastType} />
     </div>
