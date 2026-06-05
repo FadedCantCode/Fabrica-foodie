@@ -176,16 +176,17 @@ export default function App() {
     const uniforms = { u_time: { value: 0 }, u_intensity: { value: 0.25 }, u_noiseScale: { value: 1.5 }, u_noiseSpeed: { value: 0.8 } };
     const material = new THREE.ShaderMaterial({ vertexShader: vertexShaderLogin, fragmentShader: fragmentShaderLogin, uniforms, transparent: true });
     const mesh = new THREE.Mesh(new THREE.SphereGeometry(2, 64, 64), material);
-    mesh.position.set(0, 0, -1); mesh.scale.setScalar(2.4); scene.add(mesh);
+    // Position ball in left-center area, smaller scale so text is visible around it
+    mesh.position.set(-0.8, 0, -1); mesh.scale.setScalar(1.4); scene.add(mesh);
     const mouse = { x: 0, y: 0 };
-    const targetPos = new THREE.Vector3(0, 0, -1);
-    const currentPos = new THREE.Vector3(0, 0, -1);
+    const targetPos = new THREE.Vector3(-0.8, 0, -1);
+    const currentPos = new THREE.Vector3(-0.8, 0, -1);
     const onMouseMove = (e) => { mouse.x = (e.clientX / window.innerWidth) * 2 - 1; mouse.y = -(e.clientY / window.innerHeight) * 2 + 1; };
     window.addEventListener('mousemove', onMouseMove);
     const onResize = () => { if (!container) return; camera.aspect = container.clientWidth / container.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(container.clientWidth, container.clientHeight); };
     window.addEventListener('resize', onResize);
     let rafId; const clock = new THREE.Clock();
-    const animate = () => { const e = clock.getElapsedTime(); uniforms.u_time.value = 0.25 * e; uniforms.u_noiseScale.value = Math.sin(e * 0.1) * 0.5 + 1.2; targetPos.set(mouse.x * 1.2, mouse.y * 1.2, -1); currentPos.lerp(targetPos, 0.05); mesh.position.copy(currentPos); renderer.render(scene, camera); rafId = requestAnimationFrame(animate); };
+    const animate = () => { const e = clock.getElapsedTime(); uniforms.u_time.value = 0.25 * e; uniforms.u_noiseScale.value = Math.sin(e * 0.1) * 0.5 + 1.2; targetPos.set(-0.8 + mouse.x * 0.4, mouse.y * 0.6, -1); currentPos.lerp(targetPos, 0.05); mesh.position.copy(currentPos); renderer.render(scene, camera); rafId = requestAnimationFrame(animate); };
     animate();
     return () => { window.removeEventListener('mousemove', onMouseMove); window.removeEventListener('resize', onResize); cancelAnimationFrame(rafId); if (container && renderer.domElement) container.removeChild(renderer.domElement); material.dispose(); renderer.dispose(); };
   }, [mounted, isLoggedIn]);
