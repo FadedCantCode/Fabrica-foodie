@@ -1,59 +1,51 @@
 // components/RestaurantList.jsx
-// Swapy-based drag-and-drop list for restaurant cards.
+// Swapy-based drag-and-drop list. Replaces the manual useDrag implementation.
+// Cards keep all their existing features (HoloCard, inline edit, etc).
 "use client";
 
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { createSwapy } from 'swapy';
 import { RestaurantCard } from './RestaurantCards';
 
 export default function RestaurantList({
   restaurants,
+  onOrderChange,
   onDelete,
   onShare,
   onUpdate,
   onSelect,
 }) {
   const containerRef = useRef(null);
-  const swapyRef = useRef(null);
-  const idsKey = useMemo(() => restaurants.map(r => r.id).join('|'), [restaurants]);
+  const swapyRef     = useRef(null);
+
+  // Re-init swapy whenever the list of restaurant IDs changes (add/remove/filter)
+  const idsKey = restaurants.map(r => r.id).join(',');
 
   useEffect(() => {
-    if (!containerRef.current || swapyRef.current || restaurants.length === 0) return undefined;
+    if (!containerRef.current || restaurants.length === 0) return;
 
-    const swapy = createSwapy(containerRef.current, {
+    // Tear down previous instance
+    swapyRef.current?.destroy();
+
+    swapyRef.current = createSwapy(containerRef.current, {
       animation: 'spring',
-      swapMode: 'hover',
+      swapMode:  'hover',
       autoScrollOnDrag: true,
     });
 
-    const clearDragState = () => {
-      delete document.body.dataset.swapyDragging;
-      requestAnimationFrame(() => swapy.update?.());
-      document.removeEventListener('pointerup', clearDragState);
-      document.removeEventListener('pointercancel', clearDragState);
-    };
-
-    swapy.onSwapStart?.(() => {
-      document.body.dataset.swapyDragging = 'true';
-      window.dispatchEvent(new Event('fabrica-swapy-drag-start'));
-      document.addEventListener('pointerup', clearDragState, { once: true });
-      document.addEventListener('pointercancel', clearDragState, { once: true });
+    swapyRef.current.onSwap(({ data }) => {
+      // data.array = [{ slotId, itemId }, ...] in new visual order
+      const newOrder = data.array
+        .map(entry => restaurants.find(r => r.id === entry.itemId))
+        .filter(Boolean);
+      onOrderChange?.(newOrder);
     });
 
-    swapy.onSwapEnd?.(clearDragState);
-
-    swapyRef.current = swapy;
-
     return () => {
-      clearDragState();
       swapyRef.current?.destroy();
       swapyRef.current = null;
     };
-  }, [restaurants.length]);
-
-  useEffect(() => {
-    if (!swapyRef.current) return;
-    requestAnimationFrame(() => swapyRef.current?.update?.());
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idsKey]);
 
   if (restaurants.length === 0) {
@@ -65,8 +57,8 @@ export default function RestaurantList({
               d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
           </svg>
         </div>
-        <h3 className="text-neutral-900 font-bold mb-1">No saved restaurants yet</h3>
-        <p className="text-sm text-neutral-500 font-medium">Add or import Threads food posts to start your list.</p>
+        <h3 className="text-neutral-900 font-bold mb-1">找不到相關餐廳</h3>
+        <p className="text-sm text-neutral-500 font-medium">嘗試不同的搜尋關鍵字或分類</p>
       </div>
     );
   }
@@ -76,30 +68,18 @@ export default function RestaurantList({
       {restaurants.map((restaurant, index) => (
         <div
           key={restaurant.id}
-          data-swapy-slot={restaurant.id}
+          data-swapy-slot={`slot-${restaurant.id}`}
           className="relative"
-          style={{ borderRadius: 24 }}
         >
-          <div
-            data-swapy-item={restaurant.id}
-            className="relative"
-            style={{
-              borderRadius: 24,
-              overflow: 'hidden',
-              transform: 'translateZ(0)',
-              WebkitTransform: 'translateZ(0)',
-            }}
-          >
+          <div data-swapy-item={restaurant.id} className="relative">
+            {/* Drag handle — small grip in top-right; only this is draggable */}
             <div
               data-swapy-handle
-              title="Drag to reorder"
-              aria-label="Drag to reorder"
+              title="拖動排序"
               style={{
                 position: 'absolute',
-                top: 14,
-                right: 14,
-                width: 32,
-                height: 32,
+                top: 14, right: 14,
+                width: 32, height: 32,
                 zIndex: 30,
                 display: 'flex',
                 alignItems: 'center',
@@ -113,9 +93,9 @@ export default function RestaurantList({
                 border: '1px solid rgba(255,255,255,0.18)',
                 touchAction: 'none',
               }}
-              onClick={e => e.stopPropagation()}
+              onPointerDown={e => e.stopPropagation()}
             >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
                 <circle cx="4" cy="3" r="1.2"/><circle cx="10" cy="3" r="1.2"/>
                 <circle cx="4" cy="7" r="1.2"/><circle cx="10" cy="7" r="1.2"/>
                 <circle cx="4" cy="11" r="1.2"/><circle cx="10" cy="11" r="1.2"/>
