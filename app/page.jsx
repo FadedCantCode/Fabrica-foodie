@@ -95,6 +95,28 @@ export default function App() {
     }).catch(() => {});
   }, [isLoggedIn]);
 
+  // ── Resume pending share after login (from Threads share → /share) ────────
+  useEffect(() => {
+    if (!isLoggedIn || !auth.currentUser) return;
+    const pending = sessionStorage.getItem('fabrica_pending_share');
+    if (!pending) return;
+    sessionStorage.removeItem('fabrica_pending_share');
+    (async () => {
+      showToast("✨ 正在分析剛剛分享的貼文...", "info");
+      try {
+        const token = await auth.currentUser.getIdToken();
+        const res = await fetch('/api/share-save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: pending, idToken: token }),
+        });
+        const data = await res.json();
+        if (data.success) showToast(`🎉 已存入 ${data.count} 家餐廳！`, "success");
+        else showToast(data.error || "分析失敗", "error");
+      } catch { showToast("分析失敗，請稍後再試", "error"); }
+    })();
+  }, [isLoggedIn]);
+
   // ── Login 3D bg ───────────────────────────────────────────────────────────
   const canvasContainerRef = useRef(null);
 
@@ -266,13 +288,45 @@ export default function App() {
       const res = await fetch('/api/analyze-food', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: rawText }) });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'Import failed');
-      const ai = result.data || {};
-      if (isDuplicate(ai.name)) { showToast(`⚠️ ${ai.name} 已在您的口袋名單中！`, "error"); return; }
+
+      // data is now an ARRAY of restaurants
+      const list = Array.isArray(result.data) ? result.data : [result.data];
       const sourceUrl = rawText.match(/https?:\/\/\S+/)?.[0] || "";
       const sourceAuthor = extractThreadsAuthor(sourceUrl);
-      await addDoc(collection(db, 'artifacts', APP_ID, 'users', masterUid, 'restaurants'), { name: ai.name || "待確認美食", address: ai.address || "", areaHint: ai.areaHint || "", category: ai.category || "美食收藏", note: ai.aiNote || "已從 Threads 貼文匯入，等待補充店家資訊。", mainOffer: ai.mainOffer || "未確認", reputationSummary: ai.reputationSummary || "未確認", currentPromotions: ai.currentPromotions || "未確認", businessHours: ai.businessHours || "未確認", confidence: Math.max(0, Math.min(1, Number(ai.confidence || 0))), placeStatus: ai.address ? "needs_review" : "unverified", source: "manual_threads_import", sourceText: rawText, threadsUrl: sourceUrl, sourceAuthor, recommendedBy: sourceAuthor || threadsUsername.replace("@", "") || "google-user", savedAt: serverTimestamp() });
+
+      let savedCount = 0;
+      let skipped = 0;
+      for (const ai of list) {
+        if (!ai?.name) continue;
+        if (isDuplicate(ai.name)) { skipped++; continue; }
+        await addDoc(collection(db, 'artifacts', APP_ID, 'users', masterUid, 'restaurants'), {
+          name: ai.name || "待確認美食",
+          address: ai.address || "",
+          areaHint: ai.areaHint || "",
+          category: ai.category || "美食收藏",
+          note: ai.aiNote || "已從 Threads 貼文匯入，等待補充店家資訊。",
+          latitude: ai.latitude || "",
+          longitude: ai.longitude || "",
+          confidence: Math.max(0, Math.min(1, Number(ai.confidence || 0))),
+          placeStatus: ai.placeStatus || (ai.address ? "needs_review" : "unverified"),
+          source: "manual_threads_import",
+          sourceText: rawText.slice(0, 500),
+          threadsUrl: sourceUrl,
+          sourceAuthor,
+          recommendedBy: sourceAuthor || threadsUsername.replace("@", "") || "google-user",
+          savedAt: serverTimestamp(),
+        });
+        savedCount++;
+      }
+
       setImportText(""); setShowImportModal(false);
-      showToast(`已匯入 ${ai.name || "美食"} 到你的美食庫。`, "success");
+      if (savedCount > 0) {
+        showToast(`🎉 已匯入 ${savedCount} 家餐廳${skipped > 0 ? `（${skipped} 家已存在）` : ''}！`, "success");
+      } else if (skipped > 0) {
+        showToast(`⚠️ 這 ${skipped} 家都已在您的名單中。`, "error");
+      } else {
+        showToast("找不到可匯入的餐廳。", "error");
+      }
     } catch (err) { console.error(err); showToast("匯入失敗，請稍後再試。", "error"); }
     finally { setIsImportingThread(false); }
   };
