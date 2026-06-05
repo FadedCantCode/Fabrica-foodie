@@ -6,7 +6,7 @@ import { FABRICA_THREADS_HANDLE } from '../lib/firebase';
 import { SlideButton, AppleButton, VerticalMarquee, StepPips } from './ui';
 
 // Words that loop in the headline
-const LOOP_WORDS = ['美食', '記憶', '地圖', '故事', '旅程'];
+const LOOP_WORDS = ['美食', '記憶', '玩樂', '故事', '旅程'];
 
 export default function LoginPage({
   loginStep, inputUsername, setInputUsername,
