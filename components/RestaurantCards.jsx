@@ -133,6 +133,8 @@ const HoloCard = ({ children }) => {
     };
 
     const onDocMove = (e) => {
+      if (document.body.dataset.swapyDragging === 'true') return;
+
       // Mouse events always work on desktop regardless of gyro state
       const r = card.getBoundingClientRect();
       const isIn = e.clientX >= r.left && e.clientX <= r.right &&
@@ -162,12 +164,14 @@ const HoloCard = ({ children }) => {
     document.addEventListener('mousemove', onDocMove, { passive: true });
     document.addEventListener('visibilitychange', onReset);
     window.addEventListener('focus', onReset);
+    window.addEventListener('fabrica-swapy-drag-start', onReset);
     gyroSubs.add(gyroFn);
 
     return () => {
       document.removeEventListener('mousemove', onDocMove);
       document.removeEventListener('visibilitychange', onReset);
       window.removeEventListener('focus', onReset);
+      window.removeEventListener('fabrica-swapy-drag-start', onReset);
       gyroSubs.delete(gyroFn);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
