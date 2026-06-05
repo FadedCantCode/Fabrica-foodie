@@ -217,11 +217,11 @@ function getRecommenderInfo(r) {
 }
 
 // ─── RestaurantCard ───────────────────────────────────────────────────────────
+// Swapy handles drag via data-swapy-handle in the parent (RestaurantList).
+// This card focuses on rendering + inline edit + click-to-detail.
 export const RestaurantCard = ({
-  restaurant, index, draggingId, dragState,
-  onPointerDown, onDelete, onShare, onUpdate,
+  restaurant, index, onDelete, onShare, onUpdate, onSelect,
 }) => {
-  const isDragging = draggingId === restaurant.id;
   const cat = getSmartTag(restaurant.name, restaurant.category);
   const rec = getRecommenderInfo(restaurant);
 
@@ -252,13 +252,6 @@ export const RestaurantCard = ({
     if (e.key === 'Enter' && editing !== 'note') { e.preventDefault(); saveEdit(); }
     if (e.key === 'Escape') { setEditing(null); }
   };
-
-  let ty = 0;
-  if (dragState.draggingId && dragState.hoveredIndex !== -1 && !isDragging) {
-    const { startIndex: s, hoveredIndex: h } = dragState;
-    if (s < h && index > s && index <= h) ty = -105;
-    else if (s > h && index < s && index >= h) ty = 105;
-  }
 
   // Shared edit input style
   const inputStyle = {
@@ -291,17 +284,18 @@ export const RestaurantCard = ({
 
   return (
     <div
-      data-sort-index={index}
-      data-restaurant-id={restaurant.id}
-      onPointerDown={e => { if (editing) return; onPointerDown(e, restaurant, index); }}
+      onClick={e => {
+        if (editing) return;
+        if (e.target.closest('button') || e.target.closest('a')) return;
+        if (e.target.closest('input') || e.target.closest('textarea')) return;
+        if (e.target.closest('[data-editable]')) return;
+        if (e.target.closest('[data-swapy-handle]')) return;
+        onSelect?.(restaurant);
+      }}
       className="select-none w-full animate-card-appear"
       style={{
         animationDelay: `${Math.min(index*60,400)}ms`,
-        transform: isDragging ? 'none' : `translate3d(0,${ty}%,0)`,
-        transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.25,1,0.5,1)',
-        opacity: isDragging ? 0.55 : 1,
-        touchAction: editing ? 'auto' : 'pan-y',
-        cursor: isDragging ? 'grabbing' : editing ? 'default' : 'grab',
+        cursor: editing ? 'default' : 'pointer',
       }}
     >
       <HoloCard>
