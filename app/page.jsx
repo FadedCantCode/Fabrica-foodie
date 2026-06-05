@@ -13,7 +13,7 @@ import {
 } from '../lib/helpers';
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
-import { useAuth, useRestaurants, useDrag, useNearby, useToast } from '../hooks';
+import { useAuth, useRestaurants, useNearby, useToast } from '../hooks';
 
 // ── Components ────────────────────────────────────────────────────────────────
 import {
@@ -24,6 +24,7 @@ import {
 import LoginPage from '../components/LoginPage';
 import BindModal from '../components/BindModal';
 import { RestaurantCard, RecommendationCard, RestaurantDetailModal, GyroPermissionButton } from '../components/RestaurantCards';
+import RestaurantList from '../components/RestaurantList';
 import MapView from '../components/MapView';
 
 // ── Firebase imports for food actions ────────────────────────────────────────
@@ -82,9 +83,6 @@ export default function App() {
   // ── Import state ──────────────────────────────────────────────────────────
   const [importText, setImportText] = useState("");
   const [isImportingThread, setIsImportingThread] = useState(false);
-
-  // ── Drag ──────────────────────────────────────────────────────────────────
-  const { draggingId, dragState, handlePointerDown } = useDrag(setDisplayRestaurants, setSelectedRestaurant);
 
   // ── Store Firebase token for bookmarklet ─────────────────────────────────
   useEffect(() => {
@@ -572,30 +570,16 @@ export default function App() {
               <section className="pb-10">
                 {isLoading ? (
                   <div className="text-center py-10"><div className="w-6 h-6 border-2 border-black border-t-transparent rounded-full animate-spin mx-auto opacity-50"/></div>
-                ) : displayRestaurants.length > 0 ? (
-                  <div ref={cardsRef} className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                  {displayRestaurants.map((restaurant, index) => (
-                    <RestaurantCard
-                      key={restaurant.id}
-                      restaurant={restaurant}
-                      index={index}
-                      draggingId={draggingId}
-                      dragState={dragState}
-                      onPointerDown={handlePointerDown}
+                ) : (
+                  <div ref={cardsRef}>
+                    <RestaurantList
+                      restaurants={displayRestaurants}
+                      onOrderChange={setDisplayRestaurants}
                       onDelete={handleDeleteRestaurant}
                       onShare={handleShare}
                       onUpdate={handleUpdateRestaurant}
                       onSelect={setSelectedRestaurant}
                     />
-                  ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-16 px-4 bg-white rounded-[24px] border border-[#E5E5EA] animate-fade-in">
-                    <div className="w-16 h-16 bg-neutral-100 rounded-full mx-auto flex items-center justify-center mb-4">
-                      <svg className="w-8 h-8 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
-                    </div>
-                    <h3 className="text-neutral-900 font-bold mb-1">找不到相關餐廳</h3>
-                    <p className="text-sm text-neutral-500 font-medium">嘗試不同的搜尋關鍵字或分類</p>
                   </div>
                 )}
               </section>
