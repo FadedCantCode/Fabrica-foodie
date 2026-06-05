@@ -574,6 +574,7 @@ export default function App() {
                   <div ref={cardsRef}>
                     <RestaurantList
                       restaurants={displayRestaurants}
+                      onOrderChange={setDisplayRestaurants}
                       onDelete={handleDeleteRestaurant}
                       onShare={handleShare}
                       onUpdate={handleUpdateRestaurant}
