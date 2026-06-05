@@ -487,52 +487,20 @@ export function useNearby(isLoggedIn) {
   }, [isLoggedIn]);
 
   const triggerSearch = async (lat, lng) => {
-    let results = [];
     try {
-      const q = `[out:json][timeout:10];(node["amenity"~"restaurant|cafe|fast_food|ice_cream"](around:5000,${lat},${lng});way["amenity"~"restaurant|cafe|fast_food|ice_cream"](around:5000,${lat},${lng});node["shop"~"bakery|beverages|pastry"](around:5000,${lat},${lng}););out center 12;`;
-      const res  = await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: q });
+      const res = await fetch(`/api/nearby?lat=${lat}&lng=${lng}&radius=2000&limit=12`);
       const data = await res.json();
-      if (data?.elements?.length > 0) {
-        results = data.elements.map(el => {
-          const tags = el.tags || {};
-          const name = tags.name || tags['name:zh'];
-          if (!name || name.includes("歇業") || name.includes("停業")) return null;
-          return {
-            id:       el.id.toString(),
-            name,
-            address:  tags['addr:street']
-              ? `${tags['addr:city']||''}${tags['addr:street']}${tags['addr:housenumber']||''}`
-              : "點擊查看地圖定位",
-            category: getSmartTag(name, tags.amenity || tags.shop || "在地美食"),
-            note:     "📍 透過智慧地理雷達探測到的精選店家。",
-          };
-        }).filter(Boolean);
-      }
-    } catch {}
-
-    if (results.length === 0) {
-      try {
-        const d = 0.02;
-        const [r1, r2] = await Promise.all([
-          fetch(`https://nominatim.openstreetmap.org/search?amenity=restaurant&format=json&addressdetails=1&limit=6&viewbox=${lng-d},${lat+d},${lng+d},${lat-d}&bounded=1`, { headers: { 'Accept-Language': 'zh-TW,zh;q=0.9' } }),
-          fetch(`https://nominatim.openstreetmap.org/search?amenity=cafe&format=json&addressdetails=1&limit=4&viewbox=${lng-d},${lat+d},${lng+d},${lat-d}&bounded=1`, { headers: { 'Accept-Language': 'zh-TW,zh;q=0.9' } }),
-        ]);
-        const merged = [...await r1.json(), ...await r2.json()];
-        results = merged.map(p => {
-          const name = p.name || p.display_name.split(',')[0].trim();
-          if (!name || name === "餐廳" || name === "咖啡廳") return null;
-          return {
-            id:       p.place_id.toString(),
-            name,
-            address:  p.display_name.split(',').slice(0, 3).join(',').trim(),
-            category: getSmartTag(name, p.type === "cafe" ? "咖啡甜點" : "精選美食"),
-            note:     "📍 透過智慧地理雷達探測到的精選店家。",
-          };
-        }).filter(Boolean);
-      } catch {}
+      const results = (data.places || []).map(p => ({
+        id:       p.id,
+        name:     p.name,
+        address:  p.address || '點擊查看地圖定位',
+        category: getSmartTag(p.name, p.category),
+        note:     '📍 透過 Foursquare 探測到的精選店家。',
+      }));
+      setNearbyRecommendations(results.length > 0 ? results : TAIWAN_TRENDY_RECS);
+    } catch {
+      setNearbyRecommendations(TAIWAN_TRENDY_RECS);
     }
-
-    setNearbyRecommendations(results.length > 0 ? results : TAIWAN_TRENDY_RECS);
   };
 
   const dismiss = (id) => setDismissedIds(prev => [...prev, id]);
