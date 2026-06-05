@@ -51,40 +51,36 @@ export default function LoginPage({
             <span className="text-black/70 font-bold text-xs tracking-widest uppercase">Fabrica Foodie</span>
           </div>
 
-          {/* ── BIG TITLE — three layer sandwich ── */}
-          {/*
-            Layer 1 (z-10): Text BEHIND the Three.js ball — dark/muted color
-            Layer 2 (z-0):  Three.js canvas sits here (managed by page.jsx)
-            Layer 3 (z-20): Same text CLIPPED — only visible where the ball IS
-                            achieved with mix-blend-mode:overlay on a copy of the text
+          {/* ── BIG TITLE — sandwich layers ──
+              Layer A (z-10): muted text, sits behind Three.js canvas (z-15)
+              Layer B (z-20): solid text with mix-blend-mode:multiply
+                → appears where ball (light/white) overlaps → text "glows through"
+                → invisible against white background → SOHub cutout effect
           */}
           <div className="relative select-none my-auto py-8" aria-hidden="true">
-            {/* Layer A: text behind ball — muted */}
+
+            {/* Layer A: behind ball */}
             <div className="relative z-10 pointer-events-none">
-              <div className="text-[clamp(4rem,11vw,9rem)] font-black leading-[0.88] tracking-[-0.04em] text-black/15 animate-slide-up">
+              <div className="text-[clamp(3.5rem,9vw,8rem)] font-black leading-[0.9] tracking-[-0.04em] text-black/20 animate-slide-up">
                 Your
               </div>
-              <div className="text-[clamp(4rem,11vw,9rem)] font-black leading-[0.88] tracking-[-0.04em] text-black/15 animate-slide-up" style={{ animationDelay: '50ms' }}>
+              <div className="text-[clamp(3.5rem,9vw,8rem)] font-black leading-[0.9] tracking-[-0.04em] text-black/20 animate-slide-up" style={{ animationDelay: '50ms' }}>
                 Food
               </div>
-              <div className="text-[clamp(4rem,11vw,9rem)] font-black leading-[0.88] tracking-[-0.04em] text-black/15 animate-slide-up" style={{ animationDelay: '100ms' }}>
+              <div className="text-[clamp(3.5rem,9vw,8rem)] font-black leading-[0.9] tracking-[-0.04em] text-black/20 animate-slide-up" style={{ animationDelay: '100ms' }}>
                 Story.
               </div>
             </div>
 
-            {/* Layer B: text IN FRONT of ball — full dark, uses mix-blend-mode
-                The Three.js canvas uses alpha:true, so it renders as transparent bg.
-                This text sits on top with mix-blend-mode:multiply — where the ball is
-                light/white, the text appears dark. Where background is white, text is white (invisible).
-                Net effect: text appears solid where ball overlaps it */}
+            {/* Layer B: in front of ball — multiply reveals text only where ball is */}
             <div className="absolute inset-0 z-20 pointer-events-none" style={{ mixBlendMode: 'multiply' }}>
-              <div className="text-[clamp(4rem,11vw,9rem)] font-black leading-[0.88] tracking-[-0.04em] text-black animate-slide-up">
+              <div className="text-[clamp(3.5rem,9vw,8rem)] font-black leading-[0.9] tracking-[-0.04em] text-black animate-slide-up">
                 Your
               </div>
-              <div className="text-[clamp(4rem,11vw,9rem)] font-black leading-[0.88] tracking-[-0.04em] text-black animate-slide-up" style={{ animationDelay: '50ms' }}>
+              <div className="text-[clamp(3.5rem,9vw,8rem)] font-black leading-[0.9] tracking-[-0.04em] text-black animate-slide-up" style={{ animationDelay: '50ms' }}>
                 Food
               </div>
-              <div className="text-[clamp(4rem,11vw,9rem)] font-black leading-[0.88] tracking-[-0.04em] text-black animate-slide-up" style={{ animationDelay: '100ms' }}>
+              <div className="text-[clamp(3.5rem,9vw,8rem)] font-black leading-[0.9] tracking-[-0.04em] text-black animate-slide-up" style={{ animationDelay: '100ms' }}>
                 Story.
               </div>
             </div>
