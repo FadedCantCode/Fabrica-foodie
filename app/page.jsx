@@ -287,7 +287,14 @@ export default function App() {
     try {
       const res = await fetch('/api/analyze-food', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: rawText }) });
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || 'Import failed');
+      if (!res.ok) {
+        if (result.urlOnly) {
+          showToast("貼連結無法自動取得內容，請同時貼上貼文文字。", "error");
+        } else {
+          throw new Error(result.error || 'Import failed');
+        }
+        return;
+      }
 
       // data is now an ARRAY of restaurants
       const list = Array.isArray(result.data) ? result.data : [result.data];
