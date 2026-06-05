@@ -228,25 +228,18 @@ export default function MapView({ restaurants, isOpen, onClose, userLocation }) 
     });
   };
 
-  // ── Nearby via Nominatim (no CORS issue, unlike Overpass) ──────────────────
+  // ── Nearby via Foursquare proxy (server-side, no CORS, filters closed) ─────
   const fetchNearby = useCallback(async (loc) => {
     setLoadingNearby(true);
     try {
-      const d = 0.015;
-      const url = `https://nominatim.openstreetmap.org/search?amenity=restaurant&format=json&addressdetails=1&limit=15` +
-        `&viewbox=${loc.lng - d},${loc.lat + d},${loc.lng + d},${loc.lat - d}&bounded=1`;
-      const res = await fetch(url, { headers: { 'Accept-Language': 'zh-TW,zh;q=0.9' } });
+      const res = await fetch(
+        `/api/nearby?lat=${loc.lat}&lng=${loc.lng}&radius=1000&limit=15`
+      );
       const data = await res.json();
-      const places = data
-        .filter(p => p.name?.trim())
-        .map(p => ({
-          id:       p.place_id?.toString() || Math.random().toString(),
-          name:     p.name,
-          category: getSmartTag(p.name, 'restaurant'),
-          address:  p.display_name?.split(',').slice(0, 3).join(',').trim() || '',
-          lat:      parseFloat(p.lat),
-          lng:      parseFloat(p.lon),
-        }));
+      const places = (data.places || []).map(p => ({
+        ...p,
+        category: getSmartTag(p.name, p.category),
+      }));
       setNearbyPlaces(places);
       addNearbyMarkers(mapRef.current, places);
     } catch (e) {
