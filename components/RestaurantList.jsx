@@ -2,8 +2,8 @@
 // Swapy-based drag-and-drop list for restaurant cards.
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { createSwapy, utils } from 'swapy';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { createSwapy } from 'swapy';
 import { RestaurantCard } from './RestaurantCards';
 
 export default function RestaurantList({
@@ -15,63 +15,46 @@ export default function RestaurantList({
 }) {
   const containerRef = useRef(null);
   const swapyRef = useRef(null);
-  const [slotItemMap, setSlotItemMap] = useState(() => utils.initSlotItemMap(restaurants, 'id'));
-
-  const slottedItems = useMemo(
-    () => utils.toSlottedItems(restaurants, 'id', slotItemMap),
-    [restaurants, slotItemMap]
-  );
+  const idsKey = useMemo(() => restaurants.map(r => r.id).join('|'), [restaurants]);
 
   useEffect(() => {
-    if (restaurants.length === 0) {
-      swapyRef.current?.destroy();
-      swapyRef.current = null;
-      return undefined;
-    }
+    if (!containerRef.current || swapyRef.current || restaurants.length === 0) return undefined;
 
-    if (!containerRef.current || swapyRef.current) return undefined;
-
-    swapyRef.current = createSwapy(containerRef.current, {
-      manualSwap: true,
+    const swapy = createSwapy(containerRef.current, {
       animation: 'spring',
       swapMode: 'hover',
       autoScrollOnDrag: true,
     });
 
-    swapyRef.current.onSwap((event) => {
-      const nextMap = event.newSlotItemMap?.asArray || event.data?.array || [];
-      if (!nextMap.length) return;
+    const clearDragState = () => {
+      delete document.body.dataset.swapyDragging;
+      requestAnimationFrame(() => swapy.update?.());
+      document.removeEventListener('pointerup', clearDragState);
+      document.removeEventListener('pointercancel', clearDragState);
+    };
 
-      setSlotItemMap(nextMap);
+    swapy.onSwapStart?.(() => {
+      document.body.dataset.swapyDragging = 'true';
+      window.dispatchEvent(new Event('fabrica-swapy-drag-start'));
+      document.addEventListener('pointerup', clearDragState, { once: true });
+      document.addEventListener('pointercancel', clearDragState, { once: true });
     });
 
-    swapyRef.current.onSwapEnd?.((event) => {
-      const nextMap = event.slotItemMap?.asArray || event.newSlotItemMap?.asArray || event.data?.array || [];
-      if (!nextMap.length || event.hasChanged === false) return;
+    swapy.onSwapEnd?.(clearDragState);
 
-      setSlotItemMap(nextMap);
-    });
+    swapyRef.current = swapy;
 
     return () => {
+      clearDragState();
       swapyRef.current?.destroy();
       swapyRef.current = null;
     };
   }, [restaurants.length]);
 
   useEffect(() => {
-    if (!swapyRef.current) {
-      setSlotItemMap(utils.initSlotItemMap(restaurants, 'id'));
-      return undefined;
-    }
-
-    return utils.dynamicSwapy(
-      swapyRef.current,
-      restaurants,
-      'id',
-      slotItemMap,
-      setSlotItemMap
-    );
-  }, [restaurants]);
+    if (!swapyRef.current) return;
+    requestAnimationFrame(() => swapyRef.current?.update?.());
+  }, [idsKey]);
 
   if (restaurants.length === 0) {
     return (
@@ -82,25 +65,35 @@ export default function RestaurantList({
               d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
           </svg>
         </div>
-        <h3 className="text-neutral-900 font-bold mb-1">還沒有收藏餐廳</h3>
-        <p className="text-sm text-neutral-500 font-medium">新增或匯入 Threads 美食文章後會出現在這裡。</p>
+        <h3 className="text-neutral-900 font-bold mb-1">No saved restaurants yet</h3>
+        <p className="text-sm text-neutral-500 font-medium">Add or import Threads food posts to start your list.</p>
       </div>
     );
   }
 
   return (
     <div ref={containerRef} className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-      {slottedItems.map(({ slotId, itemId, item: restaurant }, index) => (
+      {restaurants.map((restaurant, index) => (
         <div
-          key={slotId}
-          data-swapy-slot={slotId}
+          key={restaurant.id}
+          data-swapy-slot={restaurant.id}
           className="relative"
+          style={{ borderRadius: 24 }}
         >
-          <div key={itemId} data-swapy-item={itemId} className="relative">
+          <div
+            data-swapy-item={restaurant.id}
+            className="relative"
+            style={{
+              borderRadius: 24,
+              overflow: 'hidden',
+              transform: 'translateZ(0)',
+              WebkitTransform: 'translateZ(0)',
+            }}
+          >
             <div
               data-swapy-handle
-              title="拖曳排序"
-              aria-label="拖曳排序"
+              title="Drag to reorder"
+              aria-label="Drag to reorder"
               style={{
                 position: 'absolute',
                 top: 14,
