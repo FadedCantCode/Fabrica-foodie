@@ -8,7 +8,6 @@ import { RestaurantCard } from './RestaurantCards';
 
 export default function RestaurantList({
   restaurants,
-  onOrderChange,
   onDelete,
   onShare,
   onUpdate,
@@ -16,17 +15,12 @@ export default function RestaurantList({
 }) {
   const containerRef = useRef(null);
   const swapyRef = useRef(null);
-  const restaurantsRef = useRef(restaurants);
   const [slotItemMap, setSlotItemMap] = useState(() => utils.initSlotItemMap(restaurants, 'id'));
 
   const slottedItems = useMemo(
     () => utils.toSlottedItems(restaurants, 'id', slotItemMap),
     [restaurants, slotItemMap]
   );
-
-  useEffect(() => {
-    restaurantsRef.current = restaurants;
-  }, [restaurants]);
 
   useEffect(() => {
     if (restaurants.length === 0) {
@@ -49,18 +43,20 @@ export default function RestaurantList({
       if (!nextMap.length) return;
 
       setSlotItemMap(nextMap);
+    });
 
-      const newOrder = nextMap
-        .map(entry => restaurantsRef.current.find(r => r.id === entry.itemId))
-        .filter(Boolean);
-      if (newOrder.length) onOrderChange?.(newOrder);
+    swapyRef.current.onSwapEnd?.((event) => {
+      const nextMap = event.slotItemMap?.asArray || event.newSlotItemMap?.asArray || event.data?.array || [];
+      if (!nextMap.length || event.hasChanged === false) return;
+
+      setSlotItemMap(nextMap);
     });
 
     return () => {
       swapyRef.current?.destroy();
       swapyRef.current = null;
     };
-  }, [restaurants.length, onOrderChange]);
+  }, [restaurants.length]);
 
   useEffect(() => {
     if (!swapyRef.current) {
