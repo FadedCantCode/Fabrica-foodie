@@ -23,10 +23,9 @@ export default function RestaurantList({
     swapyRef.current?.destroy();
 
     swapyRef.current = createSwapy(containerRef.current, {
-      animation:          'spring',
-      swapMode:           'drop',      // ← 'hover' 在 React re-render 後會錯位，改 'drop'
-      autoScrollOnDrag:   true,
-      dragOnHold:         false,
+      animation:        'spring',
+      swapMode:         'drop',
+      autoScrollOnDrag: true,
     });
 
     swapyRef.current.onSwap(({ data }) => {
@@ -59,60 +58,27 @@ export default function RestaurantList({
   }
 
   return (
-    // KEY: overflow-visible so Swapy's drag ghost isn't clipped
-    <div ref={containerRef} className="grid grid-cols-1 xl:grid-cols-2 gap-4" style={{ overflow: 'visible' }}>
+    <div ref={containerRef} className="grid grid-cols-1 xl:grid-cols-2 gap-4">
       {restaurants.map((restaurant, index) => (
-        /*
-         * Slot: must be a stable container, no visual styles here
-         * Swapy will move items between slots — it must NOT interfere with inner styling
-         */
+        /* slot — Swapy 管這個 div，不要加任何視覺 style */
         <div
           key={`slot-${restaurant.id}`}
           data-swapy-slot={`slot-${restaurant.id}`}
-          // No styling here — Swapy manages this node directly
         >
           {/*
-           * Item: Swapy moves this whole node.
-           * Keep it minimal — visual chrome lives INSIDE RestaurantCard,
-           * which is NOT a Swapy-managed node.
+           * item — Swapy 把這個 div 當作拖動單元移動。
+           * 刻意不加 border-radius 或 overflow:hidden，
+           * 讓圓角完全在 RestaurantCard 內部控制，不被 Swapy 蓋掉。
+           *
+           * data-swapy-handle 放在這裡但不顯示任何 UI，
+           * 讓整個 item 可拖（Swapy 會用 item 本身作 handle 如果沒指定 handle）。
+           * 排除互動元素透過 RestaurantCard 內部的 stopPropagation 處理。
            */}
           <div
             data-swapy-item={restaurant.id}
-            style={{ position: 'relative' }}
+            data-swapy-handle        /* 整個卡片都是 handle，沒有額外 UI */
+            style={{ cursor: 'grab', userSelect: 'none' }}
           >
-            {/* Grip handle — only draggable part */}
-            <div
-              data-swapy-handle
-              title="拖動排序"
-              style={{
-                position:       'absolute',
-                top:             14,
-                right:           14,
-                width:           32,
-                height:          32,
-                zIndex:          50,
-                display:         'flex',
-                alignItems:      'center',
-                justifyContent:  'center',
-                background:      'rgba(0,0,0,0.35)',
-                backdropFilter:  'blur(8px)',
-                WebkitBackdropFilter: 'blur(8px)',
-                borderRadius:    10,
-                cursor:          'grab',
-                color:           'white',
-                border:          '1px solid rgba(255,255,255,0.2)',
-                touchAction:     'none',
-                userSelect:      'none',
-              }}
-            >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
-                <circle cx="4" cy="3" r="1.3"/>  <circle cx="10" cy="3" r="1.3"/>
-                <circle cx="4" cy="7" r="1.3"/>  <circle cx="10" cy="7" r="1.3"/>
-                <circle cx="4" cy="11" r="1.3"/> <circle cx="10" cy="11" r="1.3"/>
-              </svg>
-            </div>
-
-            {/* Card visual — Swapy never touches this node */}
             <RestaurantCard
               restaurant={restaurant}
               index={index}
