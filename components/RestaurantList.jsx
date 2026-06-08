@@ -1,6 +1,4 @@
 // components/RestaurantList.jsx
-// Swapy-based drag-and-drop list. Replaces the manual useDrag implementation.
-// Cards keep all their existing features (HoloCard, inline edit, etc).
 "use client";
 
 import React, { useEffect, useRef } from 'react';
@@ -17,24 +15,21 @@ export default function RestaurantList({
 }) {
   const containerRef = useRef(null);
   const swapyRef     = useRef(null);
-
-  // Re-init swapy whenever the list of restaurant IDs changes (add/remove/filter)
   const idsKey = restaurants.map(r => r.id).join(',');
 
   useEffect(() => {
     if (!containerRef.current || restaurants.length === 0) return;
 
-    // Tear down previous instance
     swapyRef.current?.destroy();
 
     swapyRef.current = createSwapy(containerRef.current, {
-      animation: 'spring',
-      swapMode:  'hover',
-      autoScrollOnDrag: true,
+      animation:          'spring',
+      swapMode:           'drop',      // ← 'hover' 在 React re-render 後會錯位，改 'drop'
+      autoScrollOnDrag:   true,
+      dragOnHold:         false,
     });
 
     swapyRef.current.onSwap(({ data }) => {
-      // data.array = [{ slotId, itemId }, ...] in new visual order
       const newOrder = data.array
         .map(entry => restaurants.find(r => r.id === entry.itemId))
         .filter(Boolean);
@@ -64,44 +59,60 @@ export default function RestaurantList({
   }
 
   return (
-    <div ref={containerRef} className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+    // KEY: overflow-visible so Swapy's drag ghost isn't clipped
+    <div ref={containerRef} className="grid grid-cols-1 xl:grid-cols-2 gap-4" style={{ overflow: 'visible' }}>
       {restaurants.map((restaurant, index) => (
+        /*
+         * Slot: must be a stable container, no visual styles here
+         * Swapy will move items between slots — it must NOT interfere with inner styling
+         */
         <div
-          key={restaurant.id}
+          key={`slot-${restaurant.id}`}
           data-swapy-slot={`slot-${restaurant.id}`}
-          className="relative"
+          // No styling here — Swapy manages this node directly
         >
-          <div data-swapy-item={restaurant.id} className="relative">
-            {/* Drag handle — small grip in top-right; only this is draggable */}
+          {/*
+           * Item: Swapy moves this whole node.
+           * Keep it minimal — visual chrome lives INSIDE RestaurantCard,
+           * which is NOT a Swapy-managed node.
+           */}
+          <div
+            data-swapy-item={restaurant.id}
+            style={{ position: 'relative' }}
+          >
+            {/* Grip handle — only draggable part */}
             <div
               data-swapy-handle
               title="拖動排序"
               style={{
-                position: 'absolute',
-                top: 14, right: 14,
-                width: 32, height: 32,
-                zIndex: 30,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: 'rgba(0,0,0,0.32)',
-                backdropFilter: 'blur(8px)',
+                position:       'absolute',
+                top:             14,
+                right:           14,
+                width:           32,
+                height:          32,
+                zIndex:          50,
+                display:         'flex',
+                alignItems:      'center',
+                justifyContent:  'center',
+                background:      'rgba(0,0,0,0.35)',
+                backdropFilter:  'blur(8px)',
                 WebkitBackdropFilter: 'blur(8px)',
-                borderRadius: 10,
-                cursor: 'grab',
-                color: 'white',
-                border: '1px solid rgba(255,255,255,0.18)',
-                touchAction: 'none',
+                borderRadius:    10,
+                cursor:          'grab',
+                color:           'white',
+                border:          '1px solid rgba(255,255,255,0.2)',
+                touchAction:     'none',
+                userSelect:      'none',
               }}
-              onPointerDown={e => e.stopPropagation()}
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
-                <circle cx="4" cy="3" r="1.2"/><circle cx="10" cy="3" r="1.2"/>
-                <circle cx="4" cy="7" r="1.2"/><circle cx="10" cy="7" r="1.2"/>
-                <circle cx="4" cy="11" r="1.2"/><circle cx="10" cy="11" r="1.2"/>
+                <circle cx="4" cy="3" r="1.3"/>  <circle cx="10" cy="3" r="1.3"/>
+                <circle cx="4" cy="7" r="1.3"/>  <circle cx="10" cy="7" r="1.3"/>
+                <circle cx="4" cy="11" r="1.3"/> <circle cx="10" cy="11" r="1.3"/>
               </svg>
             </div>
 
+            {/* Card visual — Swapy never touches this node */}
             <RestaurantCard
               restaurant={restaurant}
               index={index}
