@@ -95,9 +95,6 @@ export default function App() {
     }).catch(() => {});
   }, [isLoggedIn]);
 
-  // ── Drag ──────────────────────────────────────────────────────────────────
-  const { draggingId, dragState, handlePointerDown } = useDrag(setDisplayRestaurants, setSelectedRestaurant);
-
   // ── Resume pending share after login (from Threads share → /share) ────────
   useEffect(() => {
     if (!isLoggedIn || !auth.currentUser) return;
