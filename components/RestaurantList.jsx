@@ -23,7 +23,7 @@ export default function RestaurantList({
     swapyRef.current?.destroy();
 
     swapyRef.current = createSwapy(containerRef.current, {
-      animation:        'spring',
+      animation:        'none',   // ← KEY: 'spring'/'dynamic' 都會注入 inline style 導致殘留
       swapMode:         'drop',
       autoScrollOnDrag: true,
     });
@@ -60,23 +60,13 @@ export default function RestaurantList({
   return (
     <div ref={containerRef} className="grid grid-cols-1 xl:grid-cols-2 gap-4">
       {restaurants.map((restaurant, index) => (
-        /* slot — Swapy 管這個 div，不要加任何視覺 style */
         <div
           key={`slot-${restaurant.id}`}
           data-swapy-slot={`slot-${restaurant.id}`}
         >
-          {/*
-           * item — Swapy 把這個 div 當作拖動單元移動。
-           * 刻意不加 border-radius 或 overflow:hidden，
-           * 讓圓角完全在 RestaurantCard 內部控制，不被 Swapy 蓋掉。
-           *
-           * data-swapy-handle 放在這裡但不顯示任何 UI，
-           * 讓整個 item 可拖（Swapy 會用 item 本身作 handle 如果沒指定 handle）。
-           * 排除互動元素透過 RestaurantCard 內部的 stopPropagation 處理。
-           */}
           <div
             data-swapy-item={restaurant.id}
-            data-swapy-handle        /* 整個卡片都是 handle，沒有額外 UI */
+            data-swapy-handle
             style={{ cursor: 'grab', userSelect: 'none' }}
           >
             <RestaurantCard
