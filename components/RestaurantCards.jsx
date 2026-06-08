@@ -289,13 +289,17 @@ export const RestaurantCard = ({
         if (e.target.closest('button') || e.target.closest('a')) return;
         if (e.target.closest('input') || e.target.closest('textarea')) return;
         if (e.target.closest('[data-editable]')) return;
-        if (e.target.closest('[data-swapy-handle]')) return;
         onSelect?.(restaurant);
+      }}
+      onPointerDown={e => {
+        // Prevent Swapy drag when tapping interactive elements
+        if (e.target.closest('button') || e.target.closest('a')) e.stopPropagation();
+        if (e.target.closest('input') || e.target.closest('textarea')) e.stopPropagation();
+        if (e.target.closest('[data-editable]')) e.stopPropagation();
       }}
       className="select-none w-full animate-card-appear"
       style={{
         animationDelay: `${Math.min(index*60,400)}ms`,
-        cursor: editing ? 'default' : 'pointer',
       }}
     >
       <HoloCard>
