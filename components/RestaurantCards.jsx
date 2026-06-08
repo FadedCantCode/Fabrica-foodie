@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { AppleButton, BlurVignette } from './ui';
 import { getFoodImage, getFreeMapAppUrl, getSmartTag } from '../lib/helpers';
 
@@ -33,8 +33,12 @@ export const GyroPermissionButton = ({ isLoggedIn }) => {
   useEffect(() => {
     if (!isLoggedIn) return;
     const iOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    const Android = /Android/.test(navigator.userAgent);
+    // iOS: show permission button
     if (iOS && typeof DeviceOrientationEvent?.requestPermission === 'function' && !gyroOn) setShow(true);
-    else if (!iOS && typeof DeviceOrientationEvent !== 'undefined' && !gyroOn) enableGyro();
+    // Android only: auto-start (NOT desktop Chrome which also has DeviceOrientationEvent)
+    else if (Android && !iOS && typeof DeviceOrientationEvent !== 'undefined' && !gyroOn) enableGyro();
+    // Desktop: never auto-start gyro
   }, [isLoggedIn]);
   if (!show) return null;
   return (
@@ -49,159 +53,115 @@ export const GyroPermissionButton = ({ isLoggedIn }) => {
   );
 };
 
-// ─── applyHolo / resetHolo — pure DOM manipulation ───────────────────────────
-function applyHolo(el, x, y) {
-  if (!el) return;
-  const rx  =  (y - 0.5) * 20;
-  const ry  = -(x - 0.5) * 20;
-  const hue =  x * 360;
-
-  el.style.transform  = `perspective(800px) rotateX(${rx}deg) rotateY(${ry}deg) scale(1.02)`;
-  el.style.boxShadow  = `${-ry * 0.8}px ${rx * 0.8 + 8}px 30px rgba(0,0,0,0.15)`;
-
-  const foil  = el._holoFoil;
-  const shine = el._holoShine;
-
-  if (foil) {
-    foil.style.opacity    = '0.15';
-    foil.style.transition = 'none';
-    foil.style.backgroundImage = `linear-gradient(
-      ${120 + ry * 2}deg,
-      hsl(${hue},100%,60%) 0%,
-      hsl(${hue+51},100%,60%) 14%,
-      hsl(${hue+102},100%,60%) 28%,
-      hsl(${hue+153},100%,60%) 42%,
-      hsl(${hue+204},100%,60%) 57%,
-      hsl(${hue+255},100%,60%) 71%,
-      hsl(${hue+306},100%,60%) 85%,
-      hsl(${hue+357},100%,60%) 100%
-    )`;
-  }
-  if (shine) {
-    shine.style.opacity    = '1';
-    shine.style.transition = 'none';
-    shine.style.backgroundImage = `radial-gradient(circle at ${x*100}% ${y*100}%, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.08) 40%, transparent 70%)`;
-  }
-}
-
-function resetHolo(el) {
-  if (!el) return;
-  el.style.transform  = 'perspective(800px) rotateX(0deg) rotateY(0deg) scale(1)';
-  el.style.transition = 'transform 0.6s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.6s ease';
-  el.style.boxShadow  = '0 2px 10px rgba(0,0,0,0.07)';
-
-  const foil  = el._holoFoil;
-  const shine = el._holoShine;
-  if (foil)  { foil.style.transition  = 'opacity 0.5s ease'; foil.style.opacity  = '0'; }
-  if (shine) { shine.style.transition = 'opacity 0.5s ease'; shine.style.opacity = '0'; }
-}
-
 // ─── HoloCard ─────────────────────────────────────────────────────────────────
 const HoloCard = ({ children }) => {
-  const wrapRef = useRef(null);
-  const rafRef  = useRef(null);
-  const foilRef = useRef(null);
-  const shineRef = useRef(null);
+  const cardRef   = useRef(null);
+  const canvasRef = useRef(null);
+  const rafRef    = useRef(null);
+  const insideRef = useRef(false);
 
   useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return;
+    const card   = cardRef.current;
+    const canvas = canvasRef.current;
+    if (!card || !canvas) return;
 
-    // querySelector is safer than ref — guaranteed to find after mount
-    el._holoFoil  = el.querySelector('.holo-foil');
-    el._holoShine = el.querySelector('.holo-shine');
+    const ctx = canvas.getContext('2d');
 
-    // Native DOM events — bypasses React entirely
-    // Get foil/shine once after mount — querySelector on wrapRef children
-    const foilEl  = wrapRef.current.querySelector('.holo-foil');
-    const shineEl = wrapRef.current.querySelector('.holo-shine');
+    const sizeCanvas = () => {
+      canvas.width  = card.offsetWidth;
+      canvas.height = card.offsetHeight;
+    };
+    sizeCanvas();
 
-    const onMove = (e) => {
-      if (gyroOn) return;
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(() => {
-        const r = el.getBoundingClientRect();
-        const x = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
-        const y = Math.max(0, Math.min(1, (e.clientY - r.top)  / r.height));
-        const rx  =  (y - 0.5) * 20;
-        const ry  = -(x - 0.5) * 20;
-        const hue =   x * 360;
-
-        el.style.transform  = `perspective(800px) rotateX(${rx}deg) rotateY(${ry}deg) scale(1.02)`;
-        el.style.transition = 'transform 0.08s linear, box-shadow 0.08s linear';
-        el.style.boxShadow  = `${-ry * 0.8}px ${rx * 0.8 + 8}px 30px rgba(0,0,0,0.15)`;
-
-        if (foilEl) {
-          foilEl.style.transition = 'none';
-          foilEl.style.opacity = '0.15';
-          foilEl.style.backgroundImage = `linear-gradient(${120 + ry * 2}deg,hsl(${hue},100%,60%),hsl(${hue+60},100%,60%),hsl(${hue+120},100%,60%),hsl(${hue+180},100%,60%),hsl(${hue+240},100%,60%),hsl(${hue+300},100%,60%))`;
-        }
-        if (shineEl) {
-          shineEl.style.transition = 'none';
-          shineEl.style.opacity = '0.7';
-          shineEl.style.backgroundImage = `radial-gradient(circle at ${x*100}% ${y*100}%,rgba(255,255,255,0.55) 0%,rgba(255,255,255,0.05) 40%,transparent 70%)`;
-        }
+    const drawFoil = (x, y) => {
+      const w = canvas.width, h = canvas.height;
+      const hue = x * 360;
+      const ry  = -(x - 0.5) * 14;
+      ctx.clearRect(0, 0, w, h);
+      // Rainbow gradient
+      const grd = ctx.createLinearGradient(0, 0, w, h);
+      const angle = (105 + ry * 3) * Math.PI / 180;
+      const cos = Math.cos(angle), sin = Math.sin(angle);
+      const stops = [
+        [0.00, hue - 30],
+        [0.25, hue],
+        [0.50, hue + 60],
+        [0.75, hue + 120],
+        [1.00, hue + 180],
+      ];
+      const grd2 = ctx.createLinearGradient(
+        w/2 - cos*w/2, h/2 - sin*h/2,
+        w/2 + cos*w/2, h/2 + sin*h/2
+      );
+      stops.forEach(([pos, h]) => {
+        grd2.addColorStop(pos, `hsla(${h},90%,65%,0.13)`);
       });
+      ctx.fillStyle = grd2;
+      ctx.fillRect(0, 0, w, h);
+      // Shine spot
+      const grd3 = ctx.createRadialGradient(x*w, y*h, 0, x*w, y*h, Math.max(w,h)*0.55);
+      grd3.addColorStop(0,   'rgba(255,255,255,0.40)');
+      grd3.addColorStop(0.3, 'rgba(255,255,255,0.06)');
+      grd3.addColorStop(1,   'rgba(255,255,255,0)');
+      ctx.fillStyle = grd3;
+      ctx.fillRect(0, 0, w, h);
     };
 
-    const doReset = () => {
-      el.style.transform  = 'perspective(800px) rotateX(0deg) rotateY(0deg) scale(1)';
-      el.style.transition = 'transform 0.6s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.6s ease';
-      el.style.boxShadow  = '0 2px 10px rgba(0,0,0,0.07)';
-      if (foilEl)  { foilEl.style.transition  = 'opacity 0.5s ease'; foilEl.style.opacity  = '0'; }
-      if (shineEl) { shineEl.style.transition = 'opacity 0.5s ease'; shineEl.style.opacity = '0'; }
+    const clearFoil = () => {
+      if (canvas.width > 0 && canvas.height > 0)
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
     };
 
-    const onLeave = () => {
-      if (gyroOn) return;
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      doReset();
+    const apply = (x, y) => {
+      const rx =  (y - 0.5) * 14;
+      const ry = -(x - 0.5) * 14;
+      card.style.transform  = `perspective(900px) rotateX(${rx}deg) rotateY(${ry}deg) scale(1.02)`;
+      card.style.transition = 'transform 0.06s linear, box-shadow 0.06s linear';
+      card.style.boxShadow  = `${-ry*1.2}px ${rx*1.2+6}px 28px rgba(0,0,0,0.14)`;
+      canvas.style.opacity  = '1';
+      canvas.style.transition = 'none';
+      drawFoil(x, y);
     };
 
-    // Reset on any focus change or tab switch
-    const onReset = () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      doReset();
+    const reset = () => {
+      card.style.transform  = 'perspective(900px) rotateX(0deg) rotateY(0deg) scale(1)';
+      card.style.transition = 'transform 0.65s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.65s ease';
+      card.style.boxShadow  = '0 2px 10px rgba(0,0,0,0.07)';
+      canvas.style.transition = 'opacity 0.5s ease';
+      canvas.style.opacity  = '0';
+      insideRef.current = false;
     };
 
-    // Use document-level mousemove — most reliable across all browsers
-    // Check if mouse is inside our card's bounding rect
-    let isInside = false;
     const onDocMove = (e) => {
-      if (gyroOn) return;
-      const r = el.getBoundingClientRect();
-      const inside = e.clientX >= r.left && e.clientX <= r.right &&
-                     e.clientY >= r.top  && e.clientY <= r.bottom;
-      if (inside) {
-        if (!isInside) isInside = true;
-        onMove(e);
-      } else if (isInside) {
-        isInside = false;
-        onLeave();
+      // Mouse events always work on desktop regardless of gyro state
+      const r = card.getBoundingClientRect();
+      const isIn = e.clientX >= r.left && e.clientX <= r.right &&
+                   e.clientY >= r.top  && e.clientY <= r.bottom;
+      if (isIn) {
+        insideRef.current = true;
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        rafRef.current = requestAnimationFrame(() =>
+          apply((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height)
+        );
+      } else if (insideRef.current) {
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        reset();
       }
     };
-    document.addEventListener('mousemove', onDocMove, { passive: true });
-    // visibilitychange fires when tab is hidden/shown
-    document.addEventListener('visibilitychange', onReset);
-    // window focus fires when user returns from another window/tab
-    window.addEventListener('focus', onReset);
 
-    // Gyro
+    const onReset = () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      reset();
+    };
+
     const gyroFn = (x, y) => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(() => {
-        const rx  =  (y - 0.5) * 20;
-        const ry  = -(x - 0.5) * 20;
-        const hue =   x * 360;
-        el.style.transform = `perspective(800px) rotateX(${rx}deg) rotateY(${ry}deg) scale(1.02)`;
-        el.style.transition = 'transform 0.08s linear';
-        if (foilEl) {
-          foilEl.style.opacity = '0.15';
-          foilEl.style.backgroundImage = `linear-gradient(${120+ry*2}deg,hsl(${hue},100%,60%),hsl(${hue+60},100%,60%),hsl(${hue+120},100%,60%),hsl(${hue+180},100%,60%),hsl(${hue+240},100%,60%),hsl(${hue+300},100%,60%))`;
-        }
-        if (shineEl) { shineEl.style.opacity = '0.5'; }
-      });
+      rafRef.current = requestAnimationFrame(() => apply(x, y));
     };
+
+    document.addEventListener('mousemove', onDocMove, { passive: true });
+    document.addEventListener('visibilitychange', onReset);
+    window.addEventListener('focus', onReset);
     gyroSubs.add(gyroFn);
 
     return () => {
@@ -210,42 +170,37 @@ const HoloCard = ({ children }) => {
       window.removeEventListener('focus', onReset);
       gyroSubs.delete(gyroFn);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      // Always clean up on unmount
-      doReset();
     };
   }, []);
 
   return (
-    <div
-      ref={wrapRef}
-      style={{
-        position: 'relative',
-        borderRadius: 24,
-        transform: 'perspective(800px) rotateX(0deg) rotateY(0deg) scale(1)',
-        transition: 'transform 0.6s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.6s ease',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.07)',
-        willChange: 'transform',
-      }}
-    >
+    <div ref={cardRef} style={{
+      position: 'relative',
+      borderRadius: 22,
+      transform: 'perspective(900px) rotateX(0deg) rotateY(0deg) scale(1)',
+      transition: 'transform 0.65s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.65s ease',
+      boxShadow: '0 2px 10px rgba(0,0,0,0.07)',
+    }}>
       {children}
-
-      {/* Foil: screen blend — shows colour without blowing out whites */}
-      <div ref={foilRef} style={{
-        position:'absolute', inset:0, borderRadius:22,
-        pointerEvents:'none', zIndex:10,
-        mixBlendMode:'screen',
-        opacity:0,
-      }} />
-
-      {/* Shine: normal blend */}
-      <div ref={shineRef} style={{
-        position:'absolute', inset:0, borderRadius:22,
-        pointerEvents:'none', zIndex:11,
-        opacity:0,
+      {/* Canvas overlay — 2D canvas always renders on top, no z-index/stacking issues */}
+      <canvas ref={canvasRef} style={{
+        position: 'absolute', inset: 0,
+        width: '100%', height: '100%',
+        borderRadius: 22,
+        pointerEvents: 'none',
+        opacity: 0,
       }} />
     </div>
   );
 };
+
+// ─── Pencil icon ─────────────────────────────────────────────────────────────
+const PencilIcon = () => (
+  <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+  </svg>
+);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function getRecommenderInfo(r) {
@@ -264,11 +219,39 @@ function getRecommenderInfo(r) {
 // ─── RestaurantCard ───────────────────────────────────────────────────────────
 export const RestaurantCard = ({
   restaurant, index, draggingId, dragState,
-  onPointerDown, onDelete, onShare,
+  onPointerDown, onDelete, onShare, onUpdate,
 }) => {
   const isDragging = draggingId === restaurant.id;
   const cat = getSmartTag(restaurant.name, restaurant.category);
   const rec = getRecommenderInfo(restaurant);
+
+  // Inline edit state
+  const [editing, setEditing] = useState(null); // 'name' | 'address' | 'note' | null
+  const [editVal, setEditVal] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const startEdit = useCallback((e, field) => {
+    e.stopPropagation();
+    setEditing(field);
+    setEditVal(restaurant[field] || '');
+  }, [restaurant]);
+
+  const saveEdit = useCallback(async (e) => {
+    e?.stopPropagation();
+    if (!editing || editVal === restaurant[editing]) { setEditing(null); return; }
+    setSaving(true);
+    try {
+      await onUpdate(restaurant.id, { [editing]: editVal });
+    } finally {
+      setSaving(false);
+      setEditing(null);
+    }
+  }, [editing, editVal, restaurant, onUpdate]);
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && editing !== 'note') { e.preventDefault(); saveEdit(); }
+    if (e.key === 'Escape') { setEditing(null); }
+  };
 
   let ty = 0;
   if (dragState.draggingId && dragState.hoveredIndex !== -1 && !isDragging) {
@@ -277,24 +260,52 @@ export const RestaurantCard = ({
     else if (s > h && index < s && index >= h) ty = 105;
   }
 
+  // Shared edit input style
+  const inputStyle = {
+    width: '100%', background: '#F5F5F7', border: '1.5px solid #0071E3',
+    borderRadius: 8, padding: '4px 8px', fontSize: 13, fontWeight: 500,
+    color: '#1D1D1F', outline: 'none', fontFamily: 'inherit',
+  };
+
+  // Editable field wrapper
+  const EditableField = ({ field, children, style }) => (
+    <div
+      data-editable="true"
+      style={{ position: 'relative', display: 'inline-flex', alignItems: 'center',
+        gap: 4, ...style, cursor: editing ? 'default' : 'text' }}
+      onClick={e => { e.stopPropagation(); if (!editing) startEdit(e, field); }}
+      onPointerDown={e => e.stopPropagation()}
+    >
+      {children}
+      {!editing && (
+        <span style={{ opacity: 0.4, flexShrink: 0, display: 'inline-flex',
+          transition: 'opacity 0.15s' }}
+          onMouseOver={e => e.currentTarget.style.opacity = '1'}
+          onMouseOut={e => e.currentTarget.style.opacity = '0.4'}
+        >
+          <PencilIcon />
+        </span>
+      )}
+    </div>
+  );
+
   return (
     <div
       data-sort-index={index}
       data-restaurant-id={restaurant.id}
-      onPointerDown={e => onPointerDown(e, restaurant, index)}
+      onPointerDown={e => { if (editing) return; onPointerDown(e, restaurant, index); }}
       className="select-none w-full animate-card-appear"
       style={{
         animationDelay: `${Math.min(index*60,400)}ms`,
         transform: isDragging ? 'none' : `translate3d(0,${ty}%,0)`,
         transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.25,1,0.5,1)',
         opacity: isDragging ? 0.55 : 1,
-        // pan-y on mobile only — desktop needs pointer events free
-        touchAction: 'pan-y',
-        cursor: isDragging ? 'grabbing' : 'grab',
+        touchAction: editing ? 'auto' : 'pan-y',
+        cursor: isDragging ? 'grabbing' : editing ? 'default' : 'grab',
       }}
     >
       <HoloCard>
-        <div style={{ background:'white', borderRadius:22, border:'1px solid #E5E5EA', padding:8, position:'relative', overflow:'hidden' }}>
+        <div style={{ background:'white', borderRadius:22, border:'1px solid #E5E5EA', padding:8 }}>
           <div style={{ width:'100%', height:216, position:'relative', borderRadius:16, overflow:'hidden', background:'#111' }}>
             <img draggable={false}
               src={getFoodImage(restaurant)}
@@ -309,16 +320,79 @@ export const RestaurantCard = ({
               <div style={{ width:14, height:14, borderRadius:'50%', background: rec.isManual ? 'linear-gradient(135deg,#9CA3AF,#6B7280)' : 'linear-gradient(135deg,#8B5CF6,#F97316)', color:'white', fontSize:8, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>{rec.avatar}</div>
               {rec.label}
             </a>
+            {/* Name — editable */}
             <div style={{ position:'absolute', bottom:12, left:16, right:16 }}>
-              <div style={{ color:'white', fontSize:20, fontWeight:700, marginBottom:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', textShadow:'0 2px 8px rgba(0,0,0,0.5)' }}>{restaurant.name}</div>
-              <div style={{ display:'flex', alignItems:'center', gap:3, color:'rgba(255,255,255,0.88)', fontSize:11, fontWeight:500 }}>
-                <svg width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{flexShrink:0}}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3" strokeWidth="2"/></svg>
-                <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{restaurant.address}</span>
-              </div>
+              {editing === 'name' ? (
+                <div onClick={e => e.stopPropagation()}>
+                  <input
+                    autoFocus
+                    value={editVal}
+                    onChange={e => setEditVal(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    onBlur={saveEdit}
+                    style={{ ...inputStyle, fontSize:16, fontWeight:700, marginBottom:4 }}
+                  />
+                </div>
+              ) : (
+                <EditableField field="name">
+                  <div style={{ color:'white', fontSize:20, fontWeight:700, marginBottom:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', textShadow:'0 2px 8px rgba(0,0,0,0.5)' }}>
+                    {restaurant.name}
+                  </div>
+                </EditableField>
+              )}
+              {/* Address — editable */}
+              {editing === 'address' ? (
+                <div onClick={e => e.stopPropagation()}>
+                  <input
+                    autoFocus
+                    value={editVal}
+                    onChange={e => setEditVal(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    onBlur={saveEdit}
+                    style={{ ...inputStyle, fontSize:11 }}
+                  />
+                </div>
+              ) : (
+                <EditableField field="address" style={{ display:'flex', alignItems:'center', gap:3, color:'rgba(255,255,255,0.88)', fontSize:11, fontWeight:500, width:'100%' }}>
+                  <svg width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{flexShrink:0}}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3" strokeWidth="2"/></svg>
+                  <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{restaurant.address}</span>
+                </EditableField>
+              )}
             </div>
           </div>
-          <div style={{ padding:'12px 14px 10px', position:'relative', zIndex:20 }}>
-            {restaurant.note && <p style={{ fontSize:13, color:'#3C3C43', lineHeight:1.6, margin:'0 0 10px', fontWeight:500 }}>{restaurant.note}</p>}
+
+          <div style={{ padding:'12px 14px 10px' }}>
+            {/* Note — editable */}
+            {editing === 'note' ? (
+              <div onClick={e => e.stopPropagation()}>
+                <textarea
+                  autoFocus
+                  value={editVal}
+                  onChange={e => setEditVal(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onBlur={saveEdit}
+                  rows={3}
+                  style={{ ...inputStyle, resize:'none', lineHeight:1.6, marginBottom:10 }}
+                />
+                <div style={{ display:'flex', gap:6, marginBottom:8 }}>
+                  <button onClick={e => { e.stopPropagation(); saveEdit(); }}
+                    style={{ flex:1, padding:'6px', background:'#0071E3', color:'white', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer', opacity: saving ? 0.6 : 1 }}>
+                    {saving ? '儲存中...' : '✓ 儲存'}
+                  </button>
+                  <button onClick={e => { e.stopPropagation(); setEditing(null); }}
+                    style={{ padding:'6px 12px', background:'#F2F2F7', color:'#555', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                    取消
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <EditableField field="note" style={{ display:'block', width:'100%', marginBottom: restaurant.note ? 10 : 0 }}>
+                <p style={{ fontSize:13, color:'#3C3C43', lineHeight:1.6, margin:0, fontWeight:500 }}>
+                  {restaurant.note || <span style={{ color:'#C7C7CC', fontStyle:'italic' }}>點此新增筆記...</span>}
+                </p>
+              </EditableField>
+            )}
+
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', borderTop:'1px solid #F0F0F0', paddingTop:10 }}>
               <AppleButton onClick={e=>{e.stopPropagation();onDelete(restaurant.id);}} className="flex items-center gap-1.5 text-xs font-bold text-[#FF3B30] hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors">
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
