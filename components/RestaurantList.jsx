@@ -13,20 +13,19 @@ export default function RestaurantList({
   onUpdate,
   onSelect,
 }) {
-  const containerRef  = useRef(null);
-  const swapyRef      = useRef(null);
-  // Internal ordered list — Swapy drives this, not React key reconciliation
+  const containerRef = useRef(null);
+  const swapyRef     = useRef(null);
   const [orderedList, setOrderedList] = useState(restaurants);
 
-  // Sync when external list changes (add/delete/filter)
+  // Sync when external list changes (filter/add/delete)
   useEffect(() => {
     setOrderedList(restaurants);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restaurants.map(r => r.id).join(',')]);
 
-  // Init Swapy once — never re-init (re-init causes the ghost/stuck bug)
+  // Init Swapy once only
   useEffect(() => {
     if (!containerRef.current) return;
-
     swapyRef.current?.destroy();
 
     swapyRef.current = createSwapy(containerRef.current, {
@@ -36,8 +35,6 @@ export default function RestaurantList({
     });
 
     swapyRef.current.onSwap(({ data }) => {
-      // data.array = [{ slotId: 'slot-0', itemId: 'restaurant_id' }, ...]
-      // slotId is positional (slot-0, slot-1), itemId is restaurant ID
       setOrderedList(prev => {
         const newOrder = data.array
           .map(entry => prev.find(r => r.id === entry.itemId))
@@ -52,7 +49,7 @@ export default function RestaurantList({
       swapyRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // ← empty deps: init once only
+  }, []);
 
   if (orderedList.length === 0) {
     return (
@@ -72,20 +69,40 @@ export default function RestaurantList({
   return (
     <div ref={containerRef} className="grid grid-cols-1 xl:grid-cols-2 gap-4">
       {orderedList.map((restaurant, index) => (
-        /*
-         * slot key = POSITION (slot-0, slot-1, ...) — never changes
-         * item key = CONTENT (restaurant.id)         — moves between slots
-         * This is the correct Swapy pattern.
-         */
         <div
-          key={`slot-${index}`}          // ← positional, stable
+          key={`slot-${index}`}
           data-swapy-slot={`slot-${index}`}
         >
+          {/*
+           * item wrapper: position:relative so the drag-overlay sits on top
+           * NO pointer-events manipulation here — let events flow naturally
+           */}
           <div
-            data-swapy-item={restaurant.id}   // ← restaurant ID, moves with content
-            data-swapy-handle
-            style={{ cursor: 'grab', userSelect: 'none' }}
+            data-swapy-item={restaurant.id}
+            style={{ position: 'relative', userSelect: 'none' }}
           >
+            {/*
+             * Drag overlay: covers the card image area (top ~216px) only.
+             * data-swapy-handle lives here — isolated from all interactive elements.
+             * pointer-events: none on everything inside card EXCEPT buttons/links/inputs.
+             * The overlay intercepts pointerdown for drag, but lets click pass through
+             * to onSelect via the card's onClick.
+             */}
+            <div
+              data-swapy-handle
+              style={{
+                position:      'absolute',
+                top:            0,
+                left:           0,
+                right:          0,
+                height:         216,    // matches the card image height
+                zIndex:         10,
+                cursor:         'grab',
+                borderRadius:   '22px 22px 0 0',
+                // Invisible — just an event capture layer
+              }}
+            />
+
             <RestaurantCard
               restaurant={restaurant}
               index={index}
