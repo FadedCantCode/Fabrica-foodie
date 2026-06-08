@@ -1,7 +1,7 @@
 // components/RestaurantList.jsx
 "use client";
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createSwapy } from 'swapy';
 import { RestaurantCard } from './RestaurantCards';
 
@@ -13,26 +13,38 @@ export default function RestaurantList({
   onUpdate,
   onSelect,
 }) {
-  const containerRef = useRef(null);
-  const swapyRef     = useRef(null);
-  const idsKey = restaurants.map(r => r.id).join(',');
+  const containerRef  = useRef(null);
+  const swapyRef      = useRef(null);
+  // Internal ordered list — Swapy drives this, not React key reconciliation
+  const [orderedList, setOrderedList] = useState(restaurants);
 
+  // Sync when external list changes (add/delete/filter)
   useEffect(() => {
-    if (!containerRef.current || restaurants.length === 0) return;
+    setOrderedList(restaurants);
+  }, [restaurants.map(r => r.id).join(',')]);
+
+  // Init Swapy once — never re-init (re-init causes the ghost/stuck bug)
+  useEffect(() => {
+    if (!containerRef.current) return;
 
     swapyRef.current?.destroy();
 
     swapyRef.current = createSwapy(containerRef.current, {
-      animation:        'none',   // ← KEY: 'spring'/'dynamic' 都會注入 inline style 導致殘留
-      swapMode:         'drop',
+      animation: 'none',
+      swapMode:  'drop',
       autoScrollOnDrag: true,
     });
 
     swapyRef.current.onSwap(({ data }) => {
-      const newOrder = data.array
-        .map(entry => restaurants.find(r => r.id === entry.itemId))
-        .filter(Boolean);
-      onOrderChange?.(newOrder);
+      // data.array = [{ slotId: 'slot-0', itemId: 'restaurant_id' }, ...]
+      // slotId is positional (slot-0, slot-1), itemId is restaurant ID
+      setOrderedList(prev => {
+        const newOrder = data.array
+          .map(entry => prev.find(r => r.id === entry.itemId))
+          .filter(Boolean);
+        onOrderChange?.(newOrder);
+        return newOrder;
+      });
     });
 
     return () => {
@@ -40,9 +52,9 @@ export default function RestaurantList({
       swapyRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idsKey]);
+  }, []); // ← empty deps: init once only
 
-  if (restaurants.length === 0) {
+  if (orderedList.length === 0) {
     return (
       <div className="text-center py-16 px-4 bg-white rounded-[24px] border border-[#E5E5EA] animate-fade-in">
         <div className="w-16 h-16 bg-neutral-100 rounded-full mx-auto flex items-center justify-center mb-4">
@@ -59,13 +71,18 @@ export default function RestaurantList({
 
   return (
     <div ref={containerRef} className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-      {restaurants.map((restaurant, index) => (
+      {orderedList.map((restaurant, index) => (
+        /*
+         * slot key = POSITION (slot-0, slot-1, ...) — never changes
+         * item key = CONTENT (restaurant.id)         — moves between slots
+         * This is the correct Swapy pattern.
+         */
         <div
-          key={`slot-${restaurant.id}`}
-          data-swapy-slot={`slot-${restaurant.id}`}
+          key={`slot-${index}`}          // ← positional, stable
+          data-swapy-slot={`slot-${index}`}
         >
           <div
-            data-swapy-item={restaurant.id}
+            data-swapy-item={restaurant.id}   // ← restaurant ID, moves with content
             data-swapy-handle
             style={{ cursor: 'grab', userSelect: 'none' }}
           >
