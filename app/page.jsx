@@ -95,6 +95,16 @@ export default function App() {
     }).catch(() => {});
   }, [isLoggedIn]);
 
+  // ── Geolocation (populate userLocation for MapView) ─────────────────────────
+  useEffect(() => {
+    if (!isLoggedIn || userLocation || typeof window === 'undefined') return;
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => setUserLocation({ lat: coords.latitude, lng: coords.longitude }),
+      () => {} // user denied or unavailable — MapView falls back to Taiwan center
+    );
+  }, [isLoggedIn]);
+  
   // ── Resume pending share after login (from Threads share → /share) ────────
   useEffect(() => {
     if (!isLoggedIn || !auth.currentUser) return;
