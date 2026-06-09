@@ -162,7 +162,7 @@ export const BlurVignette = ({ children, className, blur = '35px', vignetteOpaci
     {children}
     <div className="absolute inset-0 pointer-events-none z-10"
       style={{
-        boxShadow:       `inset 0 0 150px 65px rgba(0,0,0,0.96)`,
+        boxShadow:       `inset 0 0 150px 65px rgba(0,0,0,${vignetteOpacity})`,
         backdropFilter:  `blur(${blur})`,
         maskImage:       `radial-gradient(circle at center, transparent 25%, black 90%)`,
         WebkitMaskImage: `radial-gradient(circle at center, transparent 25%, black 90%)`,
