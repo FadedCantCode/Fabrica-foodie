@@ -25,6 +25,7 @@ import LoginPage from '../components/LoginPage';
 import BindModal from '../components/BindModal';
 import { RestaurantCard, RecommendationCard, RestaurantDetailModal, GyroPermissionButton } from '../components/RestaurantCards';
 import MapView from '../components/MapView';
+import FoodOracleGame from '../components/FoodOracleGame';
 
 // ── Firebase imports for food actions ────────────────────────────────────────
 import { addDoc, updateDoc, deleteDoc, doc, collection, serverTimestamp } from 'firebase/firestore';
@@ -68,6 +69,7 @@ export default function App() {
   const [userLocation, setUserLocation] = useState(null);
   const [mounted, setMounted] = useState(false);
   const [showMap, setShowMap] = useState(false);
+  const [showOracleGame, setShowOracleGame] = useState(false);
 
   // ── Add form state ────────────────────────────────────────────────────────
   const [newRestName, setNewRestName] = useState("");
@@ -449,13 +451,13 @@ export default function App() {
                     {!isThreadsBound && firebaseUser && !firebaseUser.uid.startsWith("threads_") && (
                       <AppleButton onClick={() => setShowBindModal(true)}
                         className="inline-flex items-center text-[9px] font-semibold text-[#FF9500] bg-[#FF9500]/15 px-2 py-0.5 rounded-md gap-1 hover:bg-[#FF9500]/25 transition-all duration-300">
-                        <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+                        <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
                         綁定 Threads
                       </AppleButton>
                     )}
                     {isThreadsBound && (
                       <span className="inline-flex items-center text-[9px] font-semibold text-[#007AFF] bg-[#007AFF]/15 px-2 py-0.5 rounded-md gap-1 animate-fade-in">
-                        <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"/></svg>
+                        <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7"/></svg>
                         Threads 已綁定
                       </span>
                     )}
@@ -486,18 +488,21 @@ export default function App() {
                   {/* Actions */}
                   <div className="flex flex-col gap-3">
                     <LiquidGlassCard onClick={() => setShowAddModal(true)} className="py-4 text-sm font-bold text-[#1D1D1F] flex items-center justify-center gap-2 bg-white/30">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4"/></svg>
                       手動新增
                     </LiquidGlassCard>
-                    <LiquidGlassCard onClick={() => setShowImportModal(true)} className="py-4 text-sm font-bold text-white flex items-center justify-center gap-2 bg-[#E8821A] border-[#E8821A]/40 backdrop-blur-none">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    <LiquidGlassCard onClick={() => setShowImportModal(true)} className="py-4 text-sm font-bold text-white flex items-center justify-center gap-2 bg-black/90">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                       Threads 匯入
+                    </LiquidGlassCard>
+                    <LiquidGlassCard onClick={() => setShowOracleGame(true)} className="py-4 text-sm font-bold text-[#E8821A] flex items-center justify-center gap-2 bg-[#E8821A]/10 border-[#E8821A]/25">
+                      <span style={{fontSize:15}}>✨</span> 美食命盤
                     </LiquidGlassCard>
                   </div>
 
                   {/* Search */}
                   <div className="relative flex items-center w-full group">
-                    <svg className="w-4 h-4 text-[#86868B] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none transition-colors group-focus-within:text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+                    <svg className="w-4 h-4 text-[#86868B] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none transition-colors group-focus-within:text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
                     <input type="text" placeholder="搜尋餐廳..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
                       className="w-full bg-white/60 backdrop-blur-xl text-sm font-medium rounded-2xl py-3 pl-10 pr-4 border border-white/50 focus:bg-white/90 focus:ring-2 focus:ring-black/10 outline-none transition-all duration-300 shadow-sm placeholder-[#86868B]"/>
                   </div>
@@ -507,7 +512,7 @@ export default function App() {
                     <p className="text-[10px] font-bold uppercase tracking-wider text-[#86868B] px-1">分類</p>
                     {categories.map(cat => (
                       <LiquidGlassCard key={cat} onClick={() => setSelectedCategory(cat)}
-                        className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 text-left ${selectedCategory === cat ? 'bg-[#E8821A] text-white shadow-md border-transparent' : 'bg-white/40 text-[#555] border-white/45'}`}>
+                        className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 text-left ${selectedCategory === cat ? 'bg-black/90 text-white shadow-md border-transparent' : 'bg-white/40 text-[#555] border-white/45'}`}>
                         {cat}
                       </LiquidGlassCard>
                     ))}
@@ -535,26 +540,29 @@ export default function App() {
               {/* Mobile: Action buttons */}
               <div className="grid grid-cols-2 gap-3 lg:hidden">
                 <LiquidGlassCard onClick={() => setShowAddModal(true)} className="py-4 text-sm font-bold text-[#1D1D1F] flex items-center justify-center gap-2 bg-white/30">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4"/></svg>
                   手動新增
                 </LiquidGlassCard>
-                <LiquidGlassCard onClick={() => setShowImportModal(true)} className="py-4 text-sm font-bold text-white flex items-center justify-center gap-2 bg-[#E8821A] border-[#E8821A]/40 backdrop-blur-none">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                <LiquidGlassCard onClick={() => setShowImportModal(true)} className="py-4 text-sm font-bold text-white flex items-center justify-center gap-2 bg-black/90">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                   Threads 匯入
                 </LiquidGlassCard>
               </div>
+              <LiquidGlassCard onClick={() => setShowOracleGame(true)} className="py-3.5 text-sm font-bold text-[#E8821A] flex items-center justify-center gap-2 bg-[#E8821A]/10 border-[#E8821A]/25 lg:hidden">
+                <span style={{fontSize:15}}>✨</span> 美食命盤
+              </LiquidGlassCard>
 
               {/* Mobile: Search + filter */}
               <section className="space-y-4 lg:hidden">
                 <div className="relative flex items-center w-full group">
-                  <svg className="w-4 h-4 text-[#86868B] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none transition-colors group-focus-within:text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+                  <svg className="w-4 h-4 text-[#86868B] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none transition-colors group-focus-within:text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
                   <input type="text" placeholder="搜尋餐廳、地址或推薦人..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full bg-white/60 backdrop-blur-xl text-sm font-medium rounded-2xl py-3 pl-10 pr-4 border border-white/50 focus:bg-white/90 focus:ring-2 focus:ring-black/10 outline-none transition-all duration-300 shadow-sm placeholder-[#86868B]"/>
                 </div>
                 <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4">
                   {categories.map(cat => (
                     <LiquidGlassCard key={cat} onClick={() => setSelectedCategory(cat)}
-                      className={`flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-300 ${selectedCategory === cat ? 'bg-[#E8821A] text-white shadow-md border-transparent scale-[1.05]' : 'bg-white/40 text-[#555] border-white/45'}`}>
+                      className={`flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-300 ${selectedCategory === cat ? 'bg-black/90 text-white shadow-md border-transparent scale-[1.05]' : 'bg-white/40 text-[#555] border-white/45'}`}>
                       {cat}
                     </LiquidGlassCard>
                   ))}
@@ -639,7 +647,7 @@ export default function App() {
             <textarea value={importText} onChange={(e) => setImportText(e.target.value)}
               placeholder="貼上 Threads 貼文文字、心得、店名，或貼文連結。"
               className="w-full bg-black/5 text-sm font-bold rounded-xl py-3.5 px-4 border border-transparent focus:bg-white focus:border-black focus:ring-2 focus:ring-black/20 outline-none transition-all min-h-[180px] resize-none shadow-inner"/>
-            <AppleButton type="submit" dark disabled={isImportingThread} className="w-full h-14 bg-[#E8821A] text-white font-bold rounded-xl shadow-xl disabled:opacity-60">
+            <AppleButton type="submit" dark disabled={isImportingThread} className="w-full h-14 bg-black/90 text-white font-bold rounded-xl shadow-xl disabled:opacity-60">
               {isImportingThread
                 ? <span className="flex items-center justify-center gap-2"><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>分析並匯入中...</span>
                 : "分析並存進美食庫"}
@@ -739,6 +747,13 @@ export default function App() {
         isOpen={showMap}
         onClose={() => setShowMap(false)}
         userLocation={userLocation}
+      />
+
+      {/* ── Food Oracle Game ── */}
+      <FoodOracleGame
+        restaurants={restaurants}
+        isOpen={showOracleGame}
+        onClose={() => setShowOracleGame(false)}
       />
 
       {/* ── Toast ── */}
