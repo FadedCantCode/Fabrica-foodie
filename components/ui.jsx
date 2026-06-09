@@ -305,7 +305,7 @@ export const ColorfulBackground = ({ show }) => {
           vec2 uv=gl_FragCoord.xy/u_resolution.xy;float t=u_time*.2;
           float n1=snoise(uv*1.5+vec2(t,t*.5));float n2=snoise(uv*2.-vec2(t*.3,t*.8));
           vec2 d=uv+vec2(n1,n2)*.2;
-          vec3 c1=vec3(.96,.96,.97);vec3 c2=vec3(.12,.12,.12);vec3 c3=vec3(.75,.75,.75);
+          vec3 c1=vec3(.97,.96,.94);vec3 c2=vec3(.08,.07,.06);vec3 c3=vec3(.78,.76,.73);
           float m1=smoothstep(0.,1.,sin(d.x*4.+t)*.5+.5);
           float m2=smoothstep(0.,1.,cos(d.y*3.-t)*.5+.5);
           vec3 fc=mix(c1,c2,m1);fc=mix(fc,c3,m2);
