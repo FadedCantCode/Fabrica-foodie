@@ -554,7 +554,7 @@ export default function App() {
                 <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4">
                   {categories.map(cat => (
                     <LiquidGlassCard key={cat} onClick={() => setSelectedCategory(cat)}
-                      className={`flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-300 ${selectedCategory === cat ? 'bg-black/90 text-white shadow-md border-transparent scale-[1.05]' : 'bg-white/40 text-[#555] border-white/45'}`}>
+                      className={`flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-300 ${selectedCategory === cat ? 'bg-[#E8821A] text-white shadow-md border-transparent scale-[1.05]' : 'bg-white/40 text-[#555] border-white/45'}`}>
                       {cat}
                     </LiquidGlassCard>
                   ))}
