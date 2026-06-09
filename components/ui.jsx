@@ -157,7 +157,7 @@ export const GooeyLoader = () => (
 );
 
 // ─── BlurVignette ─────────────────────────────────────────────────────────────
-export const BlurVignette = ({ children, className, blur = '35px' }) => (
+export const BlurVignette = ({ children, className, blur = '35px', vignetteOpacity = 0.96 }) => (
   <div className={`relative ${className}`}>
     {children}
     <div className="absolute inset-0 pointer-events-none z-10"
