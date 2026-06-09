@@ -401,7 +401,7 @@ export default function App() {
 
       {/* Backgrounds */}
       {(isLoggedIn || isGlobalTransitioning) && (
-        <BlurVignette blur="35px" className="fixed inset-0 z-0 pointer-events-none opacity-100">
+        <BlurVignette blur="0px" vignetteOpacity={0.5} className="fixed inset-0 z-0 pointer-events-none opacity-100">
           <ColorfulBackground show={true} />
         </BlurVignette>
       )}
