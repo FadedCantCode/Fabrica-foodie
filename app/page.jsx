@@ -496,7 +496,7 @@ export default function App() {
                       Threads 匯入
                     </LiquidGlassCard>
                     <LiquidGlassCard onClick={() => setShowGame(true)} className="py-4 text-sm font-bold text-[#E8821A] flex items-center justify-center gap-2 bg-[#E8821A]/10 border-[#E8821A]/25">
-                      <span style={{fontSize:15}}>⚔️</span> 美食冒険録
+                      <span style={{fontSize:15}}>🗡️</span> 元氣騎士
                     </LiquidGlassCard>
                   </div>
 
@@ -549,7 +549,7 @@ export default function App() {
                 </LiquidGlassCard>
               </div>
               <LiquidGlassCard onClick={() => setShowGame(true)} className="py-3.5 text-sm font-bold text-[#E8821A] flex items-center justify-center gap-2 bg-[#E8821A]/10 border-[#E8821A]/25 lg:hidden">
-                <span style={{fontSize:15}}>⚔️</span> 美食冒険録
+                <span style={{fontSize:15}}>🗡️</span> 元氣騎士
               </LiquidGlassCard>
 
               {/* Mobile: Search + filter */}
@@ -749,7 +749,7 @@ export default function App() {
         userLocation={userLocation}
       />
 
-      {/* ── Frontier Game ── */}
+      {/* ── Soul Knight Game ── */}
       <FrontierGame
         isOpen={showGame}
         onClose={() => setShowGame(false)}
