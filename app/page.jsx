@@ -25,7 +25,7 @@ import LoginPage from '../components/LoginPage';
 import BindModal from '../components/BindModal';
 import { RestaurantCard, RecommendationCard, RestaurantDetailModal, GyroPermissionButton } from '../components/RestaurantCards';
 import MapView from '../components/MapView';
-import FoodRPG from '../components/FoodRPG';
+import FrontierGame from '../components/FrontierGame';
 
 // ── Firebase imports for food actions ────────────────────────────────────────
 import { addDoc, updateDoc, deleteDoc, doc, collection, serverTimestamp } from 'firebase/firestore';
@@ -69,7 +69,7 @@ export default function App() {
   const [userLocation, setUserLocation] = useState(null);
   const [mounted, setMounted] = useState(false);
   const [showMap, setShowMap] = useState(false);
-  const [showRPG, setShowRPG] = useState(false);
+  const [showGame, setShowGame] = useState(false);
 
   // ── Add form state ────────────────────────────────────────────────────────
   const [newRestName, setNewRestName] = useState("");
@@ -495,8 +495,8 @@ export default function App() {
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                       Threads 匯入
                     </LiquidGlassCard>
-                    <LiquidGlassCard onClick={() => setShowRPG(true)} className="py-4 text-sm font-bold text-[#1D1D1F] flex items-center justify-center gap-2 bg-white/30">
-                      <span style={{fontSize:15}}>⚔️</span> 美食RPG
+                    <LiquidGlassCard onClick={() => setShowGame(true)} className="py-4 text-sm font-bold text-[#E8821A] flex items-center justify-center gap-2 bg-[#E8821A]/10 border-[#E8821A]/25">
+                      <span style={{fontSize:15}}>⚔️</span> 美食冒険録
                     </LiquidGlassCard>
                   </div>
 
@@ -548,6 +548,9 @@ export default function App() {
                   Threads 匯入
                 </LiquidGlassCard>
               </div>
+              <LiquidGlassCard onClick={() => setShowGame(true)} className="py-3.5 text-sm font-bold text-[#E8821A] flex items-center justify-center gap-2 bg-[#E8821A]/10 border-[#E8821A]/25 lg:hidden">
+                <span style={{fontSize:15}}>⚔️</span> 美食冒険録
+              </LiquidGlassCard>
 
               {/* Mobile: Search + filter */}
               <section className="space-y-4 lg:hidden">
@@ -746,11 +749,10 @@ export default function App() {
         userLocation={userLocation}
       />
 
-      {/* ── Food RPG ── */}
-      <FoodRPG
-        restaurants={restaurants}
-        isOpen={showRPG}
-        onClose={() => setShowRPG(false)}
+      {/* ── Frontier Game ── */}
+      <FrontierGame
+        isOpen={showGame}
+        onClose={() => setShowGame(false)}
       />
 
       {/* ── Toast ── */}
