@@ -64,8 +64,8 @@ export default function FrontierGame({ isOpen, onClose }) {
       {/* The game — served as a static file from /public */}
       <iframe
         ref={iframeRef}
-        src="/frontier-fabrica-v2.html"
-        title="Frontier Fabrica"
+        src="/soul-knight.html"
+        title="元氣騎士 Soul Knight"
         tabIndex={0}
         allow="fullscreen"
         style={{
