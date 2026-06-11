@@ -9,7 +9,6 @@
 :root{
   --ios:cubic-bezier(0.22,1,0.36,1);
   --amber:#E8821A;
-  --glass:rgba(255,255,255,0.07);
   --glass-border:rgba(255,255,255,0.14);
   --txt:#F5F5F7;
   --txt-dim:rgba(245,245,247,0.55);
@@ -18,18 +17,20 @@ html,body{height:100%;background:#000;overflow:hidden;
   font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Helvetica Neue",sans-serif;
   -webkit-font-smoothing:antialiased;user-select:none;color:var(--txt)}
 #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0a0a0f}
-canvas#g{image-rendering:pixelated;display:block;background:#101018}
+canvas#g{image-rendering:pixelated;display:block;background:#101018;cursor:none}
 
-/* ── Glass panel ── */
 .glass{background:rgba(20,20,28,0.72);backdrop-filter:blur(28px) saturate(160%);
   -webkit-backdrop-filter:blur(28px) saturate(160%);
   border:0.5px solid var(--glass-border);border-radius:20px;
   box-shadow:0 16px 48px rgba(0,0,0,0.5),inset 0 0.5px 0 rgba(255,255,255,0.12)}
 
-/* ── HUD ── */
+/* HUD */
 #hud{position:fixed;top:max(14px,env(safe-area-inset-top));left:14px;z-index:20;
   display:flex;flex-direction:column;gap:8px;pointer-events:none}
-.hud-card{padding:10px 14px;display:flex;flex-direction:column;gap:7px;min-width:174px}
+.hud-card{padding:10px 14px;display:flex;flex-direction:column;gap:7px;min-width:174px;position:relative}
+.p-tag{position:absolute;top:-7px;left:12px;font-size:8.5px;font-weight:800;letter-spacing:0.1em;
+  padding:2px 8px;border-radius:99px;background:var(--amber);color:#fff}
+.p-tag.p2{background:#5AC8FA}
 .stat-row{display:flex;align-items:center;gap:8px}
 .stat-icon{width:14px;font-size:11px;text-align:center;flex-shrink:0}
 .pips{display:flex;gap:3.5px;flex-wrap:wrap;max-width:130px}
@@ -39,11 +40,9 @@ canvas#g{image-rendering:pixelated;display:block;background:#101018}
 .pip.ar-on{background:linear-gradient(135deg,#0A84FF,#64B5FF);box-shadow:0 0 6px rgba(10,132,255,0.5)}
 .pip.ar-off{background:rgba(255,255,255,0.09)}
 .bar-wrap{flex:1;height:5px;background:rgba(255,255,255,0.09);border-radius:3px;overflow:hidden;min-width:90px}
-.bar-fill{height:100%;border-radius:3px;transition:width 0.25s var(--ios)}
-.bar-mp{background:linear-gradient(90deg,#0A84FF,#5AC8FA)}
+.bar-fill{height:100%;border-radius:3px;transition:width 0.25s var(--ios);background:linear-gradient(90deg,#0A84FF,#5AC8FA)}
 .stat-num{font-size:10px;font-variant-numeric:tabular-nums;color:var(--txt-dim);min-width:42px;text-align:right;font-weight:600}
 
-/* ── Weapon card ── */
 #wpnCard{position:fixed;bottom:max(16px,env(safe-area-inset-bottom));left:14px;z-index:20;
   padding:10px 16px;display:flex;align-items:center;gap:12px;pointer-events:none}
 #wpnIcon{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;
@@ -51,42 +50,37 @@ canvas#g{image-rendering:pixelated;display:block;background:#101018}
 #wpnName{font-size:13px;font-weight:700;letter-spacing:-0.01em}
 #wpnSub{font-size:10px;color:var(--txt-dim);margin-top:1px;font-weight:500}
 
-/* ── Skill button ── */
 #skillBtn{position:fixed;bottom:max(20px,calc(env(safe-area-inset-bottom) + 4px));right:20px;z-index:25;
   width:74px;height:74px;border-radius:50%;border:none;cursor:pointer;
   background:rgba(232,130,26,0.16);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
   border:1.5px solid rgba(232,130,26,0.45);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
-  transition:transform 0.25s var(--ios),box-shadow 0.25s;color:var(--amber)}
+  transition:transform 0.25s var(--ios),box-shadow 0.25s;color:var(--amber);font-family:inherit}
 #skillBtn:active{transform:scale(0.9)}
 #skillBtn.ready{box-shadow:0 0 28px rgba(232,130,26,0.55);background:rgba(232,130,26,0.28)}
 #skillBtn.cd{opacity:0.45;border-color:rgba(255,255,255,0.15);color:var(--txt-dim)}
 #skillBtn .ico{font-size:23px;line-height:1}
-#skillBtn .lbl{font-size:8.5px;font-weight:700;letter-spacing:0.06em}
+#skillBtn .lbl{font-size:8.5px;font-weight:700;letter-spacing:0.04em}
 
-/* ── Floor badge ── */
 #floorBadge{position:fixed;top:max(14px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:20;
   padding:7px 18px;font-size:12px;font-weight:700;letter-spacing:0.14em;pointer-events:none;border-radius:99px}
 #floorBadge .sub{font-size:9px;color:var(--txt-dim);font-weight:600;letter-spacing:0.2em;display:block;text-align:center;margin-top:1px}
 
-/* ── Minimap ── */
 #minimap{position:fixed;top:max(14px,env(safe-area-inset-top));right:14px;z-index:20;padding:10px;pointer-events:none}
 
-/* ── Overlays (splash / buff / over) ── */
 .overlay{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;
   background:rgba(8,8,12,0.55);backdrop-filter:blur(40px) saturate(140%);-webkit-backdrop-filter:blur(40px) saturate(140%)}
 .overlay.on{display:flex;animation:ovIn 0.5s var(--ios)}
 @keyframes ovIn{from{opacity:0}to{opacity:1}}
-.panel{padding:40px 44px;text-align:center;max-width:min(440px,92vw);animation:panelIn 0.6s var(--ios)}
+.panel{padding:36px 38px;text-align:center;max-width:min(520px,94vw);animation:panelIn 0.6s var(--ios)}
 @keyframes panelIn{from{transform:translateY(26px) scale(0.96);opacity:0}to{transform:none;opacity:1}}
 .eyebrow{font-size:10px;font-weight:800;letter-spacing:0.32em;text-transform:uppercase;color:var(--amber);margin-bottom:10px}
-.title-xl{font-size:44px;font-weight:800;letter-spacing:-0.035em;line-height:1.05;margin-bottom:10px;
+.title-xl{font-size:42px;font-weight:800;letter-spacing:-0.035em;line-height:1.05;margin-bottom:10px;
   background:linear-gradient(160deg,#fff 30%,rgba(255,255,255,0.6));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.lead{font-size:13.5px;color:var(--txt-dim);line-height:1.65;margin-bottom:30px;font-weight:500}
-.btn-primary{width:100%;padding:16px;border-radius:16px;border:none;cursor:pointer;
+.lead{font-size:13.5px;color:var(--txt-dim);line-height:1.65;margin-bottom:26px;font-weight:500}
+.btn-primary{width:100%;padding:15px;border-radius:16px;border:none;cursor:pointer;
   font-size:15px;font-weight:700;font-family:inherit;letter-spacing:-0.01em;
-  background:var(--amber);color:#fff;
-  box-shadow:0 10px 32px rgba(232,130,26,0.42);
+  background:var(--amber);color:#fff;box-shadow:0 10px 32px rgba(232,130,26,0.42);
   transition:transform 0.25s var(--ios),filter 0.2s}
 .btn-primary:hover{filter:brightness(1.08)}
 .btn-primary:active{transform:scale(0.97)}
@@ -95,51 +89,63 @@ canvas#g{image-rendering:pixelated;display:block;background:#101018}
   background:rgba(255,255,255,0.07);color:var(--txt);border:0.5px solid var(--glass-border);
   transition:background 0.2s}
 .btn-ghost:hover{background:rgba(255,255,255,0.13)}
-.controls-hint{margin-top:26px;font-size:11px;color:rgba(245,245,247,0.35);line-height:2.1;font-weight:500}
+.controls-hint{margin-top:22px;font-size:11px;color:rgba(245,245,247,0.35);line-height:2.1;font-weight:500}
 .controls-hint kbd{display:inline-block;padding:2px 7px;border-radius:6px;background:rgba(255,255,255,0.08);
   border:0.5px solid rgba(255,255,255,0.12);font-family:ui-monospace,monospace;font-size:10px;margin:0 2px}
 
-/* ── Buff cards ── */
+/* Character select */
+#charGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:6px}
+.char-card{padding:16px 12px 14px;border-radius:18px;cursor:pointer;
+  background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);
+  transition:all 0.3s var(--ios);text-align:center}
+.char-card:hover{background:rgba(232,130,26,0.1);border-color:rgba(232,130,26,0.5);transform:translateY(-3px)}
+.char-card canvas{width:64px;height:64px;image-rendering:pixelated;margin-bottom:8px}
+.char-card .c-name{font-size:14px;font-weight:800;margin-bottom:3px;letter-spacing:-0.01em}
+.char-card .c-skill{font-size:10.5px;color:var(--amber);font-weight:700;margin-bottom:4px}
+.char-card .c-desc{font-size:9.5px;color:var(--txt-dim);line-height:1.5;font-weight:500;margin-bottom:7px}
+.char-card .c-stats{display:flex;justify-content:center;gap:8px;font-size:9px;color:var(--txt-dim);font-weight:600}
+
 #buffCards{display:flex;gap:12px;margin-top:8px}
 .buff-card{flex:1;padding:22px 14px;border-radius:18px;cursor:pointer;
   background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);
   transition:all 0.3s var(--ios);text-align:center}
 .buff-card:hover{background:rgba(232,130,26,0.12);border-color:rgba(232,130,26,0.5);transform:translateY(-4px)}
 .buff-card .b-ico{font-size:30px;margin-bottom:10px}
-.buff-card .b-name{font-size:13px;font-weight:700;margin-bottom:5px;letter-spacing:-0.01em}
+.buff-card .b-name{font-size:13px;font-weight:700;margin-bottom:5px}
 .buff-card .b-desc{font-size:10px;color:var(--txt-dim);line-height:1.5;font-weight:500}
 
-/* ── Hero preview on splash ── */
-#heroPrev{width:120px;height:120px;margin:0 auto 18px;image-rendering:pixelated}
-
-/* ── Touch joystick (mobile) ── */
 #joy{position:fixed;bottom:max(24px,env(safe-area-inset-bottom));left:24px;z-index:25;width:110px;height:110px;
   border-radius:50%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);
   display:none;backdrop-filter:blur(8px)}
 #joyKnob{position:absolute;width:46px;height:46px;border-radius:50%;left:32px;top:32px;
-  background:rgba(255,255,255,0.22);border:1px solid rgba(255,255,255,0.3);transition:none}
+  background:rgba(255,255,255,0.22);border:1px solid rgba(255,255,255,0.3)}
 #atkBtn{position:fixed;bottom:max(108px,calc(env(safe-area-inset-bottom) + 92px));right:28px;z-index:25;
   width:62px;height:62px;border-radius:50%;border:1.5px solid rgba(255,255,255,0.25);
   background:rgba(255,255,255,0.1);backdrop-filter:blur(12px);color:#fff;font-size:22px;display:none;
   align-items:center;justify-content:center}
-@media (pointer:coarse){ #joy,#atkBtn{display:flex} }
+@media (pointer:coarse){ #joy,#atkBtn{display:flex} canvas#g{cursor:default} }
 
-/* ── Toast ── */
 #toast{position:fixed;top:72px;left:50%;transform:translateX(-50%) translateY(-8px);z-index:50;
   padding:9px 20px;border-radius:99px;font-size:12px;font-weight:600;opacity:0;
-  transition:all 0.4s var(--ios);pointer-events:none;letter-spacing:-0.005em}
+  transition:all 0.4s var(--ios);pointer-events:none}
 #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
 </head>
 <body>
 <div id="stage"><canvas id="g"></canvas></div>
 
-<!-- HUD -->
 <div id="hud">
   <div class="hud-card glass">
+    <div class="p-tag" id="p1Tag">P1</div>
     <div class="stat-row"><span class="stat-icon">❤️</span><div class="pips" id="hpPips"></div></div>
     <div class="stat-row"><span class="stat-icon">🛡</span><div class="pips" id="arPips"></div></div>
-    <div class="stat-row"><span class="stat-icon">⚡</span><div class="bar-wrap"><div class="bar-fill bar-mp" id="mpBar" style="width:100%"></div></div><span class="stat-num" id="mpNum">200</span></div>
+    <div class="stat-row"><span class="stat-icon">⚡</span><div class="bar-wrap"><div class="bar-fill" id="mpBar" style="width:100%"></div></div><span class="stat-num" id="mpNum">200</span></div>
+  </div>
+  <div class="hud-card glass" id="hud2" style="display:none">
+    <div class="p-tag p2">P2</div>
+    <div class="stat-row"><span class="stat-icon">❤️</span><div class="pips" id="hpPips2"></div></div>
+    <div class="stat-row"><span class="stat-icon">🛡</span><div class="pips" id="arPips2"></div></div>
+    <div class="stat-row"><span class="stat-icon">⚡</span><div class="bar-wrap"><div class="bar-fill" id="mpBar2" style="width:100%"></div></div><span class="stat-num" id="mpNum2">200</span></div>
   </div>
 </div>
 
@@ -155,35 +161,39 @@ canvas#g{image-rendering:pixelated;display:block;background:#101018}
 
 <div id="joy"><div id="joyKnob"></div></div>
 <button id="atkBtn">⊕</button>
-
 <div id="toast" class="glass"></div>
 
-<!-- Splash -->
+<!-- Splash: home → character select -->
 <div id="splash" class="overlay on">
-  <div class="panel glass">
-    <canvas id="heroPrev" width="40" height="40"></canvas>
+  <div class="panel glass" id="spHome">
+    <canvas id="heroPrev" width="40" height="40" style="width:110px;height:110px;image-rendering:pixelated;margin-bottom:14px"></canvas>
     <div class="eyebrow">Fabrica Arcade</div>
     <h1 class="title-xl">元氣騎士</h1>
-    <p class="lead">魔法石被怪物奪走了。<br>拿起武器，殺進隨機生成的地牢，奪回它。</p>
-    <button class="btn-primary" id="startBtn">開始冒險</button>
+    <p class="lead">魔法石被怪物奪走了。<br>選擇你的英雄，殺進隨機生成的地牢。</p>
+    <button class="btn-primary" id="soloBtn">單人冒險</button>
+    <button class="btn-ghost" id="coopBtn">👥 雙人同樂（本地連機）</button>
     <div class="controls-hint">
-      <kbd>W A S D</kbd> 移動 · <kbd>滑鼠 / J</kbd> 攻擊（自動瞄準）<br>
-      <kbd>Space</kbd> 技能：火力全開 · <kbd>E</kbd> 撿武器
+      <kbd>WASD</kbd> 移動 · <kbd>滑鼠</kbd> 瞄準射擊 · <kbd>Space</kbd> 技能 · <kbd>E</kbd> 撿武器<br>
+      2P：<kbd>方向鍵</kbd> 移動 · <kbd>L</kbd> 攻擊（自動瞄準）· <kbd>K</kbd> 技能
     </div>
+  </div>
+  <div class="panel glass" id="spChars" style="display:none">
+    <div class="eyebrow" id="pickLabel">選擇角色</div>
+    <h2 class="title-xl" style="font-size:28px">英雄陣容</h2>
+    <div id="charGrid"></div>
+    <button class="btn-ghost" id="backBtn">← 返回</button>
   </div>
 </div>
 
-<!-- Buff selection -->
 <div id="buffOv" class="overlay">
   <div class="panel glass" style="max-width:min(520px,94vw)">
     <div class="eyebrow">Floor Cleared</div>
     <h2 class="title-xl" style="font-size:30px">選擇祝福</h2>
-    <p class="lead" style="margin-bottom:18px">下一層更危險。選一個強化吧。</p>
+    <p class="lead" style="margin-bottom:18px">下一層更危險。祝福對所有玩家生效。</p>
     <div id="buffCards"></div>
   </div>
 </div>
 
-<!-- Game over / victory -->
 <div id="overOv" class="overlay">
   <div class="panel glass">
     <div class="eyebrow" id="ovEyebrow">Game Over</div>
@@ -196,27 +206,22 @@ canvas#g{image-rendering:pixelated;display:block;background:#101018}
 
 <script>
 'use strict';
-// roundRect polyfill (older Safari)
 if(!CanvasRenderingContext2D.prototype.roundRect){
   CanvasRenderingContext2D.prototype.roundRect=function(x,y,w,h,r){
     this.moveTo(x+r,y);this.arcTo(x+w,y,x+w,y+h,r);this.arcTo(x+w,y+h,x,y+h,r);
     this.arcTo(x,y+h,x,y,r);this.arcTo(x,y,x+w,y,r);this.closePath();return this;
   };
 }
-
 /* ════════════════════════════════════════════════════════════════
-   元氣騎士 · SOUL KNIGHT — faithful HTML5 remake
-   Core Soul Knight mechanics:
-   · AUTO-AIM     — weapons target the nearest enemy automatically
-   · ENERGY       — guns drain energy, melee is free, energy regens
-   · ARMOR REGEN  — shield recovers after 3s without taking damage
-   · DUAL WIELD   — Knight skill: double-fire for 6 seconds
-   · ROOM LOCK    — doors seal until every monster is dead
-   · PROC-GEN     — every floor is a fresh random room layout
-   · BUFF PICKS   — choose 1 of 3 blessings between floors
+   元氣騎士 v2 — bugfix + character select + local co-op
+   FIX 3: walkable() door dead-band → corridors now extend through
+          walls by TILE + player radius (rooms are reachable)
+   FIX 2: rooms reachable → enterRoom() fires → enemies spawn
+   FIX 4: P1 aims with the MOUSE (crosshair); auto-aim only for
+          touch devices and P2
+   FIX 1: 4 heroes with unique skills + local 2-player co-op
    ════════════════════════════════════════════════════════════════ */
 
-// ── Config ──────────────────────────────────────────────
 const TILE=20, VW=860, VH=560;
 const cv=document.getElementById('g'), ctx=cv.getContext('2d');
 const DPR=Math.min(window.devicePixelRatio||1,2);
@@ -227,8 +232,8 @@ function fitCanvas(){
   cv.style.width=(VW*s)+'px'; cv.style.height=(VH*s)+'px';
 }
 fitCanvas(); window.addEventListener('resize',fitCanvas);
+const isTouch=window.matchMedia&&window.matchMedia('(pointer:coarse)').matches;
 
-// ── Utils ──────────────────────────────────────────────
 const rnd=(a,b)=>a+Math.random()*(b-a);
 const ri=(a,b)=>Math.floor(rnd(a,b+1));
 const clamp=(v,a,b)=>v<a?a:v>b?b:v;
@@ -237,7 +242,6 @@ const dist=(ax,ay,bx,by)=>Math.hypot(bx-ax,by-ay);
 const lerp=(a,b,t)=>a+(b-a)*t;
 const TAU=Math.PI*2;
 
-// ── Audio ──────────────────────────────────────────────
 let AC=null;
 function ac(){ if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}} return AC; }
 function tone(f,d,v,t,slide){
@@ -266,19 +270,23 @@ const SFX={
   buff:()=>{tone(659,.1,.06,'sine');setTimeout(()=>tone(880,.16,.07,'sine'),100);},
 };
 
-// ── Input ──────────────────────────────────────────────
+// ── Input ──
 const K={};
 window.addEventListener('keydown',e=>{
   K[e.code]=true;
-  if(['Space','KeyE','KeyJ'].includes(e.code))e.preventDefault();
+  if(['Space','KeyE','KeyJ','KeyK','KeyL','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
 });
 window.addEventListener('keyup',e=>{K[e.code]=false;});
-let mouseAtk=false;
-cv.addEventListener('mousedown',()=>{mouseAtk=true;});
-window.addEventListener('mouseup',()=>{mouseAtk=false;});
+const M={sx:VW/2,sy:VH/2,down:false};
+cv.addEventListener('mousemove',e=>{
+  const r=cv.getBoundingClientRect();
+  M.sx=(e.clientX-r.left)*(VW/r.width);
+  M.sy=(e.clientY-r.top)*(VH/r.height);
+});
+cv.addEventListener('mousedown',e=>{if(e.button===0)M.down=true;});
+window.addEventListener('mouseup',e=>{if(e.button===0)M.down=false;});
 cv.addEventListener('contextmenu',e=>e.preventDefault());
 
-// Touch joystick
 const joy={x:0,y:0,active:false};
 const joyEl=document.getElementById('joy'), knob=document.getElementById('joyKnob');
 let joyId=null;
@@ -306,27 +314,22 @@ const atkBtn=document.getElementById('atkBtn');
 atkBtn.addEventListener('touchstart',e=>{touchAtk=true;e.preventDefault();},{passive:false});
 atkBtn.addEventListener('touchend',()=>{touchAtk=false;});
 
-// ── Floor themes ──────────────────────────────────────────────
+// ── Themes & dungeon gen ──
 const THEMES=[
   {name:'幽暗地牢', floor:'#1c1a26', floorAlt:'#201e2c', wall:'#2e2a40', wallTop:'#3a3654', accent:'#6e5cff'},
   {name:'熔岩洞窟', floor:'#241a18', floorAlt:'#2a1e1a', wall:'#41241e', wallTop:'#552e24', accent:'#ff5c3a'},
   {name:'冰霜殿堂', floor:'#16202c', floorAlt:'#1a2532', wall:'#243a50', wallTop:'#2e4a66', accent:'#5ac8fa'},
 ];
-
-// ── Dungeon generation ──────────────────────────────────────────────
-// Rooms placed on a 5x5 cell grid; random walk from center.
-// Room types: start / normal / weapon / boss
-const RGW=23, RGH=15;      // room interior incl. walls (tiles)
-const GAP=7;               // corridor length (tiles)
+const RGW=23, RGH=15, GAP=7;
 const CELL_W=RGW+GAP, CELL_H=RGH+GAP;
-
-let rooms=[], roomGrid={}, world={w:0,h:0};
+let rooms=[], roomGrid={};
 function genFloor(floorIdx){
   rooms=[]; roomGrid={};
-  const count=5+floorIdx;          // 6,7,8 rooms
+  const count=5+floorIdx;
   const cells=[[2,2]];
   const seen={'2,2':true};
-  while(cells.length<count){
+  let guard=0;
+  while(cells.length<count&&guard++<400){
     const base=cells[ri(0,cells.length-1)];
     const dirs=[[1,0],[-1,0],[0,1],[0,-1]];
     const d=dirs[ri(0,3)];
@@ -335,16 +338,13 @@ function genFloor(floorIdx){
     if(nx<0||ny<0||nx>4||ny>4||seen[key])continue;
     seen[key]=true; cells.push([nx,ny]);
   }
-  // farthest cell from start = boss room
-  let bossI=1,bd=0;
+  let bossI=cells.length-1,bd=0;
   for(let i=1;i<cells.length;i++){
     const dd=Math.abs(cells[i][0]-2)+Math.abs(cells[i][1]-2);
     if(dd>bd){bd=dd;bossI=i;}
   }
-  // one weapon room (not start, not boss)
   let wpnI=-1;
-  if(cells.length>3){ do{wpnI=ri(1,cells.length-1);}while(wpnI===bossI); }
-
+  if(cells.length>3){ let g2=0; do{wpnI=ri(1,cells.length-1);g2++;}while(wpnI===bossI&&g2<50); }
   cells.forEach((c,i)=>{
     const r={
       cx:c[0], cy:c[1],
@@ -356,13 +356,11 @@ function genFloor(floorIdx){
     };
     rooms.push(r); roomGrid[c[0]+','+c[1]]=r;
   });
-  // connect doors between adjacent occupied cells
   for(const r of rooms){
     const n={r:roomGrid[(r.cx+1)+','+r.cy], l:roomGrid[(r.cx-1)+','+r.cy],
              d:roomGrid[r.cx+','+(r.cy+1)], u:roomGrid[r.cx+','+(r.cy-1)]};
     for(const k in n) if(n[k]) r.doors[k]=true;
   }
-  world.w=5*CELL_W*TILE; world.h=5*CELL_H*TILE;
 }
 function roomAt(x,y){
   for(const r of rooms){
@@ -370,24 +368,57 @@ function roomAt(x,y){
   }
   return null;
 }
-// Corridor rects between rooms (for collision + draw)
-function corridors(){
-  const cs=[];
+let corridorRects=[];
+function buildCorridors(){
+  corridorRects=[];
   for(const r of rooms){
     if(r.doors.r){
       const o=roomGrid[(r.cx+1)+','+r.cy];
-      cs.push({x:r.x+r.w, y:r.y+r.h/2-TILE*1.5, w:o.x-(r.x+r.w), h:TILE*3});
+      corridorRects.push({x:r.x+r.w, y:r.y+r.h/2-TILE*1.5, w:o.x-(r.x+r.w), h:TILE*3, horiz:true});
     }
     if(r.doors.d){
       const o=roomGrid[r.cx+','+(r.cy+1)];
-      cs.push({x:r.x+r.w/2-TILE*1.5, y:r.y+r.h, w:TILE*3, h:o.y-(r.y+r.h)});
+      corridorRects.push({x:r.x+r.w/2-TILE*1.5, y:r.y+r.h, w:TILE*3, h:o.y-(r.y+r.h), horiz:false});
     }
   }
-  return cs;
 }
-let corridorRects=[];
 
-// ── Weapons (Soul Knight style: dmg / energy / firerate) ─────────────
+// ── FIX 3: walkable — corridors extend THROUGH walls (+TILE+r each end) ──
+function walkable(x,y,r){
+  for(const rm of rooms){
+    if(x-r>=rm.x+TILE&&x+r<=rm.x+rm.w-TILE&&y-r>=rm.y+TILE&&y+r<=rm.y+rm.h-TILE)return true;
+  }
+  for(const c of corridorRects){
+    if(c.horiz){
+      if(x>=c.x-TILE-r&&x<=c.x+c.w+TILE+r&&y-r>=c.y+1&&y+r<=c.y+c.h-1)return true;
+    }else{
+      if(y>=c.y-TILE-r&&y<=c.y+c.h+TILE+r&&x-r>=c.x+1&&x+r<=c.x+c.w-1)return true;
+    }
+  }
+  return false;
+}
+function moveEntity(e,mx,my){
+  if(walkable(e.x+mx,e.y,e.r))e.x+=mx;
+  if(walkable(e.x,e.y+my,e.r))e.y+=my;
+}
+
+// ── Characters (FIX 1: hero roster) ──
+const CHARS={
+  knight:{id:'knight',n:'騎士',scarf:'#FF4F2E',armor:'#C5C9D6',armorD:'#9BA0B0',hat:'helmet',
+    hp:7,ar:5,en:200,spd:148,wpn:'rifle',skill:'dual',skillIco:'⚔️',skillN:'火力全開',
+    skillD:'雙持武器 6 秒，火力翻倍',cd:14},
+  wizard:{id:'wizard',n:'法師',scarf:'#B18CFF',armor:'#6E5CFF',armorD:'#5546CC',hat:'wizard',
+    hp:5,ar:4,en:320,spd:142,wpn:'staff',skill:'blast',skillIco:'💥',skillN:'奧術爆裂',
+    skillD:'重創並擊退周圍所有敵人',cd:10},
+  assassin:{id:'assassin',n:'刺客',scarf:'#3DDC97',armor:'#2E3A36',armorD:'#222B28',hat:'hood',
+    hp:5,ar:4,en:160,spd:174,wpn:'sword',skill:'dash',skillIco:'💨',skillN:'疾影突襲',
+    skillD:'向前瞬步衝刺並短暫無敵',cd:6},
+  ranger:{id:'ranger',n:'遊俠',scarf:'#FFD60A',armor:'#4A6B3A',armorD:'#3A5530',hat:'cap',
+    hp:6,ar:4,en:220,spd:154,wpn:'crossbow',skill:'focus',skillIco:'🎯',skillN:'致命專注',
+    skillD:'5 秒內每一發都必定暴擊',cd:13},
+};
+
+// ── Weapons ──
 const WEAPONS={
   rifle:  {n:'士兵步槍', ico:'🔫', type:'gun',   dmg:5, en:1, rate:.16, spd:430, spread:.05, col:'#FFD60A', shots:1},
   pistol: {n:'壞蛋手槍', ico:'🔫', type:'gun',   dmg:7, en:1, rate:.24, spd:400, spread:.04, col:'#FF9F0A', shots:1},
@@ -401,212 +432,229 @@ const WEAPONS={
 };
 const WPN_POOL=['pistol','shotgun','smg','laser','crossbow','hammer','staff'];
 
-// ── Player (Knight: silver armor + orange-red scarf, chibi proportions) ──
-const P={
-  x:0,y:0,r:9,spd:148,
-  hp:7,maxHp:7,
-  armor:5,maxArmor:5,armorTimer:0,    // armor regen: 3s after last hit (Soul Knight signature)
-  en:200,maxEn:200,
-  wpn:{...WEAPONS.rifle,id:'rifle'},
-  atkCd:0,
-  skillT:0, skillCd:0, SKILL_DUR:6, SKILL_CD:14,   // 火力全開 dual wield
-  inv:0, dead:false,
-  face:1, anim:0, moving:false,
-  dmgMul:1, spdMul:1, crit:.05,
-  aimAng:0, aimTarget:null,
-};
-
-function resetPlayer(){
-  Object.assign(P,{hp:7,maxHp:7,armor:5,maxArmor:5,armorTimer:0,en:200,maxEn:200,
-    wpn:{...WEAPONS.rifle,id:'rifle'},atkCd:0,skillT:0,skillCd:0,inv:0,dead:false,
-    dmgMul:1,spdMul:1,crit:.05,anim:0});
+// ── Players (FIX 1: array, up to 2) ──
+let players=[];
+function makePlayer(charId,idx){
+  const c=CHARS[charId];
+  return {idx,char:c,x:0,y:0,r:9,spd:c.spd,
+    hp:c.hp,maxHp:c.hp,armor:c.ar,maxArmor:c.ar,armorTimer:0,
+    en:c.en,maxEn:c.en,
+    wpn:{...WEAPONS[c.wpn],id:c.wpn},atkCd:0,
+    skillT:0,skillCd:0,SKILL_CD:c.cd,
+    inv:0,dead:false,face:1,anim:0,moving:false,lastMoveAng:0,
+    dmgMul:1,spdMul:1,crit:.05,aimAng:0,aimTarget:null};
+}
+const alivePlayers=()=>players.filter(p=>!p.dead);
+function nearestPlayer(x,y){
+  let best=null,bd=Infinity;
+  for(const pl of players){
+    if(pl.dead)continue;
+    const d=dist2(x,y,pl.x,pl.y);
+    if(d<bd){bd=d;best=pl;}
+  }
+  return best;
 }
 
-// ── Bullets ──────────────────────────────────────────────
 const bullets=[];
-function fire(x,y,ang,w,isP,dmgMul){
+function fire(x,y,ang,w,isP,dmg){
   const shots=w.shots||1;
   for(let i=0;i<shots;i++){
     const a=ang+(shots>1?(i-(shots-1)/2)*w.spread:rnd(-w.spread,w.spread));
     bullets.push({
       x,y,vx:Math.cos(a)*w.spd,vy:Math.sin(a)*w.spd,
-      dmg:Math.round(w.dmg*(dmgMul||1)),col:w.col,r:w.pierce?3:3.5,
+      dmg:dmg||w.dmg,col:w.col,r:w.pierce?3:3.5,
       life:1.6,isP:!!isP,pierce:!!w.pierce,bounce:w.bounce||0,hitList:[],
     });
   }
 }
 
-// ── AUTO-AIM: core Soul Knight mechanic ──────────────────────────────
-// Finds nearest living enemy in the player's current room (or corridor LOS)
-function autoAim(){
-  const room=roomAt(P.x,P.y);
-  let best=null,bd=Infinity;
-  const pool=room?room.enemies:[];
-  for(const e of pool){
-    if(e.dead)continue;
-    const d=dist2(P.x,P.y,e.x,e.y);
-    if(d<bd){bd=d;best=e;}
+// ── FIX 4: aim — P1 mouse, P2/touch auto-aim ──
+const cam={x:0,y:0};
+function updateAim(pl){
+  const useMouse=(pl.idx===0&&!isTouch);
+  if(useMouse){
+    const wx=M.sx+cam.x, wy=M.sy+cam.y;
+    pl.aimAng=Math.atan2(wy-pl.y,wx-pl.x);
+    pl.aimTarget=null;
+    pl.face=Math.cos(pl.aimAng)>=0?1:-1;
+  }else{
+    const room=roomAt(pl.x,pl.y);
+    let best=null,bd=Infinity;
+    if(room)for(const e of room.enemies){
+      if(e.dead||e.spawnT>0)continue;
+      const d=dist2(pl.x,pl.y,e.x,e.y);
+      if(d<bd){bd=d;best=e;}
+    }
+    pl.aimTarget=best;
+    if(best){pl.aimAng=Math.atan2(best.y-pl.y,best.x-pl.x);pl.face=Math.cos(pl.aimAng)>=0?1:-1;}
   }
-  P.aimTarget=best;
-  if(best)P.aimAng=Math.atan2(best.y-P.y,best.x-P.x);
-  return best;
 }
 
-function playerAttack(){
-  if(P.atkCd>0)return;
-  const w=P.wpn;
-  const dual=P.skillT>0;                 // 火力全開: dual wield active
-  const enCost=w.en*(dual?2:1);          // double energy drain (from wiki)
-  if(w.type==='gun'&&P.en<enCost)return; // not enough energy
-  P.atkCd=w.rate*(dual?.62:1);
-
-  const tgt=autoAim();
-  const ang=tgt?P.aimAng:(P.face>0?0:Math.PI);
+const fxSwings=[], muzzles=[];
+function playerAttack(pl){
+  if(pl.atkCd>0||pl.dead)return;
+  const w=pl.wpn;
+  const dual=pl.char.skill==='dual'&&pl.skillT>0;
+  const enCost=w.en*(dual?2:1);
+  if(w.type==='gun'&&pl.en<enCost)return;
+  pl.atkCd=w.rate*(dual?.62:1);
+  const ang=pl.aimAng;
+  const critC=(pl.char.skill==='focus'&&pl.skillT>0)?1:pl.crit;
 
   if(w.type==='melee'){
     SFX.melee();
-    meleeSwing={ang,t:.14,range:w.range};
-    const room=roomAt(P.x,P.y);
+    fxSwings.push({pl,ang,t:.14,range:w.range});
+    const room=roomAt(pl.x,pl.y);
     if(room)for(const e of room.enemies){
-      if(e.dead)continue;
-      const d=dist(P.x,P.y,e.x,e.y);
+      if(e.dead||e.spawnT>0)continue;
+      const d=dist(pl.x,pl.y,e.x,e.y);
       if(d<w.range+e.r){
-        const ea=Math.atan2(e.y-P.y,e.x-P.x);
+        const ea=Math.atan2(e.y-pl.y,e.x-pl.x);
         let da=Math.abs(ea-ang); da=Math.min(da,TAU-da);
         if(da<w.arc/2+.3){
-          const crit=Math.random()<P.crit;
-          dmgEnemy(e,Math.round(w.dmg*P.dmgMul*(crit?2:1)),crit);
-          e.vx+=Math.cos(ea)*180; e.vy+=Math.sin(ea)*180;
+          const crit=Math.random()<critC;
+          const dmg=Math.round(w.dmg*pl.dmgMul*(crit?2:1));
+          if(e.isBoss)dmgBoss(e,dmg,crit);
+          else{
+            dmgEnemy(e,dmg,crit);
+            e.vx+=Math.cos(ea)*180; e.vy+=Math.sin(ea)*180;
+          }
         }
       }
     }
-    if(dual){ // dual melee: second swing behind
-      meleeSwing2={ang:ang+Math.PI,t:.14,range:w.range};
-    }
+    if(dual)fxSwings.push({pl,ang:ang+Math.PI,t:.14,range:w.range});
   }else{
-    P.en=Math.max(0,P.en-enCost);
+    pl.en=Math.max(0,pl.en-enCost);
     SFX.shot();
-    const ox=P.x+Math.cos(ang)*12, oy=P.y+Math.sin(ang)*12;
-    fire(ox,oy,ang,w,true,P.dmgMul*(Math.random()<P.crit?2:1));
-    if(dual){ // dual gun: second muzzle slightly offset
-      fire(P.x+Math.cos(ang+.5)*12,P.y+Math.sin(ang+.5)*12,ang+rnd(-.06,.06),w,true,P.dmgMul);
-    }
-    muzzle={x:ox,y:oy,t:.05};
+    const crit=Math.random()<critC;
+    const dmg=Math.round(w.dmg*pl.dmgMul*(crit?2:1));
+    const ox=pl.x+Math.cos(ang)*12, oy=pl.y+Math.sin(ang)*12;
+    fire(ox,oy,ang,w,true,dmg);
+    if(dual)fire(pl.x+Math.cos(ang+.4)*12,pl.y+Math.sin(ang+.4)*12,ang+rnd(-.05,.05),w,true,Math.round(w.dmg*pl.dmgMul));
+    muzzles.push({x:ox,y:oy,t:.05});
   }
 }
-let meleeSwing=null, meleeSwing2=null, muzzle=null;
 
-function useSkill(){
-  if(P.skillCd>0||P.skillT>0)return;
-  P.skillT=P.SKILL_DUR; P.skillCd=P.SKILL_CD;
+function useSkill(pl){
+  if(!pl||pl.dead||pl.skillCd>0||pl.skillT>0)return;
+  const s=pl.char.skill;
   SFX.skill();
-  spawnRing(P.x,P.y,'#E8821A');
-  toast('⚔️ 火力全開！');
+  if(s==='dual'){
+    pl.skillT=6;pl.skillCd=pl.SKILL_CD;
+    spawnRing(pl.x,pl.y,'#E8821A');toast('⚔️ 火力全開！');
+  }else if(s==='blast'){
+    pl.skillCd=pl.SKILL_CD;
+    spawnRing(pl.x,pl.y,'#B18CFF');spawnP(pl.x,pl.y,'#B18CFF',20,200);
+    const room=roomAt(pl.x,pl.y);
+    if(room)for(const e of room.enemies){
+      if(e.dead||e.spawnT>0)continue;
+      if(dist(pl.x,pl.y,e.x,e.y)<145){
+        const d=Math.round(24*pl.dmgMul);
+        if(e.isBoss)dmgBoss(e,d);
+        else{
+          dmgEnemy(e,d);
+          const ka=Math.atan2(e.y-pl.y,e.x-pl.x);
+          e.vx+=Math.cos(ka)*260;e.vy+=Math.sin(ka)*260;
+        }
+      }
+    }
+    shakeAmt=Math.max(shakeAmt,.8);toast('💥 奧術爆裂！');
+  }else if(s==='dash'){
+    pl.skillCd=pl.SKILL_CD;pl.inv=Math.max(pl.inv,.55);
+    const a=pl.moving?pl.lastMoveAng:pl.aimAng;
+    for(let i=0;i<20;i++){
+      const nx=pl.x+Math.cos(a)*8, ny=pl.y+Math.sin(a)*8;
+      if(walkable(nx,ny,pl.r)){
+        spawnP(pl.x,pl.y,'#3DDC97',2,40);
+        pl.x=nx;pl.y=ny;
+      }else break;
+    }
+    toast('💨 疾影突襲！');
+  }else if(s==='focus'){
+    pl.skillT=5;pl.skillCd=pl.SKILL_CD;
+    spawnRing(pl.x,pl.y,'#FFD60A');toast('🎯 致命專注！');
+  }
 }
 
-function hurtPlayer(d){
-  if(P.inv>0||P.dead)return;
-  P.armorTimer=0;             // reset armor regen timer
-  if(P.armor>0){ P.armor--; SFX.hit(); spawnP(P.x,P.y,'#5AC8FA',6,90); }
+function hurtPlayer(pl,d){
+  if(pl.inv>0||pl.dead)return;
+  pl.armorTimer=0;
+  if(pl.armor>0){ pl.armor--; SFX.hit(); spawnP(pl.x,pl.y,'#5AC8FA',6,90); }
   else{
-    P.hp=Math.max(0,P.hp-1);  // Soul Knight: 1 heart per hit
-    SFX.hurt(); spawnP(P.x,P.y,'#FF453A',8,110); shakeAmt=Math.max(shakeAmt,.55);
-    if(P.hp<=0){P.dead=true;SFX.die();setTimeout(()=>endGame(false),900);return;}
-  }
-  P.inv=.9;
-}
-
-function tickPlayer(dt){
-  if(P.dead)return;
-  // Move
-  let dx=0,dy=0;
-  if(K.KeyA||K.ArrowLeft)dx-=1;
-  if(K.KeyD||K.ArrowRight)dx+=1;
-  if(K.KeyW||K.ArrowUp)dy-=1;
-  if(K.KeyS||K.ArrowDown)dy+=1;
-  if(joy.active){dx=joy.x;dy=joy.y;}
-  const m=Math.hypot(dx,dy);
-  if(m>1){dx/=m;dy/=m;}
-  P.moving=m>0.1;
-  if(P.moving)P.anim+=dt*9;
-  if(dx!==0)P.face=dx>0?1:-1;
-  const sp=P.spd*P.spdMul;
-  moveEntity(P,dx*sp*dt,dy*sp*dt);
-
-  // Timers
-  if(P.atkCd>0)P.atkCd-=dt;
-  if(P.inv>0)P.inv-=dt;
-  if(P.skillT>0)P.skillT-=dt;
-  else if(P.skillCd>0)P.skillCd-=dt;
-
-  // ARMOR REGEN — Soul Knight signature: +1 shield per 1.2s after 3s no-hit
-  P.armorTimer+=dt;
-  if(P.armorTimer>3&&P.armor<P.maxArmor){
-    P.armorTimer=3-1.2;        // next pip in 1.2s
-    P.armor++;
-    spawnP(P.x,P.y-12,'#5AC8FA',3,40);
-  }
-  // Energy slow regen
-  P.en=Math.min(P.maxEn,P.en+3.2*dt);
-
-  // Attack (mouse / J / touch)
-  if(mouseAtk||K.KeyJ||touchAtk)playerAttack();
-  // Skill
-  if(K.Space&&!K._sp)useSkill();
-  K._sp=K.Space;
-  // Pickup
-  if(K.KeyE&&!K._e)tryPickup();
-  K._e=K.KeyE;
-  autoAim();
-}
-
-// Wall-aware movement: rooms + corridors are walkable
-function walkable(x,y,r){
-  // inside a room interior?
-  for(const rm of rooms){
-    if(x-r>=rm.x+TILE&&x+r<=rm.x+rm.w-TILE&&y-r>=rm.y+TILE&&y+r<=rm.y+rm.h-TILE)return true;
-  }
-  for(const c of corridorRects){
-    if(x-r>=c.x-2&&x+r<=c.x+c.w+2&&y-r>=c.y+2&&y+r<=c.y+c.h-2)return true;
-  }
-  // door thresholds: allow crossing where corridor meets room
-  for(const c of corridorRects){
-    if(x>=c.x-TILE&&x<=c.x+c.w+TILE&&y>=c.y&&y<=c.y+c.h)return true;
-  }
-  return false;
-}
-function moveEntity(e,mx,my){
-  // locked room: keep player inside
-  const cur=roomAt(e.x,e.y);
-  if(e===P&&cur&&cur.locked){
-    e.x=clamp(e.x+mx,cur.x+TILE+e.r,cur.x+cur.w-TILE-e.r);
-    e.y=clamp(e.y+my,cur.y+TILE+e.r,cur.y+cur.h-TILE-e.r);
-    return;
-  }
-  if(walkable(e.x+mx,e.y,e.r))e.x+=mx;
-  if(walkable(e.x,e.y+my,e.r))e.y+=my;
-}
-
-function tryPickup(){
-  const room=roomAt(P.x,P.y); if(!room)return;
-  for(let i=room.drops.length-1;i>=0;i--){
-    const d=room.drops[i];
-    if(dist(P.x,P.y,d.x,d.y)<30){
-      P.wpn={...WEAPONS[d.id],id:d.id};
-      room.drops.splice(i,1);
-      SFX.pick(); toast(WEAPONS[d.id].ico+' 拾取 '+WEAPONS[d.id].n);
-      updateWpnCard();
+    pl.hp=Math.max(0,pl.hp-1);
+    SFX.hurt(); spawnP(pl.x,pl.y,'#FF453A',8,110); shakeAmt=Math.max(shakeAmt,.55);
+    if(pl.hp<=0){
+      pl.dead=true;SFX.die();
+      spawnP(pl.x,pl.y,'#FF453A',16,160);
+      if(players.every(p=>p.dead)){setTimeout(()=>endGame(false),900);}
+      else toast('💀 '+(pl.idx===0?'P1':'P2')+' 倒下了！清房後復活');
       return;
     }
   }
+  pl.inv=.9;
 }
 
-// ── Enemies (Soul Knight bestiary) ──────────────────────────────
+function tickPlayer(pl,dt){
+  if(pl.dead)return;
+  let dx=0,dy=0;
+  if(pl.idx===0){
+    if(K.KeyA)dx-=1; if(K.KeyD)dx+=1; if(K.KeyW)dy-=1; if(K.KeyS)dy+=1;
+    if(players.length===1){
+      if(K.ArrowLeft)dx-=1; if(K.ArrowRight)dx+=1; if(K.ArrowUp)dy-=1; if(K.ArrowDown)dy+=1;
+    }
+    if(joy.active){dx=joy.x;dy=joy.y;}
+  }else{
+    if(K.ArrowLeft)dx-=1; if(K.ArrowRight)dx+=1; if(K.ArrowUp)dy-=1; if(K.ArrowDown)dy+=1;
+  }
+  const m=Math.hypot(dx,dy);
+  if(m>1){dx/=m;dy/=m;}
+  pl.moving=m>0.1;
+  if(pl.moving){pl.anim+=dt*9;pl.lastMoveAng=Math.atan2(dy,dx);}
+  const sp=pl.spd*pl.spdMul;
+  moveEntity(pl,dx*sp*dt,dy*sp*dt);
+
+  if(pl.atkCd>0)pl.atkCd-=dt;
+  if(pl.inv>0)pl.inv-=dt;
+  if(pl.skillT>0)pl.skillT-=dt;
+  else if(pl.skillCd>0)pl.skillCd-=dt;
+
+  pl.armorTimer+=dt;
+  if(pl.armorTimer>3&&pl.armor<pl.maxArmor){
+    pl.armorTimer=3-1.2;
+    pl.armor++;
+    spawnP(pl.x,pl.y-12,'#5AC8FA',3,40);
+  }
+  pl.en=Math.min(pl.maxEn,pl.en+3.2*dt);
+
+  updateAim(pl);
+  const atkHeld = pl.idx===0 ? (M.down||K.KeyJ||touchAtk) : K.KeyL;
+  if(atkHeld)playerAttack(pl);
+}
+
+function tryPickup(){
+  for(const pl of players){
+    if(pl.dead)continue;
+    const room=roomAt(pl.x,pl.y); if(!room)continue;
+    for(let i=room.drops.length-1;i>=0;i--){
+      const d=room.drops[i];
+      if(dist(pl.x,pl.y,d.x,d.y)<32){
+        room.drops.splice(i,1);
+        room.drops.push({x:d.x,y:d.y,id:pl.wpn.id});  // swap: drop current
+        pl.wpn={...WEAPONS[d.id],id:d.id};
+        SFX.pick(); toast((pl.idx===0?'P1':'P2')+' 拾取 '+WEAPONS[d.id].n);
+        if(pl.idx===0)updateWpnCard(pl);
+        return;
+      }
+    }
+  }
+}
+
+// ── Enemies (FIX 2: target nearest player) ──
 const ETYPES={
   slime:  {n:'史萊姆', hp:10, spd:62,  r:9,  atkType:'contact', dmg:1, col:'#8FE36B', col2:'#B6F09A'},
   bat:    {n:'蝙蝠',   hp:6,  spd:96,  r:7,  atkType:'contact', dmg:1, col:'#9B8AFF', col2:'#C2B6FF'},
   goblin: {n:'哥布林', hp:14, spd:74,  r:9,  atkType:'shoot',   dmg:1, col:'#FF9F0A', col2:'#FFC56B', rate:1.6, bspd:230},
-  skull:  {n:'骷髏兵', hp:20, spd:58,  r:10, atkType:'shoot',   dmg:1, col:'#E8E8ED', col2:'#fff',    rate:1.2, bspd:260, shots:3},
+  skull:  {n:'骷髏兵', hp:20, spd:58,  r:10, atkType:'shoot',   dmg:1, col:'#E8E8ED', col2:'#FFFFFF', rate:1.2, bspd:260, shots:3},
   golem:  {n:'石魔像', hp:38, spd:40,  r:14, atkType:'contact', dmg:2, col:'#A0A0B2', col2:'#C8C8DA'},
 };
 function makeEnemy(type,x,y,scale){
@@ -617,10 +665,9 @@ function makeEnemy(type,x,y,scale){
     spd:t.spd,dmg:t.dmg,atkType:t.atkType,
     rate:t.rate||0,bspd:t.bspd||0,shots:t.shots||1,
     col:t.col,col2:t.col2,
-    atkCd:rnd(.4,1.4),stun:0,dead:false,anim:rnd(0,9),face:1,
-    spawnT:.5,   // spawn telegraph
-  };
+    atkCd:rnd(.4,1.4),stun:0,dead:false,anim:rnd(0,9),face:1,spawnT:.5};
 }
+const orbs=[];
 function dmgEnemy(e,d,crit){
   if(e.dead||e.spawnT>0)return;
   e.hp-=d; e.stun=Math.max(e.stun,.1);
@@ -631,7 +678,6 @@ function dmgEnemy(e,d,crit){
     e.dead=true; SFX.die();
     spawnP(e.x,e.y,e.col,12,140);
     score+=10;
-    // small chance: energy orb drop
     if(Math.random()<.3)orbs.push({x:e.x,y:e.y,t:'en',v:14});
     if(Math.random()<.08)orbs.push({x:e.x,y:e.y,t:'hp',v:1});
   }
@@ -640,18 +686,17 @@ function tickEnemy(e,dt,room){
   if(e.dead)return;
   if(e.spawnT>0){e.spawnT-=dt;return;}
   e.anim+=dt*7;
+  const T2=nearestPlayer(e.x,e.y);
   if(e.stun>0){e.stun-=dt;e.x+=e.vx*dt;e.y+=e.vy*dt;e.vx*=.85;e.vy*=.85;}
-  else{
-    const d=dist(e.x,e.y,P.x,P.y);
+  else if(T2){
+    const d=dist(e.x,e.y,T2.x,T2.y);
     if(e.atkType==='contact'){
-      // chase
-      const a=Math.atan2(P.y-e.y,P.x-e.x);
+      const a=Math.atan2(T2.y-e.y,T2.x-e.x);
       e.vx=lerp(e.vx,Math.cos(a)*e.spd,5*dt);
       e.vy=lerp(e.vy,Math.sin(a)*e.spd,5*dt);
-      if(d<e.r+P.r+2&&e.atkCd<=0){hurtPlayer(e.dmg);e.atkCd=.8;}
+      if(d<e.r+T2.r+2&&e.atkCd<=0){hurtPlayer(T2,e.dmg);e.atkCd=.8;}
     }else{
-      // shooter: keep distance ~140, strafe
-      const a=Math.atan2(P.y-e.y,P.x-e.x);
+      const a=Math.atan2(T2.y-e.y,T2.x-e.x);
       const want=d>170?1:d<110?-1:0;
       const strafe=Math.sin(e.anim*.6)*.7;
       e.vx=lerp(e.vx,(Math.cos(a)*want+Math.cos(a+Math.PI/2)*strafe)*e.spd,4*dt);
@@ -666,14 +711,14 @@ function tickEnemy(e,dt,room){
       }
     }
     if(e.atkCd>0)e.atkCd-=dt;
+    e.x+=e.vx*dt;e.y+=e.vy*dt;
     e.face=e.vx>0?1:e.vx<0?-1:e.face;
   }
-  // confine to room
-  e.x=clamp(e.x+(e.stun>0?0:e.vx*dt),room.x+TILE+e.r,room.x+room.w-TILE-e.r);
-  e.y=clamp(e.y+(e.stun>0?0:e.vy*dt),room.y+TILE+e.r,room.y+room.h-TILE-e.r);
+  e.x=clamp(e.x,room.x+TILE+e.r,room.x+room.w-TILE-e.r);
+  e.y=clamp(e.y,room.y+TILE+e.r,room.y+room.h-TILE-e.r);
 }
 
-// ── Boss: 騎士團長級頭目 (multi-phase bullet hell) ──────────────
+// ── Boss ──
 let boss=null;
 function makeBoss(room,floorIdx){
   const names=['暗影巨像','熔岩魔王','冰霜君主'];
@@ -684,27 +729,27 @@ function makeBoss(room,floorIdx){
     name:names[floorIdx]||'???',
     phase:1, t:0, atkCd:1.5, spiral:0,
     vx:0,vy:0,stun:0,dead:false,anim:0,face:1,spawnT:1,
-    col:THEMES[floorIdx].accent,
-    dmg:1,
+    col:THEMES[floorIdx].accent, dmg:1,
   };
 }
 function tickBoss(b,dt,room){
   if(b.dead)return;
   if(b.spawnT>0){b.spawnT-=dt;return;}
   b.anim+=dt*4; b.t+=dt;
-  // Phase by HP
   const pct=b.hp/b.maxHp;
   b.phase=pct>.66?1:pct>.33?2:3;
-  // Drift toward player slowly
-  const a=Math.atan2(P.y-b.y,P.x-b.x);
+  const T2=nearestPlayer(b.x,b.y);
+  if(!T2)return;
+  const a=Math.atan2(T2.y-b.y,T2.x-b.x);
   const spd=34+b.phase*12;
   b.vx=lerp(b.vx,Math.cos(a)*spd,2*dt);
   b.vy=lerp(b.vy,Math.sin(a)*spd,2*dt);
   b.x=clamp(b.x+b.vx*dt,room.x+TILE+b.r,room.x+room.w-TILE-b.r);
   b.y=clamp(b.y+b.vy*dt,room.y+TILE+b.r,room.y+room.h-TILE-b.r);
 
+  if(dist(b.x,b.y,T2.x,T2.y)<b.r+T2.r)hurtPlayer(T2,1);
+
   if(b.atkCd>0){b.atkCd-=dt;return;}
-  // Attack patterns per phase
   const pats=b.phase===1?['ring']:b.phase===2?['ring','aim']:['spiral','aim','ring'];
   const pat=pats[ri(0,pats.length-1)];
   if(pat==='ring'){
@@ -723,7 +768,6 @@ function tickBoss(b,dt,room){
     }
     b.atkCd=1.3;
   }else{
-    // spiral burst
     for(let k=0;k<3;k++){
       setTimeout(()=>{
         if(b.dead)return;
@@ -737,8 +781,6 @@ function tickBoss(b,dt,room){
     b.atkCd=2;
   }
   b.spiral+=.5;
-  // contact damage
-  if(dist(b.x,b.y,P.x,P.y)<b.r+P.r)hurtPlayer(1);
 }
 function dmgBoss(b,d,crit){
   if(b.dead||b.spawnT>0)return;
@@ -750,29 +792,28 @@ function dmgBoss(b,d,crit){
   }
 }
 
-// ── Room population / lock system ──────────────────────────────
-function populateRoom(room,floorIdx){
+// ── Room population & lock ──
+function populateRoom(room,fi){
   room.enemies=[];
-  const lvl=floorIdx+1;
+  const lvl=fi+1;
   if(room.type==='boss'){
-    boss=makeBoss(room,floorIdx);
+    boss=makeBoss(room,fi);
     room.enemies.push(boss);
     SFX.boss();
     return;
   }
   if(room.type==='weapon'){
-    // 2 random weapon drops
     const a=WPN_POOL[ri(0,WPN_POOL.length-1)];
-    let b; do{b=WPN_POOL[ri(0,WPN_POOL.length-1)];}while(b===a);
+    let b2; let g=0; do{b2=WPN_POOL[ri(0,WPN_POOL.length-1)];g++;}while(b2===a&&g<30);
     room.drops.push({x:room.x+room.w/2-40,y:room.y+room.h/2,id:a});
-    room.drops.push({x:room.x+room.w/2+40,y:room.y+room.h/2,id:b});
+    room.drops.push({x:room.x+room.w/2+40,y:room.y+room.h/2,id:b2});
     room.cleared=true;
     return;
   }
   const types=['slime','slime','bat','goblin'];
   if(lvl>=2)types.push('skull','goblin');
   if(lvl>=3)types.push('golem','skull');
-  const count=ri(3+lvl,5+lvl);
+  const count=ri(3+lvl,5+lvl)+(players.length>1?2:0);
   for(let i=0;i<count;i++){
     const t=types[ri(0,types.length-1)];
     let ex,ey,tries=0;
@@ -780,88 +821,88 @@ function populateRoom(room,floorIdx){
       ex=rnd(room.x+TILE*2.5,room.x+room.w-TILE*2.5);
       ey=rnd(room.y+TILE*2.5,room.y+room.h-TILE*2.5);
       tries++;
-    }while(dist(ex,ey,P.x,P.y)<110&&tries<20);
-    room.enemies.push(makeEnemy(t,ex,ey,1+floorIdx*.25));
+    }while(nearestPlayer(ex,ey)&&dist(ex,ey,nearestPlayer(ex,ey).x,nearestPlayer(ex,ey).y)<110&&tries<20);
+    room.enemies.push(makeEnemy(t,ex,ey,1+fi*.25));
   }
 }
 function enterRoom(room){
   if(room.visited)return;
   room.visited=true;
+  populateRoom(room,floorIdx);
   if(room.type==='normal'||room.type==='boss'){
-    populateRoom(room,floorIdx);
     room.locked=true;
     SFX.door();
     if(room.type==='boss')toast('⚠️ '+boss.name+' 出現！');
-  }else populateRoom(room,floorIdx);
+  }
 }
 function checkRoomClear(room){
   if(!room.locked)return;
   const alive=room.enemies.filter(e=>!e.dead).length;
   if(alive===0){
     room.locked=false; room.cleared=true;
-    SFX.clear(); spawnRing(P.x,P.y,'#FFD60A');
+    SFX.clear();
+    // revive downed players (co-op)
+    for(const pl of players){
+      if(pl.dead){
+        pl.dead=false;pl.hp=Math.min(3,pl.maxHp);pl.armor=pl.maxArmor;
+        pl.x=room.x+room.w/2+pl.idx*22;pl.y=room.y+room.h/2;
+        spawnRing(pl.x,pl.y,'#34C759');
+        toast('💚 '+(pl.idx===0?'P1':'P2')+' 復活！');
+      }
+    }
+    spawnRing(room.x+room.w/2,room.y+room.h/2,'#FFD60A');
     if(room.type==='boss'){
       setTimeout(()=>floorClear(),800);
     }else{
-      // reward: energy orbs
       for(let i=0;i<3;i++)orbs.push({x:room.x+room.w/2+rnd(-30,30),y:room.y+room.h/2+rnd(-30,30),t:'en',v:18});
     }
   }
 }
 
-// ── Orbs (energy / hp pickups) ──────────────────────────────
-const orbs=[];
 function tickOrbs(dt){
   for(let i=orbs.length-1;i>=0;i--){
     const o=orbs[i];
-    const d=dist(o.x,o.y,P.x,P.y);
-    if(d<70){ // magnet
-      const a=Math.atan2(P.y-o.y,P.x-o.x);
+    const pl=nearestPlayer(o.x,o.y);
+    if(!pl)continue;
+    const d=dist(o.x,o.y,pl.x,pl.y);
+    if(d<70){
+      const a=Math.atan2(pl.y-o.y,pl.x-o.x);
       o.x+=Math.cos(a)*240*dt; o.y+=Math.sin(a)*240*dt;
     }
     if(d<14){
-      if(o.t==='en'){P.en=Math.min(P.maxEn,P.en+o.v);}
-      else{P.hp=Math.min(P.maxHp,P.hp+o.v);}
+      if(o.t==='en'){pl.en=Math.min(pl.maxEn,pl.en+o.v);}
+      else{pl.hp=Math.min(pl.maxHp,pl.hp+o.v);}
       SFX.pick(); orbs.splice(i,1);
     }
   }
 }
 
-// ── Particles / FX ──────────────────────────────
+// ── FX ──
 const parts=[],dmgNums=[],rings=[];
+let shakeAmt=0;
 function spawnP(x,y,col,n,sp){
   for(let i=0;i<n;i++){
     const a=rnd(0,TAU),s=rnd(sp*.4,sp);
     parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,col,life:rnd(.2,.5),max:.5,sz:rnd(2,4)});
   }
 }
-function spawnDmgNum(x,y,d,crit){
-  dmgNums.push({x:x+rnd(-6,6),y,v:d,t:.7,crit:!!crit});
-}
+function spawnDmgNum(x,y,d,crit){dmgNums.push({x:x+rnd(-6,6),y,v:d,t:.7,crit:!!crit});}
 function spawnRing(x,y,col){rings.push({x,y,r:6,col,t:.5});}
 function tickFX(dt){
   for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.life-=dt;if(p.life<=0){parts.splice(i,1);continue;}p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=.92;p.vy*=.92;}
   for(let i=dmgNums.length-1;i>=0;i--){const d=dmgNums[i];d.t-=dt;d.y-=34*dt;if(d.t<=0)dmgNums.splice(i,1);}
   for(let i=rings.length-1;i>=0;i--){const r=rings[i];r.t-=dt;r.r+=190*dt;if(r.t<=0)rings.splice(i,1);}
+  for(let i=fxSwings.length-1;i>=0;i--){fxSwings[i].t-=dt;if(fxSwings[i].t<=0)fxSwings.splice(i,1);}
+  for(let i=muzzles.length-1;i>=0;i--){muzzles[i].t-=dt;if(muzzles[i].t<=0)muzzles.splice(i,1);}
 }
 
-// ── Camera ──────────────────────────────
-const cam={x:0,y:0};
-let shakeAmt=0;
-function tickCam(dt){
-  cam.x=lerp(cam.x,P.x-VW/2,8*dt);
-  cam.y=lerp(cam.y,P.y-VH/2,8*dt);
-  shakeAmt=Math.max(0,shakeAmt-dt*2.2);
-}
-
-// ── Bullet physics ──────────────────────────────
+// ── Bullets ──
 function tickBullets(dt){
   for(let i=bullets.length-1;i>=0;i--){
     const b=bullets[i];
     b.life-=dt;
     if(b.life<=0){bullets.splice(i,1);continue;}
     const nx=b.x+b.vx*dt, ny=b.y+b.vy*dt;
-    // wall collision
     if(!walkable(nx,ny,2)){
       if(b.bounce>0){
         if(!walkable(nx,b.y,2))b.vx*=-1;
@@ -895,81 +936,126 @@ function tickBullets(dt){
         if(consumed)continue;
       }
     }else{
-      if(P.inv<=0&&!P.dead&&dist2(b.x,b.y,P.x,P.y)<(P.r+b.r)*(P.r+b.r)){
-        hurtPlayer(b.dmg); bullets.splice(i,1);
+      for(const pl of players){
+        if(pl.dead||pl.inv>0)continue;
+        if(dist2(b.x,b.y,pl.x,pl.y)<(pl.r+b.r)*(pl.r+b.r)){
+          hurtPlayer(pl,b.dmg); bullets.splice(i,1); break;
+        }
       }
     }
   }
 }
 
-// ── Drawing ──────────────────────────────
-function px(x){return Math.round(x);}
+// ── Camera (FIX 1: co-op midpoint) ──
+function tickCam(dt){
+  const arr=alivePlayers().length?alivePlayers():players;
+  let mx=0,my=0;
+  for(const p of arr){mx+=p.x;my+=p.y;}
+  mx/=arr.length;my/=arr.length;
+  cam.x=lerp(cam.x,mx-VW/2,8*dt);
+  cam.y=lerp(cam.y,my-VH/2,8*dt);
+  shakeAmt=Math.max(0,shakeAmt-dt*2.2);
+}
 
-// Chibi Knight: big head, tiny body, silver armor, ORANGE-RED SCARF (signature)
-function drawKnight(x,y){
-  const f=P.face;
-  const bob=P.moving?Math.sin(P.anim)*1.6:Math.sin(performance.now()/600)*.8;
-  const flick=P.inv>0&&Math.floor(P.inv*14)%2===0;
+// ── Drawing ──
+function px(v){return Math.round(v);}
+function roundRect2(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();
+}
+
+// Chibi hero with per-character hat / colors
+function drawHero(pl){
+  const c=pl.char;
+  const x=px(pl.x-cam.x), yb=px(pl.y-cam.y);
+  if(pl.dead){
+    // ghost
+    ctx.globalAlpha=.4;
+    const fl=Math.sin(performance.now()/300)*3;
+    ctx.fillStyle='#AFC8E8';
+    roundRect2(x-7,yb-16+fl,14,18,7);ctx.fill();
+    ctx.fillStyle='#22232B';
+    ctx.fillRect(x-4,yb-10+fl,2.5,3);ctx.fillRect(x+1.5,yb-10+fl,2.5,3);
+    ctx.globalAlpha=1;
+    return;
+  }
+  const bob=pl.moving?Math.sin(pl.anim)*1.6:Math.sin(performance.now()/600)*.8;
+  const flick=pl.inv>0&&Math.floor(pl.inv*14)%2===0;
   if(flick)ctx.globalAlpha=.4;
-  const sx=px(x),sy=px(y+bob);
+  const sy=yb+bob;
+  const f=pl.face;
 
   // shadow
   ctx.fillStyle='rgba(0,0,0,0.35)';
-  ctx.beginPath();ctx.ellipse(sx,px(y)+13,8,3,0,0,TAU);ctx.fill();
+  ctx.beginPath();ctx.ellipse(x,yb+13,8,3,0,0,TAU);ctx.fill();
 
-  // legs (tiny, walking)
-  const lw=P.moving?Math.sin(P.anim*2)*2.4:0;
+  // legs
+  const lw=pl.moving?Math.sin(pl.anim*2)*2.4:0;
   ctx.fillStyle='#3A3A45';
-  ctx.fillRect(sx-5,sy+7+lw*.5,4,5);
-  ctx.fillRect(sx+1,sy+7-lw*.5,4,5);
+  ctx.fillRect(x-5,sy+7+lw*.5,4,5);
+  ctx.fillRect(x+1,sy+7-lw*.5,4,5);
 
-  // body (silver armor, small)
-  ctx.fillStyle='#C5C9D6';
-  ctx.fillRect(sx-6,sy,12,9);
-  ctx.fillStyle='#9BA0B0';
-  ctx.fillRect(sx-6,sy+6,12,3);
-  // chest plate line
-  ctx.fillStyle='#E2E5EE';
-  ctx.fillRect(sx-6,sy,12,2);
+  // body
+  ctx.fillStyle=c.armor;
+  ctx.fillRect(x-6,sy,12,9);
+  ctx.fillStyle=c.armorD;
+  ctx.fillRect(x-6,sy+6,12,3);
 
-  // SCARF — orange-red, trailing behind (signature Soul Knight Knight)
-  ctx.fillStyle='#FF4F2E';
-  ctx.fillRect(sx-7,sy-1,14,4);
-  const trail=P.moving?5:3;
-  ctx.fillRect(sx-f*7-(f>0?trail:0),sy,trail,3+Math.sin(P.anim*1.5)*1);
-  ctx.fillStyle='#E8401F';
-  ctx.fillRect(sx-f*7-(f>0?trail:0),sy+2,trail,2);
+  // scarf
+  ctx.fillStyle=c.scarf;
+  ctx.fillRect(x-7,sy-1,14,4);
+  const trail=pl.moving?5:3;
+  ctx.fillRect(x-f*7-(f>0?trail:0),sy,trail,3+Math.sin(pl.anim*1.5)*1);
 
-  // head (BIG, chibi)
-  ctx.fillStyle='#F2D4B0';                       // face
-  ctx.fillRect(sx-8,sy-15,16,14);
-  // helmet (silver, covers top + sides)
-  ctx.fillStyle='#D4D8E4';
-  ctx.fillRect(sx-9,sy-17,18,7);                 // dome
-  ctx.fillRect(sx-9,sy-17,3,13);                 // left side
-  ctx.fillRect(sx+6,sy-17,3,13);                 // right side
-  ctx.fillStyle='#B8BDCB';
-  ctx.fillRect(sx-9,sy-11,18,1.5);               // helmet rim
-  // helmet shine
-  ctx.fillStyle='rgba(255,255,255,0.5)';
-  ctx.fillRect(sx-6,sy-16,4,2);
+  // head
+  ctx.fillStyle='#F2D4B0';
+  ctx.fillRect(x-8,sy-15,16,14);
 
-  // eyes (look toward aim target)
-  const lookX=P.aimTarget?clamp((P.aimTarget.x-P.x)*.02,-2,2):f*1.5;
+  // hat variants
+  if(c.hat==='helmet'){
+    ctx.fillStyle='#D4D8E4';
+    ctx.fillRect(x-9,sy-17,18,7);
+    ctx.fillRect(x-9,sy-17,3,13);
+    ctx.fillRect(x+6,sy-17,3,13);
+    ctx.fillStyle='rgba(255,255,255,0.5)';
+    ctx.fillRect(x-6,sy-16,4,2);
+  }else if(c.hat==='wizard'){
+    ctx.fillStyle=c.armor;
+    ctx.fillRect(x-11,sy-16,22,3);           // brim
+    ctx.beginPath();                          // cone
+    ctx.moveTo(x-7,sy-16);ctx.lineTo(x+7,sy-16);ctx.lineTo(x+1,sy-28);ctx.closePath();ctx.fill();
+    ctx.fillStyle=c.scarf;
+    ctx.fillRect(x-7,sy-18,14,2);             // band
+  }else if(c.hat==='hood'){
+    ctx.fillStyle=c.scarf;
+    ctx.fillRect(x-9,sy-17,18,6);
+    ctx.fillRect(x-9,sy-17,3,12);
+    ctx.fillRect(x+6,sy-17,3,12);
+    ctx.fillStyle='rgba(0,0,0,0.25)';
+    ctx.fillRect(x-6,sy-12,12,2);             // hood shade
+  }else{ // cap
+    ctx.fillStyle=c.armor;
+    ctx.fillRect(x-9,sy-17,18,5);
+    ctx.fillRect(x+f*4,sy-15,f*7,3);          // brim toward facing
+    ctx.fillStyle=c.scarf;
+    ctx.fillRect(x-9,sy-13,18,2);             // band
+  }
+
+  // eyes follow aim
+  const lookX=clamp(Math.cos(pl.aimAng)*2,-2,2);
   ctx.fillStyle='#22232B';
-  ctx.fillRect(sx-4+lookX,sy-9,2.6,3.6);
-  ctx.fillRect(sx+2+lookX,sy-9,2.6,3.6);
-  // eye shine
+  ctx.fillRect(x-4+lookX,sy-9,2.6,3.6);
+  ctx.fillRect(x+2+lookX,sy-9,2.6,3.6);
   ctx.fillStyle='#fff';
-  ctx.fillRect(sx-3.6+lookX,sy-8.6,1,1);
-  ctx.fillRect(sx+2.4+lookX,sy-8.6,1,1);
+  ctx.fillRect(x-3.6+lookX,sy-8.6,1,1);
+  ctx.fillRect(x+2.4+lookX,sy-8.6,1,1);
 
-  // weapon (aims at auto-aim angle)
-  const w=P.wpn;
-  const ang=P.aimTarget?P.aimAng:(f>0?0:Math.PI);
+  // weapon at aim angle
+  const w=pl.wpn;
   ctx.save();
-  ctx.translate(sx,sy+3);
-  ctx.rotate(ang);
+  ctx.translate(x,sy+3);
+  ctx.rotate(pl.aimAng);
   if(w.type==='melee'){
     ctx.fillStyle='#888D9E';ctx.fillRect(6,-1.5,14,3);
     ctx.fillStyle='#E2E5EE';ctx.fillRect(16,-2.5,7,5);
@@ -980,26 +1066,41 @@ function drawKnight(x,y){
     ctx.fillStyle='#2C2F38';ctx.fillRect(8,1,4,4);
   }
   ctx.restore();
-  // dual wield: second weapon mirrored
-  if(P.skillT>0){
+
+  // dual wield second gun + aura
+  if(pl.char.skill==='dual'&&pl.skillT>0){
     ctx.save();
-    ctx.translate(sx,sy+3);
-    ctx.rotate(ang+Math.PI*.9);
+    ctx.translate(x,sy+3);
+    ctx.rotate(pl.aimAng+Math.PI*.9);
     ctx.fillStyle='#454A58';ctx.fillRect(5,-2.5,15,5);
     ctx.fillStyle='#E8821A';ctx.fillRect(17,-1.5,4,3);
     ctx.restore();
-    // aura
     ctx.strokeStyle='rgba(232,130,26,'+(0.3+Math.sin(performance.now()/120)*.15)+')';
     ctx.lineWidth=2;
-    ctx.beginPath();ctx.arc(sx,sy,16,0,TAU);ctx.stroke();
+    ctx.beginPath();ctx.arc(x,sy,16,0,TAU);ctx.stroke();
+  }
+  // focus aura
+  if(pl.char.skill==='focus'&&pl.skillT>0){
+    ctx.strokeStyle='rgba(255,214,10,'+(0.3+Math.sin(performance.now()/100)*.15)+')';
+    ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(x,sy,15,0,TAU);ctx.stroke();
   }
   ctx.globalAlpha=1;
 
-  // auto-aim reticle on target
-  if(P.aimTarget&&!P.aimTarget.dead){
-    const t=P.aimTarget;
+  // P2 tag
+  if(players.length>1){
+    ctx.font='800 8px -apple-system,sans-serif';
+    ctx.fillStyle=pl.idx===0?'#E8821A':'#5AC8FA';
+    ctx.textAlign='center';
+    ctx.fillText(pl.idx===0?'1P':'2P',x,sy-22);
+    ctx.textAlign='left';
+  }
+
+  // auto-aim reticle (touch / P2)
+  if(pl.aimTarget&&!pl.aimTarget.dead){
+    const t=pl.aimTarget;
     const pulse=1+Math.sin(performance.now()/150)*.12;
-    ctx.strokeStyle='rgba(232,130,26,0.85)';
+    ctx.strokeStyle=pl.idx===0?'rgba(232,130,26,0.85)':'rgba(90,200,250,0.85)';
     ctx.lineWidth=1.5;
     const rr=(t.r+7)*pulse;
     const tx=px(t.x-cam.x),ty=px(t.y-cam.y);
@@ -1013,21 +1114,36 @@ function drawKnight(x,y){
   }
 }
 
+// FIX 4: mouse crosshair (desktop P1)
+function drawCrosshair(){
+  if(isTouch)return;
+  const x=M.sx,y=M.sy;
+  ctx.strokeStyle='rgba(232,130,26,0.9)';
+  ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.arc(x,y,8,0,TAU);ctx.stroke();
+  ctx.fillStyle='#E8821A';
+  ctx.beginPath();ctx.arc(x,y,1.8,0,TAU);ctx.fill();
+  ctx.strokeStyle='rgba(232,130,26,0.55)';
+  ctx.beginPath();
+  ctx.moveTo(x-13,y);ctx.lineTo(x-9,y);
+  ctx.moveTo(x+9,y);ctx.lineTo(x+13,y);
+  ctx.moveTo(x,y-13);ctx.lineTo(x,y-9);
+  ctx.moveTo(x,y+9);ctx.lineTo(x,y+13);
+  ctx.stroke();
+}
+
 function drawEnemy(e){
   if(e.dead)return;
   const ex=px(e.x-cam.x),ey=px(e.y-cam.y);
+  if(ex<-60||ex>VW+60||ey<-60||ey>VH+60)return;
   if(e.spawnT>0){
-    // spawn telegraph circle
     ctx.strokeStyle='rgba(255,255,255,'+(0.5*(1-e.spawnT/.5))+')';
     ctx.lineWidth=1.5;
-    ctx.beginPath();ctx.arc(ex,ey,e.r+4,0,TAU*(1-e.spawnT/.5));ctx.stroke();
+    ctx.beginPath();ctx.arc(ex,ey,e.r+4,0,TAU*(1-clamp(e.spawnT,0,.5)/.5));ctx.stroke();
     return;
   }
   const bob=Math.sin(e.anim)*1.5;
-  const flick=e.stun>0;
-  if(flick)ctx.globalAlpha=.6;
-
-  // shadow
+  if(e.stun>0)ctx.globalAlpha=.6;
   ctx.fillStyle='rgba(0,0,0,0.3)';
   ctx.beginPath();ctx.ellipse(ex,ey+e.r+2,e.r*.8,2.5,0,0,TAU);ctx.fill();
 
@@ -1040,56 +1156,44 @@ function drawEnemy(e){
     ctx.fillStyle=e.col2;
     ctx.beginPath();ctx.ellipse(ex-2,ey+bob-3,e.r*.5,e.r*.35,0,0,TAU);ctx.fill();
     ctx.fillStyle='#1A2415';
-    ctx.fillRect(ex-4+e.face*1,ey+bob-2,2.2,3);
-    ctx.fillRect(ex+2+e.face*1,ey+bob-2,2.2,3);
+    ctx.fillRect(ex-4+e.face,ey+bob-2,2.2,3);
+    ctx.fillRect(ex+2+e.face,ey+bob-2,2.2,3);
   }else if(e.type==='bat'){
     const wing=Math.sin(e.anim*3)*5;
     ctx.fillStyle=e.col;
     ctx.beginPath();ctx.ellipse(ex,ey+bob,e.r,e.r*.9,0,0,TAU);ctx.fill();
-    // wings
     ctx.fillStyle=e.col2;
     ctx.beginPath();ctx.ellipse(ex-e.r-3,ey+bob+wing*.4,6,3,-.5,0,TAU);ctx.fill();
     ctx.beginPath();ctx.ellipse(ex+e.r+3,ey+bob-wing*.4,6,3,.5,0,TAU);ctx.fill();
     ctx.fillStyle='#fff';ctx.fillRect(ex-3,ey+bob-2,2,2);ctx.fillRect(ex+1.5,ey+bob-2,2,2);
   }else if(e.type==='goblin'){
-    // body
     ctx.fillStyle=e.col;ctx.fillRect(ex-5,ey+bob-2,10,9);
-    // big head
     ctx.fillStyle=e.col2;ctx.fillRect(ex-6,ey+bob-12,12,10);
-    // ears
     ctx.fillStyle=e.col;
     ctx.fillRect(ex-9,ey+bob-10,3,4);ctx.fillRect(ex+6,ey+bob-10,3,4);
-    // eyes
     ctx.fillStyle='#3A1A00';
     ctx.fillRect(ex-3.5+e.face,ey+bob-9,2,3);ctx.fillRect(ex+1.5+e.face,ey+bob-9,2,3);
   }else if(e.type==='skull'){
-    // skull head
     ctx.fillStyle=e.col;ctx.fillRect(ex-6,ey+bob-13,12,11);
     ctx.fillRect(ex-4,ey+bob-3,8,3);
-    // eye sockets
     ctx.fillStyle='#1A0A1E';
     ctx.fillRect(ex-4,ey+bob-10,3,4);ctx.fillRect(ex+1,ey+bob-10,3,4);
-    // glow eyes
     ctx.fillStyle='#FF3B6B';
     ctx.fillRect(ex-3.4,ey+bob-9,1.8,2);ctx.fillRect(ex+1.6,ey+bob-9,1.8,2);
-    // body (rib)
     ctx.fillStyle='#C8C8D8';ctx.fillRect(ex-4,ey+bob,8,8);
     ctx.fillStyle='#9898A8';
     ctx.fillRect(ex-4,ey+bob+2,8,1);ctx.fillRect(ex-4,ey+bob+5,8,1);
   }else{
-    // golem: stone blocks
     ctx.fillStyle=e.col;
     ctx.fillRect(ex-e.r,ey+bob-e.r,e.r*2,e.r*2);
     ctx.fillStyle=e.col2;
     ctx.fillRect(ex-e.r+2,ey+bob-e.r+2,e.r*2-4,4);
     ctx.fillStyle='#FFD60A';
     ctx.fillRect(ex-5+e.face*2,ey+bob-5,3,3);ctx.fillRect(ex+2+e.face*2,ey+bob-5,3,3);
-    // cracks
     ctx.strokeStyle='rgba(0,0,0,0.25)';ctx.lineWidth=1;
     ctx.beginPath();ctx.moveTo(ex-4,ey+bob+2);ctx.lineTo(ex+1,ey+bob+6);ctx.stroke();
   }
 
-  // HP bar (only when damaged)
   if(e.hp<e.maxHp){
     const bw=e.r*2.2;
     ctx.fillStyle='rgba(0,0,0,0.5)';
@@ -1102,21 +1206,16 @@ function drawEnemy(e){
 
 function drawBossSprite(b,ex,ey){
   const t=b.anim;
-  // aura
   const g=ctx.createRadialGradient(ex,ey,b.r*.4,ex,ey,b.r*2.2);
   g.addColorStop(0,b.col+'44');g.addColorStop(1,'transparent');
   ctx.fillStyle=g;ctx.beginPath();ctx.arc(ex,ey,b.r*2.2,0,TAU);ctx.fill();
-  // big chibi body
   const bob=Math.sin(t)*3;
   ctx.fillStyle='#2A2438';
   ctx.fillRect(ex-b.r*.7,ey+bob-b.r*.2,b.r*1.4,b.r*1.1);
-  // huge head
   ctx.fillStyle='#3A3050';
   ctx.fillRect(ex-b.r*.85,ey+bob-b.r*1.2,b.r*1.7,b.r*1.1);
-  // crown
   ctx.fillStyle=b.col;
   for(let i=0;i<3;i++)ctx.fillRect(ex-b.r*.6+i*b.r*.5,ey+bob-b.r*1.45,b.r*.28,b.r*.3);
-  // eyes (phase = eye intensity)
   const ec=b.phase===3?'#FF3B30':b.phase===2?'#FF9F0A':b.col;
   ctx.fillStyle=ec;
   ctx.fillRect(ex-b.r*.45,ey+bob-b.r*.85,b.r*.3,b.r*.35);
@@ -1124,26 +1223,22 @@ function drawBossSprite(b,ex,ey){
   ctx.fillStyle='#fff';
   ctx.fillRect(ex-b.r*.4,ey+bob-b.r*.8,b.r*.1,b.r*.12);
   ctx.fillRect(ex+b.r*.2,ey+bob-b.r*.8,b.r*.1,b.r*.12);
-  // mouth (phase 3 = open)
   if(b.phase===3){
     ctx.fillStyle='#1A0A1E';
     ctx.fillRect(ex-b.r*.3,ey+bob-b.r*.3,b.r*.6,b.r*.22);
   }
 }
 
-// ── Room / world drawing ──────────────────────────────
+let floorIdx=0;
 function drawWorld(){
-  // Rooms
   const th=THEMES[floorIdx];
   for(const r of rooms){
     const rx=px(r.x-cam.x),ry=px(r.y-cam.y);
     if(rx+r.w<-40||rx>VW+40||ry+r.h<-40||ry>VH+40)continue;
-    // floor checker
     for(let ty=1;ty<RGH-1;ty++)for(let tx=1;tx<RGW-1;tx++){
       ctx.fillStyle=(tx+ty)%2?th.floor:th.floorAlt;
       ctx.fillRect(rx+tx*TILE,ry+ty*TILE,TILE,TILE);
     }
-    // walls
     ctx.fillStyle=th.wall;
     ctx.fillRect(rx,ry,r.w,TILE);
     ctx.fillRect(rx,ry+r.h-TILE,r.w,TILE);
@@ -1151,36 +1246,37 @@ function drawWorld(){
     ctx.fillRect(rx+r.w-TILE,ry,TILE,r.h);
     ctx.fillStyle=th.wallTop;
     ctx.fillRect(rx,ry,r.w,TILE*.4);
-    // door gaps (visual) + locked bars
     const dw=TILE*3;
     function door(dx,dy,w,h,vert){
       ctx.fillStyle=th.floor;
       ctx.fillRect(dx,dy,w,h);
       if(r.locked){
         ctx.fillStyle='rgba(232,130,26,0.85)';
-        if(vert){for(let i=0;i<3;i++)ctx.fillRect(dx+4+i*(w-8)/2.4,dy,3,h);}
-        else{for(let i=0;i<3;i++)ctx.fillRect(dx,dy+4+i*(h-8)/2.4,w,3);}
+        if(vert){for(let i=0;i<3;i++)ctx.fillRect(dx+3+i*(w-6)/2.4,dy,3,h);}
+        else{for(let i=0;i<3;i++)ctx.fillRect(dx,dy+3+i*(h-6)/2.4,w,3);}
       }
     }
     if(r.doors.r)door(rx+r.w-TILE,ry+r.h/2-dw/2,TILE,dw,false);
     if(r.doors.l)door(rx,ry+r.h/2-dw/2,TILE,dw,false);
     if(r.doors.d)door(rx+r.w/2-dw/2,ry+r.h-TILE,dw,TILE,true);
     if(r.doors.u)door(rx+r.w/2-dw/2,ry,dw,TILE,true);
-    // boss room marker
     if(r.type==='boss'&&!r.visited){
-      ctx.fillStyle='rgba(255,69,58,0.6)';
-      ctx.font='bold 14px sans-serif';ctx.textAlign='center';
+      ctx.font='14px sans-serif';ctx.textAlign='center';
       ctx.fillText('💀',rx+r.w/2,ry+r.h/2);
       ctx.textAlign='left';
     }
+    if(r.type==='weapon'&&!r.visited){
+      ctx.font='13px sans-serif';ctx.textAlign='center';
+      ctx.fillText('⚔️',rx+r.w/2,ry+r.h/2);
+      ctx.textAlign='left';
+    }
   }
-  // Corridors
   for(const c of corridorRects){
     const cx2=px(c.x-cam.x),cy2=px(c.y-cam.y);
     ctx.fillStyle=th.floor;
     ctx.fillRect(cx2,cy2,c.w,c.h);
     ctx.fillStyle=th.wall;
-    if(c.w>c.h){ // horizontal
+    if(c.horiz){
       ctx.fillRect(cx2,cy2-TILE*.5,c.w,TILE*.5);
       ctx.fillRect(cx2,cy2+c.h,c.w,TILE*.5);
     }else{
@@ -1190,25 +1286,29 @@ function drawWorld(){
   }
 }
 
-function drawDrops(room){
-  for(const d of room.drops){
-    const dx=px(d.x-cam.x),dy=px(d.y-cam.y);
-    const bob=Math.sin(performance.now()/350)*3;
-    const w=WEAPONS[d.id];
-    // glow pad
-    ctx.fillStyle='rgba(232,130,26,0.12)';
-    ctx.beginPath();ctx.ellipse(dx,dy+8,16,5,0,0,TAU);ctx.fill();
-    ctx.font='17px sans-serif';ctx.textAlign='center';
-    ctx.fillText(w.ico,dx,dy+bob);
-    ctx.font='600 9px -apple-system,sans-serif';
-    ctx.fillStyle='rgba(255,255,255,0.85)';
-    ctx.fillText(w.n,dx,dy+bob+14);
-    if(dist(P.x,P.y,d.x,d.y)<34){
-      ctx.fillStyle='#E8821A';
-      ctx.font='700 9px -apple-system,sans-serif';
-      ctx.fillText('按 E 拾取',dx,dy+bob+26);
+function drawDrops(){
+  for(const r of rooms){
+    if(!r.drops.length)continue;
+    for(const d of r.drops){
+      const dx=px(d.x-cam.x),dy=px(d.y-cam.y);
+      if(dx<-40||dx>VW+40||dy<-40||dy>VH+40)continue;
+      const bob=Math.sin(performance.now()/350)*3;
+      const w=WEAPONS[d.id];
+      ctx.fillStyle='rgba(232,130,26,0.12)';
+      ctx.beginPath();ctx.ellipse(dx,dy+8,16,5,0,0,TAU);ctx.fill();
+      ctx.font='17px sans-serif';ctx.textAlign='center';
+      ctx.fillText(w.ico,dx,dy+bob);
+      ctx.font='600 9px -apple-system,sans-serif';
+      ctx.fillStyle='rgba(255,255,255,0.85)';
+      ctx.fillText(w.n,dx,dy+bob+14);
+      const near=players.some(pl=>!pl.dead&&dist(pl.x,pl.y,d.x,d.y)<32);
+      if(near){
+        ctx.fillStyle='#E8821A';
+        ctx.font='700 9px -apple-system,sans-serif';
+        ctx.fillText('按 E 拾取',dx,dy+bob+26);
+      }
+      ctx.textAlign='left';
     }
-    ctx.textAlign='left';
   }
 }
 function drawOrbs(){
@@ -1224,8 +1324,11 @@ function drawOrbs(){
 function drawBullets(){
   for(const b of bullets){
     const bx=px(b.x-cam.x),by=px(b.y-cam.y);
-    ctx.fillStyle=b.col+'55';
+    if(bx<-20||bx>VW+20||by<-20||by>VH+20)continue;
+    ctx.globalAlpha=.35;
+    ctx.fillStyle=b.col;
     ctx.beginPath();ctx.arc(bx,by,b.r*2,0,TAU);ctx.fill();
+    ctx.globalAlpha=1;
     ctx.fillStyle=b.col;
     ctx.beginPath();ctx.arc(bx,by,b.r,0,TAU);ctx.fill();
     ctx.fillStyle='rgba(255,255,255,0.8)';
@@ -1248,57 +1351,50 @@ function drawFX(){
   }
   ctx.textAlign='left';ctx.globalAlpha=1;
   for(const r of rings){
-    ctx.globalAlpha=r.t*2;
+    ctx.globalAlpha=Math.max(0,r.t*2);
     ctx.strokeStyle=r.col;ctx.lineWidth=2.5;
     ctx.beginPath();ctx.arc(px(r.x-cam.x),px(r.y-cam.y),r.r,0,TAU);ctx.stroke();
   }
   ctx.globalAlpha=1;
-  // melee swings
-  for(const ms of [meleeSwing,meleeSwing2]){
-    if(ms&&ms.t>0){
-      ctx.globalAlpha=ms.t/.14;
-      ctx.strokeStyle='#fff';ctx.lineWidth=3;
-      ctx.beginPath();
-      ctx.arc(px(P.x-cam.x),px(P.y-cam.y),ms.range*.85,ms.ang-.7,ms.ang+.7);
-      ctx.stroke();
-      ms.t-=1/60;
-      ctx.globalAlpha=1;
-    }
+  for(const ms of fxSwings){
+    ctx.globalAlpha=Math.max(0,ms.t/.14);
+    ctx.strokeStyle='#fff';ctx.lineWidth=3;
+    ctx.beginPath();
+    ctx.arc(px(ms.pl.x-cam.x),px(ms.pl.y-cam.y),ms.range*.85,ms.ang-.7,ms.ang+.7);
+    ctx.stroke();
+    ctx.globalAlpha=1;
   }
-  if(muzzle&&muzzle.t>0){
+  for(const mz of muzzles){
     ctx.fillStyle='#FFD60A';
-    ctx.beginPath();ctx.arc(px(muzzle.x-cam.x),px(muzzle.y-cam.y),5,0,TAU);ctx.fill();
-    muzzle.t-=1/60;
+    ctx.beginPath();ctx.arc(px(mz.x-cam.x),px(mz.y-cam.y),5,0,TAU);ctx.fill();
   }
 }
 
-// boss HP bar at top of screen
 function drawBossBar(){
-  const room=roomAt(P.x,P.y);
-  if(!boss||boss.dead||!room||room.type!=='boss'||!room.visited)return;
+  if(!boss||boss.dead)return;
+  const inBossRoom=players.some(pl=>{
+    const r=roomAt(pl.x,pl.y);
+    return r&&r.type==='boss'&&r.visited;
+  });
+  if(!inBossRoom)return;
   const bw=Math.min(420,VW*.55),bx=(VW-bw)/2,by=44;
   ctx.fillStyle='rgba(10,10,16,0.7)';
-  roundRect(bx-12,by-20,bw+24,40,12);ctx.fill();
+  roundRect2(bx-12,by-20,bw+24,40,12);ctx.fill();
   ctx.font='700 11px -apple-system,sans-serif';
   ctx.fillStyle='rgba(255,255,255,0.9)';ctx.textAlign='center';
   ctx.fillText(boss.name+'  ·  PHASE '+boss.phase,VW/2,by-5);
   ctx.fillStyle='rgba(255,255,255,0.1)';
-  roundRect(bx,by+2,bw,7,4);ctx.fill();
-  const pc=boss.hp/boss.maxHp;
+  roundRect2(bx,by+2,bw,7,4);ctx.fill();
+  const pc=Math.max(0,boss.hp/boss.maxHp);
   const grd=ctx.createLinearGradient(bx,0,bx+bw,0);
   grd.addColorStop(0,boss.phase===3?'#FF453A':boss.col);
   grd.addColorStop(1,'#FF6B9D');
   ctx.fillStyle=grd;
-  roundRect(bx,by+2,Math.max(4,bw*pc),7,4);ctx.fill();
+  roundRect2(bx,by+2,Math.max(4,bw*pc),7,4);ctx.fill();
   ctx.textAlign='left';
 }
-function roundRect(x,y,w,h,r){
-  ctx.beginPath();
-  ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
-  ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();
-}
 
-// ── HUD DOM updates ──────────────────────────────
+// ── HUD ──
 function pipRow(el,cur,max,onCls,offCls){
   let h='';
   for(let i=0;i<max;i++)h+='<div class="pip '+(i<cur?onCls:offCls)+'"></div>';
@@ -1307,36 +1403,45 @@ function pipRow(el,cur,max,onCls,offCls){
 let hudT=0;
 function updateHUD(dt){
   hudT+=dt; if(hudT<.08)return; hudT=0;
-  pipRow(document.getElementById('hpPips'),P.hp,P.maxHp,'hp-on','hp-off');
-  pipRow(document.getElementById('arPips'),P.armor,P.maxArmor,'ar-on','ar-off');
-  document.getElementById('mpBar').style.width=(P.en/P.maxEn*100)+'%';
-  document.getElementById('mpNum').textContent=Math.round(P.en);
-  // skill button
-  const sb=document.getElementById('skillBtn');
-  if(P.skillT>0){sb.className='cd';sb.querySelector('.lbl').textContent=P.skillT.toFixed(0)+'s';}
-  else if(P.skillCd>0){sb.className='cd';sb.querySelector('.lbl').textContent=Math.ceil(P.skillCd)+'s';}
-  else{sb.className='ready';sb.querySelector('.lbl').textContent='火力全開';}
+  const p1=players[0];
+  if(p1){
+    pipRow(document.getElementById('hpPips'),p1.hp,p1.maxHp,'hp-on','hp-off');
+    pipRow(document.getElementById('arPips'),p1.armor,p1.maxArmor,'ar-on','ar-off');
+    document.getElementById('mpBar').style.width=(p1.en/p1.maxEn*100)+'%';
+    document.getElementById('mpNum').textContent=Math.round(p1.en);
+    const sb=document.getElementById('skillBtn');
+    if(p1.skillT>0){sb.className='cd';sb.querySelector('.lbl').textContent=p1.skillT.toFixed(0)+'s';}
+    else if(p1.skillCd>0){sb.className='cd';sb.querySelector('.lbl').textContent=Math.ceil(p1.skillCd)+'s';}
+    else{sb.className='ready';sb.querySelector('.lbl').textContent=p1.char.skillN;}
+  }
+  const p2=players[1];
+  if(p2){
+    pipRow(document.getElementById('hpPips2'),p2.hp,p2.maxHp,'hp-on','hp-off');
+    pipRow(document.getElementById('arPips2'),p2.armor,p2.maxArmor,'ar-on','ar-off');
+    document.getElementById('mpBar2').style.width=(p2.en/p2.maxEn*100)+'%';
+    document.getElementById('mpNum2').textContent=Math.round(p2.en);
+  }
   drawMinimap();
 }
-function updateWpnCard(){
-  const w=P.wpn;
+function updateWpnCard(pl){
+  const w=pl.wpn;
   document.getElementById('wpnIcon').textContent=w.ico;
   document.getElementById('wpnName').textContent=w.n;
   document.getElementById('wpnSub').textContent=
     w.type==='melee'?('傷害 '+w.dmg+' · 近戰 · 免能量'):('傷害 '+w.dmg+' · 能量 '+w.en);
 }
-document.getElementById('skillBtn').addEventListener('click',useSkill);
-document.getElementById('skillBtn').addEventListener('touchstart',e=>{e.preventDefault();useSkill();},{passive:false});
+document.getElementById('skillBtn').addEventListener('click',()=>useSkill(players[0]));
+document.getElementById('skillBtn').addEventListener('touchstart',e=>{e.preventDefault();useSkill(players[0]);},{passive:false});
 
-// minimap: room layout in glass card
 const mmc=document.getElementById('mmc'),mmx=mmc.getContext('2d');
 function drawMinimap(){
   mmx.clearRect(0,0,120,90);
   const cw=20,ch=14,gx=2,gy=2;
+  const p1room=players[0]?roomAt(players[0].x,players[0].y):null;
   for(const r of rooms){
     if(!r.visited&&r.type!=='boss')continue;
     const x=6+r.cx*(cw+gx),y=4+r.cy*(ch+gy);
-    const cur=roomAt(P.x,P.y)===r;
+    const cur=p1room===r;
     mmx.fillStyle=cur?'#E8821A':
       r.type==='boss'?(r.cleared?'rgba(52,199,89,0.7)':'rgba(255,69,58,0.65)'):
       r.cleared?'rgba(255,255,255,0.3)':'rgba(255,255,255,0.14)';
@@ -1350,7 +1455,6 @@ function drawMinimap(){
   }
 }
 
-// ── Toast ──────────────────────────────
 let toastT=null;
 function toast(msg){
   const t=document.getElementById('toast');
@@ -1359,15 +1463,15 @@ function toast(msg){
   toastT=setTimeout(()=>t.classList.remove('on'),1800);
 }
 
-// ── Buffs (Soul Knight blessing picks) ──────────────────────────────
+// ── Buffs (apply to ALL players) ──
 const BUFFS=[
-  {ico:'❤️', n:'生命強化', d:'最大生命 +2，並完全回復', fn:()=>{P.maxHp+=2;P.hp=P.maxHp;}},
-  {ico:'🛡', n:'護甲強化', d:'最大護甲 +2', fn:()=>{P.maxArmor+=2;P.armor=P.maxArmor;}},
-  {ico:'⚡', n:'能量擴充', d:'最大能量 +80', fn:()=>{P.maxEn+=80;P.en=P.maxEn;}},
-  {ico:'🗡', n:'傷害提升', d:'所有傷害 +30%', fn:()=>{P.dmgMul*=1.3;}},
-  {ico:'👟', n:'疾風步伐', d:'移動速度 +18%', fn:()=>{P.spdMul*=1.18;}},
-  {ico:'🎯', n:'暴擊專精', d:'暴擊率 +15%', fn:()=>{P.crit+=.15;}},
-  {ico:'🔋', n:'即刻充能', d:'立即回滿能量與護甲', fn:()=>{P.en=P.maxEn;P.armor=P.maxArmor;}},
+  {ico:'❤️', n:'生命強化', d:'最大生命 +2，並完全回復', fn:pl=>{pl.maxHp+=2;pl.hp=pl.maxHp;}},
+  {ico:'🛡', n:'護甲強化', d:'最大護甲 +2', fn:pl=>{pl.maxArmor+=2;pl.armor=pl.maxArmor;}},
+  {ico:'⚡', n:'能量擴充', d:'最大能量 +80', fn:pl=>{pl.maxEn+=80;pl.en=pl.maxEn;}},
+  {ico:'🗡', n:'傷害提升', d:'所有傷害 +30%', fn:pl=>{pl.dmgMul*=1.3;}},
+  {ico:'👟', n:'疾風步伐', d:'移動速度 +18%', fn:pl=>{pl.spdMul*=1.18;}},
+  {ico:'🎯', n:'暴擊專精', d:'暴擊率 +15%', fn:pl=>{pl.crit+=.15;}},
+  {ico:'🔋', n:'即刻充能', d:'立即回滿能量與護甲', fn:pl=>{pl.en=pl.maxEn;pl.armor=pl.maxArmor;}},
 ];
 function showBuffs(){
   const ov=document.getElementById('buffOv');
@@ -1379,7 +1483,8 @@ function showBuffs(){
     c.className='buff-card';
     c.innerHTML='<div class="b-ico">'+b.ico+'</div><div class="b-name">'+b.n+'</div><div class="b-desc">'+b.d+'</div>';
     c.onclick=()=>{
-      b.fn(); SFX.buff(); ov.classList.remove('on');
+      for(const pl of players)b.fn(pl);
+      SFX.buff(); ov.classList.remove('on');
       nextFloor();
     };
     wrap.appendChild(c);
@@ -1387,18 +1492,22 @@ function showBuffs(){
   ov.classList.add('on');
 }
 
-// ── Floor flow ──────────────────────────────
-let floorIdx=0, score=0, state='menu';
+// ── Floor flow ──
+let score=0, state='menu';
 const FLOOR_LABELS=['1-1','2-1','3-1'];
-
 function startFloor(){
   genFloor(floorIdx);
-  corridorRects=corridors();
+  buildCorridors();
   boss=null;
   bullets.length=0;orbs.length=0;parts.length=0;dmgNums.length=0;rings.length=0;
+  fxSwings.length=0;muzzles.length=0;
   const start=rooms[0];
-  P.x=start.x+start.w/2; P.y=start.y+start.h/2;
-  cam.x=P.x-VW/2; cam.y=P.y-VH/2;
+  players.forEach((pl,i)=>{
+    pl.x=start.x+start.w/2+(i*26-13*(players.length-1));
+    pl.y=start.y+start.h/2;
+    pl.dead=false;
+  });
+  cam.x=players[0].x-VW/2; cam.y=players[0].y-VH/2;
   document.getElementById('floorNum').textContent=FLOOR_LABELS[floorIdx]||(floorIdx+1);
   document.getElementById('floorName').textContent=THEMES[floorIdx].name;
   toast('🏰 '+THEMES[floorIdx].name);
@@ -1416,45 +1525,119 @@ function endGame(win){
   const ov=document.getElementById('overOv');
   document.getElementById('ovEyebrow').textContent=win?'Victory':'Game Over';
   document.getElementById('ovEyebrow').style.color=win?'#34C759':'#FF453A';
-  document.getElementById('ovTitle').textContent=win?'奪回魔法石！':'騎士倒下了';
+  document.getElementById('ovTitle').textContent=win?'奪回魔法石！':'全員陣亡';
   document.getElementById('ovDesc').textContent=win
     ?('三層地牢全部攻克 · 最終分數 '+score)
     :('止步於 '+THEMES[floorIdx].name+' · 分數 '+score);
   ov.classList.add('on');
 }
 
+// ── Character select flow (FIX 1) ──
+let coopMode=false, picked=[];
+const spHome=document.getElementById('spHome');
+const spChars=document.getElementById('spChars');
+const pickLabel=document.getElementById('pickLabel');
+const charGrid=document.getElementById('charGrid');
+
+function drawCharPreview(canvas,c){
+  const x=canvas.getContext('2d');
+  x.imageSmoothingEnabled=false;
+  x.clearRect(0,0,40,40);
+  // legs
+  x.fillStyle='#3A3A45';x.fillRect(14,32,5,5);x.fillRect(21,32,5,5);
+  // body
+  x.fillStyle=c.armor;x.fillRect(12,22,16,10);
+  x.fillStyle=c.armorD;x.fillRect(12,29,16,3);
+  // scarf
+  x.fillStyle=c.scarf;x.fillRect(10,20,20,4);x.fillRect(4,21,7,3);
+  // head
+  x.fillStyle='#F2D4B0';x.fillRect(10,6,20,15);
+  // hat
+  if(c.hat==='helmet'){
+    x.fillStyle='#D4D8E4';x.fillRect(8,3,24,8);x.fillRect(8,3,4,15);x.fillRect(28,3,4,15);
+    x.fillStyle='rgba(255,255,255,0.5)';x.fillRect(13,4,5,2.5);
+  }else if(c.hat==='wizard'){
+    x.fillStyle=c.armor;x.fillRect(6,5,28,4);
+    x.beginPath();x.moveTo(11,5);x.lineTo(29,5);x.lineTo(21,-6);x.closePath();x.fill();
+    x.fillStyle=c.scarf;x.fillRect(11,3,18,2.5);
+  }else if(c.hat==='hood'){
+    x.fillStyle=c.scarf;x.fillRect(8,3,24,7);x.fillRect(8,3,4,14);x.fillRect(28,3,4,14);
+    x.fillStyle='rgba(0,0,0,0.25)';x.fillRect(12,9,16,2.5);
+  }else{
+    x.fillStyle=c.armor;x.fillRect(8,3,24,6);x.fillRect(26,6,10,3.5);
+    x.fillStyle=c.scarf;x.fillRect(8,8,24,2.5);
+  }
+  // eyes
+  x.fillStyle='#22232B';x.fillRect(15,13,3.5,5);x.fillRect(23,13,3.5,5);
+  x.fillStyle='#fff';x.fillRect(15.5,13.5,1.4,1.4);x.fillRect(23.5,13.5,1.4,1.4);
+}
+
+function buildCharGrid(){
+  charGrid.innerHTML='';
+  Object.values(CHARS).forEach(c=>{
+    const card=document.createElement('div');
+    card.className='char-card';
+    card.innerHTML=
+      '<canvas width="40" height="40"></canvas>'+
+      '<div class="c-name">'+c.n+'</div>'+
+      '<div class="c-skill">'+c.skillIco+' '+c.skillN+'</div>'+
+      '<div class="c-desc">'+c.skillD+'</div>'+
+      '<div class="c-stats"><span>❤️'+c.hp+'</span><span>🛡'+c.ar+'</span><span>⚡'+c.en+'</span></div>';
+    drawCharPreview(card.querySelector('canvas'),c);
+    card.onclick=()=>{
+      picked.push(c.id);
+      SFX.pick();
+      if(!coopMode||picked.length===2){
+        startGame();
+      }else{
+        pickLabel.textContent='P2 選擇角色（方向鍵 + L/K）';
+      }
+    };
+    charGrid.appendChild(card);
+  });
+}
+
+document.getElementById('soloBtn').onclick=()=>{
+  coopMode=false;picked=[];
+  pickLabel.textContent='選擇角色';
+  buildCharGrid();
+  spHome.style.display='none';spChars.style.display='block';
+};
+document.getElementById('coopBtn').onclick=()=>{
+  coopMode=true;picked=[];
+  pickLabel.textContent='P1 選擇角色（WASD + 滑鼠）';
+  buildCharGrid();
+  spHome.style.display='none';spChars.style.display='block';
+};
+document.getElementById('backBtn').onclick=()=>{
+  spChars.style.display='none';spHome.style.display='block';
+};
+
 function startGame(){
   document.getElementById('splash').classList.remove('on');
   document.getElementById('overOv').classList.remove('on');
-  resetPlayer();
+  spChars.style.display='none';spHome.style.display='block';
+  players=picked.map((id,i)=>makePlayer(id,i));
+  document.getElementById('hud2').style.display=players.length>1?'flex':'none';
+  document.getElementById('skillBtn').querySelector('.ico').textContent=players[0].char.skillIco;
   floorIdx=0;score=0;state='play';
-  updateWpnCard();
+  updateWpnCard(players[0]);
   startFloor();
   if(ac()&&AC.state==='suspended')AC.resume();
 }
-document.getElementById('startBtn').onclick=startGame;
-document.getElementById('againBtn').onclick=startGame;
+document.getElementById('againBtn').onclick=()=>{
+  document.getElementById('overOv').classList.remove('on');
+  picked=players.map(p=>p.char.id);
+  startGame();
+};
 document.getElementById('quitBtn').onclick=()=>{
-  // tell parent (Fabrica) to close the game overlay
   try{window.parent.postMessage({type:'fabrica-game-close'},'*');}catch(e){}
 };
 
-// ── Hero preview on splash ──────────────────────────────
-(function heroPrev(){
-  const c=document.getElementById('heroPrev'),x=c.getContext('2d');
-  x.imageSmoothingEnabled=false;
-  // mini chibi knight 40x40
-  x.fillStyle='#3A3A45';x.fillRect(14,30,5,6);x.fillRect(21,30,5,6);
-  x.fillStyle='#C5C9D6';x.fillRect(12,20,16,11);
-  x.fillStyle='#FF4F2E';x.fillRect(10,18,20,5);x.fillRect(4,19,7,4);
-  x.fillStyle='#F2D4B0';x.fillRect(10,4,20,16);
-  x.fillStyle='#D4D8E4';x.fillRect(8,2,24,8);x.fillRect(8,2,4,15);x.fillRect(28,2,4,15);
-  x.fillStyle='rgba(255,255,255,0.5)';x.fillRect(13,3,5,2.5);
-  x.fillStyle='#22232B';x.fillRect(15,11,3.5,5);x.fillRect(23,11,3.5,5);
-  x.fillStyle='#fff';x.fillRect(15.5,11.5,1.4,1.4);x.fillRect(23.5,11.5,1.4,1.4);
-})();
+// splash hero preview
+drawCharPreview(document.getElementById('heroPrev'),CHARS.knight);
 
-// ── Main loop ──────────────────────────────
+// ── Main loop ──
 let last=performance.now();
 function loop(now){
   requestAnimationFrame(loop);
@@ -1462,15 +1645,37 @@ function loop(now){
   if(state!=='play')return;
 
   // ticks
-  tickPlayer(dt);
-  const curRoom=roomAt(P.x,P.y);
-  if(curRoom){
-    enterRoom(curRoom);
-    for(const e of curRoom.enemies){
-      if(e.isBoss)tickBoss(e,dt,curRoom);
-      else tickEnemy(e,dt,curRoom);
+  for(const pl of players)tickPlayer(pl,dt);
+  if(K.Space&&!K._sp1)useSkill(players[0]);
+  K._sp1=K.Space;
+  if(K.KeyK&&!K._sp2&&players[1])useSkill(players[1]);
+  K._sp2=K.KeyK;
+  if(K.KeyE&&!K._e)tryPickup();
+  K._e=K.KeyE;
+
+  // room visits (any player triggers)
+  const activeRooms=new Set();
+  for(const pl of players){
+    if(pl.dead)continue;
+    const r=roomAt(pl.x,pl.y);
+    if(r){enterRoom(r);activeRooms.add(r);}
+  }
+  // locked room clamp: pull ALL alive players inside
+  const lockedRoom=rooms.find(r=>r.locked);
+  if(lockedRoom){
+    activeRooms.add(lockedRoom);
+    for(const pl of players){
+      if(pl.dead)continue;
+      pl.x=clamp(pl.x,lockedRoom.x+TILE+pl.r,lockedRoom.x+lockedRoom.w-TILE-pl.r);
+      pl.y=clamp(pl.y,lockedRoom.y+TILE+pl.r,lockedRoom.y+lockedRoom.h-TILE-pl.r);
     }
-    checkRoomClear(curRoom);
+  }
+  for(const r of activeRooms){
+    for(const e of r.enemies){
+      if(e.isBoss)tickBoss(e,dt,r);
+      else tickEnemy(e,dt,r);
+    }
+    checkRoomClear(r);
   }
   tickBullets(dt);
   tickOrbs(dt);
@@ -1480,29 +1685,26 @@ function loop(now){
 
   // render
   const sx2=(Math.random()-.5)*shakeAmt*10,sy2=(Math.random()-.5)*shakeAmt*10;
-  ctx.save();
   ctx.clearRect(0,0,VW,VH);
   ctx.fillStyle='#0c0c14';
   ctx.fillRect(0,0,VW,VH);
+  ctx.save();
   ctx.translate(sx2,sy2);
   drawWorld();
-  if(curRoom)drawDrops(curRoom);
+  drawDrops();
   drawOrbs();
-  // enemies in nearby rooms
-  for(const r of rooms){
-    if(Math.abs(r.x-cam.x)>VW*1.5||Math.abs(r.y-cam.y)>VH*1.5)continue;
-    for(const e of r.enemies)drawEnemy(e);
-  }
+  for(const r of activeRooms)for(const e of r.enemies)drawEnemy(e);
   drawBullets();
-  drawKnight(px(P.x-cam.x),px(P.y-cam.y));
+  for(const pl of players)drawHero(pl);
   drawFX();
   ctx.restore();
   drawBossBar();
 
-  // vignette
   const vg=ctx.createRadialGradient(VW/2,VH/2,VH*.42,VW/2,VH/2,VH*.85);
   vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,0.4)');
   ctx.fillStyle=vg;ctx.fillRect(0,0,VW,VH);
+
+  drawCrosshair();
 }
 requestAnimationFrame(loop);
 </script>
